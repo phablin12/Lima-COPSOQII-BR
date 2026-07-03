@@ -1,0 +1,6 @@
+{
+  "name": "Lima Engenharia Workspace",
+  "description": "Sistema profissional de elaboração de relatórios de riscos psicossociais utilizando a metodologia COPSOQ II - BR, incluindo inventário de riscos SST e planos de ação integrados.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
