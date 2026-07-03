@@ -8,11 +8,18 @@ import { Building, Plus, Trash2, Edit2, Check, X, ShieldCheck } from "lucide-rea
 
 interface Company {
   id: string;
-  name: string;
-  cnpj: string;
-  address?: string;
-  riskDegree?: number;
+  fantasyName?: string; // Nome Fantasia
+  name: string; // Razão Social
+  cnpj: string; // CNPJ / CAEPF
   cnae?: string;
+  riskDegree?: number;
+  address?: string; // Logradouro / Endereço
+  number?: string; // Número
+  sector?: string; // Setor / Atividade
+  cep?: string; // CEP
+  bairro?: string; // Bairro
+  city?: string; // Cidade
+  state?: string; // Estado (UF)
   logo?: string; // Base64 logo
 }
 
@@ -21,24 +28,47 @@ interface CompaniesRegistryProps {
   onUpdateCompanies: (companies: Company[]) => void;
 }
 
+const ESTADOS_BRASILEIROS = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", 
+  "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", 
+  "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+];
+
 export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
   companies,
   onUpdateCompanies,
 }) => {
+  // Form states for creating
+  const [fantasyName, setFantasyName] = useState("");
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
-  const [address, setAddress] = useState("");
-  const [riskDegree, setRiskDegree] = useState<string>("1");
   const [cnae, setCnae] = useState("");
+  const [riskDegree, setRiskDegree] = useState<string>("1");
+  const [address, setAddress] = useState("");
+  const [number, setNumber] = useState("");
+  const [sector, setSector] = useState("");
+  const [cep, setCep] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("SP");
   const [logo, setLogo] = useState<string>("");
 
+  // Edit states
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editFantasyName, setEditFantasyName] = useState("");
   const [editName, setEditName] = useState("");
   const [editCnpj, setEditCnpj] = useState("");
-  const [editAddress, setEditAddress] = useState("");
-  const [editRiskDegree, setEditRiskDegree] = useState<string>("1");
   const [editCnae, setEditCnae] = useState("");
+  const [editRiskDegree, setEditRiskDegree] = useState<string>("1");
+  const [editAddress, setEditAddress] = useState("");
+  const [editNumber, setEditNumber] = useState("");
+  const [editSector, setEditSector] = useState("");
+  const [editCep, setEditCep] = useState("");
+  const [editBairro, setEditBairro] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("SP");
   const [editLogo, setEditLogo] = useState<string>("");
+
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
@@ -71,26 +101,56 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
     setEditCnae(formatCnae(e.target.value));
   };
 
+  const formatCep = (val: string) => {
+    const digits = val.replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 5) return digits;
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  };
+
+  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCep(formatCep(e.target.value));
+  };
+
+  const handleEditCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditCep(formatCep(e.target.value));
+  };
+
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
     const newCompany: Company = {
       id: "comp-" + Date.now(),
+      fantasyName: fantasyName.trim(),
       name: name.trim(),
       cnpj: cnpj.trim(),
-      address: address.trim(),
-      riskDegree: parseInt(riskDegree) || 1,
       cnae: cnae.trim(),
+      riskDegree: parseInt(riskDegree) || 1,
+      address: address.trim(),
+      number: number.trim(),
+      sector: sector.trim(),
+      cep: cep.trim(),
+      bairro: bairro.trim(),
+      city: city.trim(),
+      state: state,
       logo: logo || undefined,
     };
 
     onUpdateCompanies([...companies, newCompany]);
+    
+    // Reset form
+    setFantasyName("");
     setName("");
     setCnpj("");
-    setAddress("");
-    setRiskDegree("1");
     setCnae("");
+    setRiskDegree("1");
+    setAddress("");
+    setNumber("");
+    setSector("");
+    setCep("");
+    setBairro("");
+    setCity("");
+    setState("SP");
     setLogo("");
   };
 
@@ -100,11 +160,18 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
 
   const startEdit = (company: Company) => {
     setEditingId(company.id);
+    setEditFantasyName(company.fantasyName || "");
     setEditName(company.name);
     setEditCnpj(company.cnpj);
-    setEditAddress(company.address || "");
-    setEditRiskDegree((company.riskDegree || 1).toString());
     setEditCnae(company.cnae || "");
+    setEditRiskDegree((company.riskDegree || 1).toString());
+    setEditAddress(company.address || "");
+    setEditNumber(company.number || "");
+    setEditSector(company.sector || "");
+    setEditCep(company.cep || "");
+    setEditBairro(company.bairro || "");
+    setEditCity(company.city || "");
+    setEditState(company.state || "SP");
     setEditLogo(company.logo || "");
   };
 
@@ -115,11 +182,18 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
         c.id === editingId
           ? {
               ...c,
+              fantasyName: editFantasyName.trim(),
               name: editName.trim(),
               cnpj: editCnpj.trim(),
-              address: editAddress.trim(),
-              riskDegree: parseInt(editRiskDegree) || 1,
               cnae: editCnae.trim(),
+              riskDegree: parseInt(editRiskDegree) || 1,
+              address: editAddress.trim(),
+              number: editNumber.trim(),
+              sector: editSector.trim(),
+              cep: editCep.trim(),
+              bairro: editBairro.trim(),
+              city: editCity.trim(),
+              state: editState,
               logo: editLogo || undefined,
             }
           : c
@@ -136,38 +210,54 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
           Cadastro de Empresas Clientes
         </h3>
         <p className="text-xs text-slate-500 mt-1">
-          Registre as empresas uma única vez para poder selecioná-las e preencher automaticamente os dados do laudo psicossocial.
+          Registre as empresas clientes com dados separados para preenchimento ágil nos relatórios de riscos psicossociais.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Formulador */}
-        <form onSubmit={handleAdd} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-4 h-fit space-y-4">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        
+        {/* Formulário de Cadastro */}
+        <form onSubmit={handleAdd} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs xl:col-span-5 h-fit space-y-4">
           <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
             <Plus className="w-4 h-4 text-slate-600" /> Nova Empresa
           </h4>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Razão Social</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Metalúrgica Beta S/A"
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">CNPJ</label>
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome Fantasia</label>
               <input
                 type="text"
+                required
+                value={fantasyName}
+                onChange={(e) => setFantasyName(e.target.value)}
+                placeholder="Ex: Filial Sul"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Razão Social</label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Metalúrgica Beta Ltda"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">CNPJ / CAEPF</label>
+              <input
+                type="text"
+                required
                 value={cnpj}
                 onChange={(e) => setCnpj(e.target.value)}
                 placeholder="Ex: 12.345.678/0001-99"
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
               />
             </div>
 
@@ -178,56 +268,134 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                 value={cnae}
                 onChange={handleCnaeChange}
                 placeholder="Ex: 1234-5/67"
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
-            <div className="space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1 sm:col-span-1">
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Grau de Risco</label>
               <select
                 value={riskDegree}
                 onChange={(e) => setRiskDegree(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
               >
-                <option value="1">Grau de Risco 1</option>
-                <option value="2">Grau de Risco 2</option>
-                <option value="3">Grau de Risco 3</option>
-                <option value="4">Grau de Risco 4</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
               </select>
+            </div>
+
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Setor / Atividade</label>
+              <input
+                type="text"
+                value={sector}
+                onChange={(e) => setSector(e.target.value)}
+                placeholder="Ex: Produção Pesada"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+              />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Endereço Completo</label>
-            <textarea
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Ex: Av. das Indústrias, 1500 - Bloco B, Porto Alegre - RS"
-              rows={2}
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white resize-none"
-            />
+          {/* Endereço Detalhado */}
+          <div className="border-t border-slate-100 pt-3 space-y-4">
+            <span className="text-[10px] font-black uppercase text-slate-400 block tracking-widest">Endereço da Empresa</span>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="space-y-1 sm:col-span-3">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Logradouro / Endereço</label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Ex: Av. das Palmeiras"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-1">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Número</label>
+                <input
+                  type="text"
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                  placeholder="Ex: 500-A"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">CEP</label>
+                <input
+                  type="text"
+                  value={cep}
+                  onChange={handleCepChange}
+                  placeholder="Ex: 78250-000"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Bairro</label>
+                <input
+                  type="text"
+                  value={bairro}
+                  onChange={(e) => setBairro(e.target.value)}
+                  placeholder="Ex: Centro"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-12 gap-2">
+                <div className="col-span-8 space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Cidade</label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Cidade"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                  />
+                </div>
+                <div className="col-span-4 space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">UF</label>
+                  <select
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    className="w-full px-2 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
+                  >
+                    {ESTADOS_BRASILEIROS.map((uf) => (
+                      <option key={uf} value={uf}>{uf}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">Logo da Empresa (Capa e Relatórios)</label>
+          <div className="space-y-1 border-t border-slate-100 pt-3">
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block">Logo da Empresa</label>
             <div className="flex items-center gap-3">
               {logo ? (
-                <div className="relative w-16 h-16 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center">
+                <div className="relative w-14 h-14 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center">
                   <img src={logo} alt="Logo" className="max-w-full max-h-full object-contain" />
                   <button
                     type="button"
                     onClick={() => setLogo("")}
-                    className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-xs"
+                    className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-[10px] font-bold cursor-pointer"
                   >
-                    Remover
+                    Excluir
                   </button>
                 </div>
               ) : (
-                <label className="w-16 h-16 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50">
-                  <Plus className="w-5 h-5 text-slate-400" />
-                  <span className="text-[9px] text-slate-400 font-bold uppercase mt-1">Enviar</span>
+                <label className="w-14 h-14 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50">
+                  <Plus className="w-4 h-4 text-slate-400" />
+                  <span className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Logo</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -245,14 +413,14 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
 
           <button
             type="submit"
-            className="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium text-sm py-2 px-4 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            className="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs py-2.5 uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Cadastrar Empresa
           </button>
         </form>
 
-        {/* Lista */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-8 space-y-4">
+        {/* Lista de Empresas Cadastradas */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs xl:col-span-7 space-y-4">
           <h4 className="font-semibold text-slate-800 text-sm border-b border-slate-100 pb-3">
             Empresas Cadastradas ({companies.length})
           </h4>
@@ -262,12 +430,21 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
               Nenhuma empresa cadastrada ainda.
             </p>
           ) : (
-            <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto pr-1">
+            <div className="divide-y divide-slate-100 max-h-[750px] overflow-y-auto pr-1">
               {companies.map((company) => (
                 <div key={company.id} className="py-4 flex flex-col gap-2">
                   {editingId === company.id ? (
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Nome Fantasia</label>
+                          <input
+                            type="text"
+                            value={editFantasyName}
+                            onChange={(e) => setEditFantasyName(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
+                          />
+                        </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">Razão Social</label>
                           <input
@@ -277,8 +454,11 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                             className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
                           />
                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">CNPJ</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">CNPJ / CAEPF</label>
                           <input
                             type="text"
                             value={editCnpj}
@@ -286,9 +466,6 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                             className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
                           />
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">CNAE Principal</label>
                           <input
@@ -298,6 +475,9 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                             className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
                           />
                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">Grau de Risco</label>
                           <select
@@ -305,22 +485,84 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                             onChange={(e) => setEditRiskDegree(e.target.value)}
                             className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
                           >
-                            <option value="1">Grau de Risco 1</option>
-                            <option value="2">Grau de Risco 2</option>
-                            <option value="3">Grau de Risco 3</option>
-                            <option value="4">Grau de Risco 4</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
                           </select>
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Setor</label>
+                          <input
+                            type="text"
+                            value={editSector}
+                            onChange={(e) => setEditSector(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
+                          />
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Endereço Completo</label>
-                        <input
-                          type="text"
-                          value={editAddress}
-                          onChange={(e) => setEditAddress(e.target.value)}
-                          className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
-                        />
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="space-y-1 md:col-span-3">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Logradouro / Rua</label>
+                          <input
+                            type="text"
+                            value={editAddress}
+                            onChange={(e) => setEditAddress(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Número</label>
+                          <input
+                            type="text"
+                            value={editNumber}
+                            onChange={(e) => setEditNumber(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">CEP</label>
+                          <input
+                            type="text"
+                            value={editCep}
+                            onChange={handleEditCepChange}
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Bairro</label>
+                          <input
+                            type="text"
+                            value={editBairro}
+                            onChange={(e) => setEditBairro(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Cidade</label>
+                          <input
+                            type="text"
+                            value={editCity}
+                            onChange={(e) => setEditCity(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">UF</label>
+                          <select
+                            value={editState}
+                            onChange={(e) => setEditState(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded bg-white"
+                          >
+                            {ESTADOS_BRASILEIROS.map((uf) => (
+                              <option key={uf} value={uf}>{uf}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
 
                       <div className="space-y-1">
@@ -332,7 +574,7 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setEditLogo("")}
-                                className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-[10px]"
+                                className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-[10px] font-bold cursor-pointer"
                               >
                                 Excluir
                               </button>
@@ -368,7 +610,7 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-start justify-between gap-4 p-3 rounded-xl hover:bg-slate-50/80 border border-transparent hover:border-slate-100 transition-all">
+                    <div className="flex items-start justify-between gap-4 p-3.5 rounded-xl hover:bg-slate-50/80 border border-transparent hover:border-slate-100 transition-all">
                       {company.logo && (
                         <div className="w-12 h-12 border border-slate-150 rounded-lg overflow-hidden shrink-0 bg-slate-50 flex items-center justify-center">
                           <img src={company.logo} alt="Logo" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
@@ -376,6 +618,11 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                       )}
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
+                          {company.fantasyName && (
+                            <span className="text-[10px] font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
+                              {company.fantasyName}
+                            </span>
+                          )}
                           <h5 className="font-bold text-slate-800 text-sm truncate">{company.name}</h5>
                           <span className="text-[10px] font-extrabold text-slate-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase shrink-0">
                             GR {company.riskDegree || 1}
@@ -384,20 +631,29 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
 
                         <div className="flex flex-wrap gap-2 text-[10px] font-mono font-medium text-slate-500">
                           {company.cnpj && (
-                            <span className="bg-slate-100 px-2 py-0.5 rounded">
-                              CNPJ: {company.cnpj}
+                            <span className="bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">
+                              CNPJ/CAEPF: {company.cnpj}
                             </span>
                           )}
                           {company.cnae && (
-                            <span className="bg-slate-100 px-2 py-0.5 rounded">
+                            <span className="bg-slate-50 border border-slate-100 px-2 py-0.5 rounded">
                               CNAE: {company.cnae}
+                            </span>
+                          )}
+                          {company.sector && (
+                            <span className="bg-slate-50 border border-slate-100 px-2 py-0.5 rounded uppercase text-[9px] font-bold">
+                              Setor: {company.sector}
                             </span>
                           )}
                         </div>
 
-                        {company.address && (
+                        {(company.address || company.city) && (
                           <p className="text-xs text-slate-500 leading-tight">
-                            <span className="font-semibold text-slate-700">Endereço:</span> {company.address}
+                            <span className="font-semibold text-slate-700">Endereço:</span>{" "}
+                            {company.address ? `${company.address}, ${company.number || "s/n"}` : ""}{" "}
+                            {company.bairro ? ` - ${company.bairro}` : ""}{" "}
+                            {company.city ? ` - ${company.city}/${company.state || "SP"}` : ""}{" "}
+                            {company.cep ? ` (CEP: ${company.cep})` : ""}
                           </p>
                         )}
                       </div>
@@ -448,6 +704,7 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

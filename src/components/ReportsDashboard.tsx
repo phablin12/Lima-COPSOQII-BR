@@ -14,6 +14,7 @@ interface ReportsDashboardProps {
   onCreateReport: (newReport: Report) => void;
   onDeleteReport: (id: string) => void;
   onUpdateAllReports: (reports: Report[]) => void;
+  defaultCoverImage?: string;
 }
 
 export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
@@ -22,6 +23,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   onCreateReport,
   onDeleteReport,
   onUpdateAllReports,
+  defaultCoverImage,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       id: "rep-" + Date.now(),
       companyName: "Nova Empresa S/A",
       cnpj: "",
+      coverImage: defaultCoverImage || "",
       dateStart: new Date().toISOString().split("T")[0],
       dateEnd: new Date().toISOString().split("T")[0],
       professionalName: "",
@@ -79,13 +82,19 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   // Export report as a JSON file
   const handleExportReport = (report: Report, e: React.MouseEvent) => {
     e.stopPropagation();
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(report, null, 2));
+    const jsonString = JSON.stringify(report, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
     const downloadAnchor = document.createElement("a");
-    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("href", url);
     downloadAnchor.setAttribute("download", `Relatorio_Psicossocial_${report.companyName.replace(/\s+/g, "_")}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    // Delay revocation slightly so the browser triggers the download successfully
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 100);
   };
 
   // Trigger JSON file input upload

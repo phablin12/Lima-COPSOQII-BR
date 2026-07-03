@@ -18,6 +18,7 @@ import { ReportPrintPreview } from "./components/ReportPrintPreview";
 import { CompaniesRegistry } from "./components/CompaniesRegistry";
 import { ProfessionalsRegistry } from "./components/ProfessionalsRegistry";
 import { ManagementDashboard } from "./components/ManagementDashboard";
+import { CompanyCustomization } from "./components/CompanyCustomization";
 import { 
   Shield, 
   ArrowLeft, 
@@ -67,10 +68,10 @@ export default function App() {
   const [reports, setReports] = useState<Report[]>([]);
   const [currentReportId, setCurrentReportId] = useState<string | null>(null);
   const [globalCatalog, setGlobalCatalog] = useState<CatalogRisk[]>([]);
-  const [companies, setCompanies] = useState<{ id: string; name: string; cnpj: string }[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<{ id: string; name: string; role: string; reg: string }[]>([]);
   const [activeTab, setActiveTab] = useState<string>("cadastro");
-  const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks">("dashboard");
+  const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization">("dashboard");
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">("synced");
   
@@ -438,6 +439,17 @@ export default function App() {
             </button>
           </div>
 
+          {/* Botão de Sair - Posicionado abaixo do Logotipo */}
+          <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/40">
+            <button
+              onClick={() => signOut(auth)}
+              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-[10px] font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-100 hover:border-rose-600 rounded-lg transition duration-200 cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
+              <span>Sair do Sistema</span>
+            </button>
+          </div>
+
           {/* ÁREA DE NAVEGAÇÃO INTERNA DO SIDEBAR */}
           <div className="p-4 space-y-6 overflow-y-auto">
             
@@ -614,24 +626,21 @@ export default function App() {
                     <BookOpen className="w-4 h-4 shrink-0" />
                     Biblioteca de Riscos (GRO)
                   </button>
+
+                  <button
+                    onClick={() => handleNavClick(() => setHomeTab("customization"))}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
+                      homeTab === "customization" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <Sliders className="w-4 h-4 shrink-0 text-slate-450" />
+                    Personalizar Empresa
+                  </button>
                 </div>
 
               </div>
             )}
           </div>
-        </div>
-
-        {/* Logout Section */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-          <button
-            onClick={() => {
-              signOut(auth);
-            }}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-100 hover:border-rose-600 rounded-xl transition duration-200 cursor-pointer shadow-2xs"
-          >
-            <LogOut className="w-4 h-4 shrink-0" />
-            <span>Sair da Conta</span>
-          </button>
         </div>
 
         {/* Rodapé do Sidebar */}
@@ -733,6 +742,7 @@ export default function App() {
                   onCreateReport={handleCreateReport}
                   onDeleteReport={handleDeleteReport}
                   onUpdateAllReports={saveReportsToStorage}
+                  defaultCoverImage={assessor.defaultCoverImage}
                 />
               )}
               {homeTab === "companies" && (
@@ -751,6 +761,12 @@ export default function App() {
                 <RiskCatalogEditor
                   catalog={globalCatalog}
                   onUpdateCatalog={handleUpdateCatalog}
+                />
+              )}
+              {homeTab === "customization" && (
+                <CompanyCustomization
+                  assessor={assessor}
+                  onUpdateAssessor={handleUpdateAssessor}
                 />
               )}
             </div>

@@ -47,10 +47,18 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
   const handleSelectCompany = (companyId: string) => {
     const chosen = companies.find((c) => c.id === companyId);
     if (chosen) {
+      // Build beautiful full address from separate fields if present
+      let finalAddress = chosen.address || "";
+      if (chosen.number) finalAddress += `, ${chosen.number}`;
+      if (chosen.bairro) finalAddress += ` - ${chosen.bairro}`;
+      if (chosen.city) finalAddress += `, ${chosen.city}`;
+      if (chosen.state) finalAddress += ` - ${chosen.state}`;
+      if (chosen.cep) finalAddress += ` (CEP: ${chosen.cep})`;
+
       onChange({
         companyName: chosen.name,
         cnpj: chosen.cnpj,
-        companyAddress: chosen.address || "",
+        companyAddress: finalAddress,
         companyRiskDegree: chosen.riskDegree || 1,
         companyCnae: chosen.cnae || "",
         companyLogo: chosen.logo || "",
@@ -635,12 +643,14 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                         {editingSectorId === sector.id ? (
                           <>
                             <button
+                              type="button"
                               onClick={() => handleSaveSectorEdit(sector.id)}
                               className="text-xs font-medium text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded hover:bg-emerald-100 transition cursor-pointer"
                             >
                               Salvar
                             </button>
                             <button
+                              type="button"
                               onClick={() => setEditingSectorId(null)}
                               className="text-xs font-medium text-slate-500 hover:text-slate-700 bg-slate-100 px-2.5 py-1 rounded hover:bg-slate-200 transition cursor-pointer"
                             >
@@ -650,6 +660,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                         ) : (
                           <>
                             <button
+                              type="button"
                               onClick={() => startEditingSector(sector)}
                               className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition cursor-pointer"
                               title="Editar Setor"
@@ -679,6 +690,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                               </div>
                             ) : (
                               <button
+                                type="button"
                                 onClick={() => setDeletingSectorId(sector.id)}
                                 className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                                 title="Excluir Setor"

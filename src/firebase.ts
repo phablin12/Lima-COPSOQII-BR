@@ -85,7 +85,7 @@ export async function loadReportsFromFirestore() {
 }
 
 // 2. Companies Sync Helpers
-export async function saveCompanyToFirestore(company: { id: string; name: string; cnpj: string }) {
+export async function saveCompanyToFirestore(company: any) {
   try {
     const docRef = doc(db, COMPANIES_COLLECTION, company.id);
     await setDoc(docRef, company);

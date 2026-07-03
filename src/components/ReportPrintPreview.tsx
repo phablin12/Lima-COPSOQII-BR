@@ -6,7 +6,7 @@
 import React from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity } from "lucide-react";
-import { getMatrixCell, getColorClass } from "../matrixUtils";
+import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -565,6 +565,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                       })}
                     </tbody>
                   </table>
+
+                  {sector.generalAnalysis && (
+                    <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-justify leading-relaxed print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                      <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">Análise Geral da Percepção dos Colaboradores:</strong>
+                      <span className="text-slate-700 italic">{sector.generalAnalysis}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -649,91 +656,84 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   Nenhum risco registrado no inventário.
                 </p>
               ) : (
-                <div className="space-y-6">
-                  {report.riskInventory.map((item, idx) => {
-                    const badgeStyle = getRiskBadgeStyle(item.color);
-                    const borderAccent = getRiskBorderAccent(item.color);
-                    const bgHeader = getRiskHeaderBg(item.color);
+                <div className="overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-xs">
+                  <table className="min-w-full border-collapse text-left text-[9px] text-slate-800">
+                    <thead className="bg-slate-850 text-slate-100 font-bold uppercase tracking-wider text-[8px] print:bg-slate-900 print:text-white">
+                      <tr>
+                        <th className="border border-slate-300 px-2 py-2 bg-slate-900 text-center w-8">#</th>
+                        <th className="border border-slate-300 px-2 py-2 w-20">Setor</th>
+                        <th className="border border-slate-300 px-2 py-2 w-12 text-center">Expostos</th>
+                        <th className="border border-slate-300 px-2 py-2 w-32">Perigo / Risco</th>
+                        <th className="border border-slate-300 px-2 py-2 w-36">Fontes Geradoras</th>
+                        <th className="border border-slate-300 px-2 py-2 w-36">Danos à Saúde</th>
+                        <th className="border border-slate-300 px-2 py-2 w-36">Histórico/Queixas</th>
+                        <th className="border border-slate-300 px-2 py-2 w-32">Controles Existentes</th>
+                        <th className="border border-slate-300 px-2 py-2 text-center w-24">Probabilidade</th>
+                        <th className="border border-slate-300 px-2 py-2 text-center w-24">Severidade</th>
+                        <th className="border border-slate-300 px-2 py-2 text-center w-24">Nível Risco</th>
+                        <th className="border border-slate-300 px-2 py-2 w-32">Recomendação PGR</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-300 bg-white">
+                      {report.riskInventory.map((item, index) => {
+                        let scoreBg = "";
+                        if (item.color === "red") {
+                          scoreBg = "bg-rose-600 text-white print:bg-rose-100 print:text-rose-950 print:border-rose-300";
+                        } else if (item.color === "orange") {
+                          scoreBg = "bg-amber-500 text-white print:bg-amber-100 print:text-amber-950 print:border-amber-300";
+                        } else if (item.color === "yellow") {
+                          scoreBg = "bg-yellow-400 text-slate-900 print:bg-yellow-100 print:text-yellow-950 print:border-yellow-350";
+                        } else if (item.color === "blue") {
+                          scoreBg = "bg-blue-500 text-white print:bg-blue-100 print:text-blue-950 print:border-blue-300";
+                        } else {
+                          scoreBg = "bg-emerald-600 text-white print:bg-emerald-100 print:text-emerald-950 print:border-emerald-300";
+                        }
 
-                    return (
-                      <div
-                        key={item.id}
-                        className={`border border-slate-200 rounded-xl overflow-hidden print:break-inside-avoid print:page-break-inside-avoid shadow-xs ${borderAccent} border-l-4 bg-white`}
-                      >
-                        {/* Ficha Header */}
-                        <div className={`px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 ${bgHeader}`}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-extrabold text-slate-400">#{String(idx + 1).padStart(2, '0')}</span>
-                            <h4 className="text-xs font-black text-slate-850 uppercase tracking-tight">
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50/30 transition duration-150 align-top print:break-inside-avoid">
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-400 bg-slate-50/50">
+                              {index + 1}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 font-bold uppercase text-[8px] text-slate-900">
+                              {getSectorName(item.sectorId)}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-700">
+                              {item.exposedCount}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 font-semibold text-slate-800">
                               {item.riskName}
-                            </h4>
-                          </div>
-                          <div className={`px-2.5 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${badgeStyle}`}>
-                            Nível {item.riskLevel === "Grave" ? "Crítico" : item.riskLevel.toUpperCase()}
-                          </div>
-                        </div>
-
-                        {/* Ficha Meta Info Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-2 bg-slate-50/50 border-b border-slate-100 text-[10px]">
-                          <div>
-                            <span className="font-extrabold text-slate-450 uppercase text-[8px] block tracking-wider">Setor Avaliado</span>
-                            <span className="text-slate-700 font-bold">{getSectorName(item.sectorId)}</span>
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-slate-450 uppercase text-[8px] block tracking-wider">Trabalhadores Expostos</span>
-                            <span className="text-slate-700 font-bold">{item.exposedCount} funcionários</span>
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-slate-450 uppercase text-[8px] block tracking-wider">Avaliação (Probabilidade × Severidade)</span>
-                            <span className="text-slate-700 font-extrabold">
-                              {item.probability} × {item.severity} = <span className="font-mono font-black text-slate-900">{item.riskScore}</span>
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Ficha Content Split Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-[11px] leading-relaxed">
-                          <div className="space-y-3">
-                            <div>
-                              <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Fonte Geradora / Situação:</span>
-                              <div className="text-slate-700 text-justify">{renderAsList(item.sourcesField)}</div>
-                            </div>
-                            <div>
-                              <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Danos e Agravos Possíveis:</span>
-                              <div className="text-slate-700 text-justify">{renderAsList(item.possibleInjuries)}</div>
-                            </div>
-                            {item.diseaseHistory && item.diseaseHistory !== "Não evidenciado." && item.diseaseHistory !== "Inexistente." && (
-                              <div>
-                                <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Histórico / Queixas de Adoecimento:</span>
-                                <div className="text-slate-700 text-justify">{renderAsList(item.diseaseHistory)}</div>
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-slate-700">
+                              {item.sourcesField || "-"}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-slate-700">
+                              {item.possibleInjuries || "-"}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-slate-700">
+                              {item.diseaseHistory || "-"}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-slate-700">
+                              {item.existingControls || "Não evidenciado."}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-800 uppercase text-[8px]">
+                              {PROBABILITY_LEVELS[item.probability - 1]?.label || item.probability}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-800 uppercase text-[8px]">
+                              {SEVERITY_LEVELS[item.severity - 1]?.label || item.severity}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-center">
+                              <div className={`py-1 px-1 rounded border font-black uppercase text-[7px] tracking-wide ${scoreBg}`}>
+                                {item.riskLevel}
                               </div>
-                            )}
-                          </div>
-
-                          <div className="space-y-3 md:border-l md:border-slate-100 md:pl-4">
-                            <div>
-                              <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Medidas de Controle Existentes:</span>
-                              <div className="text-slate-700 text-justify">{renderAsList(item.existingControls)}</div>
-                            </div>
-                            <div>
-                              <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Recomendações Propostas / PGR:</span>
-                              <div className="text-slate-700 text-justify">{renderAsList(item.recommendation)}</div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2 text-[10px]">
-                              <div>
-                                <span className="font-extrabold text-slate-400 uppercase text-[8px] block leading-none">Responsável</span>
-                                <span className="text-slate-700 font-semibold">{item.responsible || "Liderança / SESMT"}</span>
-                              </div>
-                              <div>
-                                <span className="font-extrabold text-slate-400 uppercase text-[8px] block leading-none">Prazo</span>
-                                <span className="text-slate-700 font-extrabold font-mono">{item.deadline}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            </td>
+                            <td className="border border-slate-300 px-2 py-1.5 text-slate-700 leading-snug">
+                              {item.recommendation}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -754,15 +754,20 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 </p>
               ) : (
                 <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs print:border-slate-300">
-                  <table className="min-w-full divide-y divide-slate-200 text-left text-[11px] bg-white">
-                    <thead className="bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
+                  <table className="min-w-full divide-y divide-slate-200 text-left text-[9px] bg-white">
+                    <thead className="bg-slate-900 text-white text-[8px] font-black uppercase tracking-wider">
                       <tr>
-                        <th className="px-3 py-2.5 rounded-tl-xl">Item / Risco</th>
-                        <th className="px-3 py-2.5">Setor</th>
-                        <th className="px-3 py-2.5 w-5/12">Medida de Intervenção Recomendada / Ação Proposta</th>
-                        <th className="px-3 py-2.5">Responsável / Prazo</th>
-                        <th className="px-3 py-2.5 text-center">Prioridade</th>
-                        <th className="px-3 py-2.5 text-center rounded-tr-xl">Status</th>
+                        <th className="px-2 py-2 rounded-tl-xl w-8 text-center">#</th>
+                        <th className="px-2 py-2 w-20">Setor</th>
+                        <th className="px-2 py-2 w-28">Risco Associado</th>
+                        <th className="px-2 py-2 w-32">Objetivo</th>
+                        <th className="px-2 py-2 w-40">Ação Proposta</th>
+                        <th className="px-2 py-2 w-20">Responsável</th>
+                        <th className="px-2 py-2 w-16">Prazo</th>
+                        <th className="px-2 py-2 w-16">Periodicidade</th>
+                        <th className="px-2 py-2 w-24">Indicador de Eficácia</th>
+                        <th className="px-2 py-2 text-center w-14">Prioridade</th>
+                        <th className="px-2 py-2 text-center rounded-tr-xl w-16">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -770,58 +775,41 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                         const isEven = idx % 2 === 0;
                         const rowBg = isEven ? "bg-white" : "bg-slate-50/55";
                         return (
-                          <tr key={item.id} className={`${rowBg} hover:bg-slate-50 transition-colors print:break-inside-avoid`}>
-                            <td className="px-3 py-3 font-bold text-slate-900 align-top">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-slate-400 font-mono text-[9px]">#{String(idx + 1).padStart(2, '0')}</span>
-                                <span className="uppercase text-[11px] leading-tight font-black text-slate-800">{item.riskName}</span>
-                              </div>
+                          <tr key={item.id} className={`${rowBg} hover:bg-slate-50 transition-colors print:break-inside-avoid align-top`}>
+                            <td className="px-2 py-2 text-center font-bold text-slate-400 font-mono">
+                              {String(idx + 1).padStart(2, '0')}
                             </td>
-                            <td className="px-3 py-3 text-slate-700 font-semibold align-top whitespace-nowrap">
+                            <td className="px-2 py-2 text-slate-900 font-bold uppercase text-[8px]">
                               {getSectorName(item.sectorId)}
                             </td>
-                            <td className="px-3 py-3 text-slate-600 align-top leading-relaxed text-justify">
-                              <div className="space-y-1.5">
-                                {item.actionObjective && (
-                                  <div className="text-[10px] text-slate-500 italic border-l-2 border-slate-200 pl-2 mb-1.5 leading-normal">
-                                    <strong>Objetivo:</strong> {item.actionObjective}
-                                  </div>
-                                )}
-                                <div className="text-[11px] text-slate-700">
-                                  {renderAsList(item.actionProposed || item.recommendation)}
-                                </div>
-                                {item.efficacyIndicator && (
-                                  <div className="text-[10px] text-slate-450 mt-1.5 border-t border-slate-100 pt-1 leading-normal">
-                                    <strong>Indicador:</strong> {item.efficacyIndicator}
-                                  </div>
-                                )}
-                              </div>
+                            <td className="px-2 py-2 text-slate-800 font-bold leading-tight">
+                              {item.riskName}
                             </td>
-                            <td className="px-3 py-3 text-slate-700 align-top">
-                              <div className="flex flex-col gap-2 text-[10px]">
-                                <div>
-                                  <span className="text-[8px] font-black text-slate-400 uppercase block leading-none">Quem</span>
-                                  <span className="font-bold text-slate-800">{item.responsible || "Liderança / SESMT"}</span>
-                                </div>
-                                <div>
-                                  <span className="text-[8px] font-black text-slate-400 uppercase block leading-none">Quando</span>
-                                  <span className="font-mono font-extrabold text-slate-900">{item.deadline || "Imediato"}</span>
-                                </div>
-                                {item.periodicity && (
-                                  <div>
-                                    <span className="text-[8px] font-black text-slate-400 uppercase block leading-none">Freq.</span>
-                                    <span className="text-slate-500 font-medium">{item.periodicity}</span>
-                                  </div>
-                                )}
-                              </div>
+                            <td className="px-2 py-2 text-slate-600 leading-normal text-justify">
+                              {item.actionObjective || "-"}
                             </td>
-                            <td className="px-2 py-3 text-center align-top whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider inline-block ${getPriorityColorPrint(item.priority)}`}>
+                            <td className="px-2 py-2 text-slate-700 leading-normal">
+                              {item.actionProposed || item.recommendation}
+                            </td>
+                            <td className="px-2 py-2 text-slate-800 font-semibold">
+                              {item.responsible || "Liderança / SESMT"}
+                            </td>
+                            <td className="px-2 py-2 text-slate-900 font-mono font-bold whitespace-nowrap">
+                              {item.deadline || "Imediato"}
+                            </td>
+                            <td className="px-2 py-2 text-slate-600">
+                              {item.periodicity || "Única"}
+                            </td>
+                            <td className="px-2 py-2 text-slate-600 text-justify">
+                              {item.efficacyIndicator || "-"}
+                            </td>
+                            <td className="px-2 py-2 text-center whitespace-nowrap">
+                              <span className={`px-1.5 py-0.5 rounded-md border text-[7px] font-black uppercase tracking-wider inline-block ${getPriorityColorPrint(item.priority)}`}>
                                 {item.priority}
                               </span>
                             </td>
-                            <td className="px-2 py-3 text-center align-top whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider inline-block ${getStatusColorPrint(item.status)}`}>
+                            <td className="px-2 py-2 text-center whitespace-nowrap">
+                              <span className={`px-1.5 py-0.5 rounded-md border text-[7px] font-black uppercase tracking-wider inline-block ${getStatusColorPrint(item.status)}`}>
                                 {item.status}
                               </span>
                             </td>

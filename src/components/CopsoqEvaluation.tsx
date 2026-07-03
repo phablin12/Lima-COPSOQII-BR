@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { Report, Sector, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
-import { AlertCircle, ChartBar, HelpCircle, Save, Sliders, TrendingUp } from "lucide-react";
+import { AlertCircle, ChartBar, HelpCircle, Save, Sliders, TrendingUp, Activity } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ReferenceLine } from "recharts";
 
 interface CopsoqEvaluationProps {
@@ -56,6 +56,22 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
             ...s.scores,
             [dimensionKey]: clampedValue,
           },
+        };
+      }
+      return s;
+    });
+
+    onChange({ sectors: updatedSectors });
+  };
+
+  const handleGeneralAnalysisChange = (value: string) => {
+    if (!currentSector) return;
+    
+    const updatedSectors = report.sectors.map((s) => {
+      if (s.id === currentSector.id) {
+        return {
+          ...s,
+          generalAnalysis: value,
         };
       }
       return s;
@@ -242,6 +258,24 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
               );
             })}
           </div>
+
+          {/* Análise Geral com Base na Percepção dos Colaboradores */}
+          <div className="pt-6 border-t border-slate-150 space-y-2 text-left">
+            <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+              <Activity className="w-4 h-4 text-slate-650" />
+              Análise Geral do Setor (Com base na percepção dos colaboradores avaliados)
+            </h4>
+            <p className="text-xs text-slate-500">
+              Descreva de forma ampla a percepção e sentimentos expressados pelos colaboradores nas avaliações qualitativas ou quantitativas deste setor.
+            </p>
+            <textarea
+              value={currentSector.generalAnalysis || ""}
+              onChange={(e) => handleGeneralAnalysisChange(e.target.value)}
+              placeholder="Ex: Os colaboradores deste setor relatam alto nível de companheirismo e bom relacionamento horizontal, porém demonstram cansaço e frustração acentuados com os recorrentes picos de trabalho sem compensação e a falta de clareza nas metas de entrega."
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl border border-slate-250 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-sm text-slate-800 bg-white"
+            />
+          </div>
         </div>
       )}
 
@@ -320,6 +354,21 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
                 <div className="w-3.5 h-3.5 rounded bg-emerald-500" />
                 <span className="text-slate-600 font-medium">Favorável (&gt; 3,66) - Baixo/Inexistente Risco</span>
               </div>
+            </div>
+
+            {/* Análise Geral da Percepção dos Colaboradores no painel de resultados */}
+            <div className="pt-6 border-t border-slate-150 space-y-3 text-left">
+              <h4 className="font-semibold text-slate-800 text-xs uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-slate-500" />
+                Análise Geral do Setor com base na percepção dos colaboradores
+              </h4>
+              <textarea
+                value={currentSector.generalAnalysis || ""}
+                onChange={(e) => handleGeneralAnalysisChange(e.target.value)}
+                placeholder="Insira aqui uma análise geral sobre o setor com base na percepção dos colaboradores avaliados (queixas, sentimentos, feedbacks colhidos)..."
+                rows={4}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-slate-50/50"
+              />
             </div>
           </div>
 
