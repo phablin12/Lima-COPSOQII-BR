@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { Report, RiskInventoryItem } from "../types";
-import { ClipboardList, Edit2, Check, X, Target, HelpCircle, User, Calendar, Shield, Bookmark, CheckSquare, Clock } from "lucide-react";
+import { ClipboardList, Edit2, Check, X, Trash2, Target, HelpCircle, User, Calendar, Shield, Bookmark, CheckSquare, Clock } from "lucide-react";
 
 interface ActionPlanManagerProps {
   report: Report;
@@ -14,6 +14,13 @@ interface ActionPlanManagerProps {
 
 export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, onChange }) => {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+
+  const handleDeleteItem = (id: string) => {
+    onChange({
+      riskInventory: report.riskInventory.filter((item) => item.id !== id)
+    });
+  };
 
   // Edit Fields State
   const [actionObjective, setActionObjective] = useState("");
@@ -190,13 +197,46 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
                           </button>
                         </>
                       ) : (
-                        <button
-                          onClick={() => startEditing(item)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                          title="Editar Ação"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => startEditing(item)}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                            title="Editar Ação"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+
+                          {deletingItemId === item.id ? (
+                            <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 p-0.5 rounded-md">
+                              <span className="text-[9px] font-bold text-rose-800 px-1">Excluir?</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleDeleteItem(item.id);
+                                  setDeletingItemId(null);
+                                }}
+                                className="text-[9px] font-black text-rose-700 hover:text-rose-900 bg-rose-100/50 px-1.5 py-0.5 rounded cursor-pointer"
+                              >
+                                Sim
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeletingItemId(null)}
+                                className="text-[9px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded cursor-pointer"
+                              >
+                                Não
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setDeletingItemId(item.id)}
+                              className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Excluir Risco e Ação"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

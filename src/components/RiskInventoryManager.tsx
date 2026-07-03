@@ -51,6 +51,65 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
   const [isAdding, setIsAdding] = useState(false);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+
+  const handleStartEdit = (item: RiskInventoryItem) => {
+    setEditingItemId(item.id);
+    setSelectedSectorId(item.sectorId);
+    setSelectedCatalogRiskId("custom");
+    setCustomRiskName(item.riskName);
+    setExposedCount(item.exposedCount);
+    setSourcesField(item.sourcesField);
+    setPossibleInjuries(item.possibleInjuries);
+    setDiseaseHistory(item.diseaseHistory || "");
+    setExistingControls(item.existingControls || "");
+    setProbability(item.probability);
+    setSeverity(item.severity);
+    setUncertainty(item.uncertainty);
+    setRecommendation(item.recommendation || "");
+    setPriority(item.priority || "Média");
+    setResponsible(item.responsible || "");
+    setStatus(item.status || "Pendente");
+    setDeadline(item.deadline || "");
+    setMonitoring(item.monitoring || "");
+    setMeasureResults(item.measureResults || "");
+    setActionObjective(item.actionObjective || "");
+    setActionProposed(item.actionProposed || "");
+    setPeriodicity(item.periodicity || "Mensal");
+    setEfficacyIndicator(item.efficacyIndicator || "");
+    setIsAdding(true);
+    
+    // Smooth scroll to the form container
+    setTimeout(() => {
+      document.getElementById("risk-form-container")?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingItemId(null);
+    setIsAdding(false);
+    // Reset Form fields
+    setCustomRiskName("");
+    setSourcesField("");
+    setPossibleInjuries("");
+    setDiseaseHistory("");
+    setExistingControls("");
+    setProbability(3);
+    setSeverity(3);
+    setUncertainty("Certa");
+    setRecommendation("");
+    setPriority("Média");
+    setResponsible("");
+    setStatus("Pendente");
+    setDeadline("");
+    setMonitoring("");
+    setMeasureResults("");
+    setActionObjective("");
+    setActionProposed("");
+    setPeriodicity("Mensal");
+    setEfficacyIndicator("");
+  };
 
   // Sync inputs when selected risk from catalog changes
   useEffect(() => {
@@ -99,12 +158,11 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     // Calculate matrix details
     const matrixResult = getMatrixCell(probability, severity);
 
-    const newItem: RiskInventoryItem = {
-      id: "inv-" + Date.now(),
+    const updatedItemData = {
       sectorId: selectedSectorId,
       riskName: customRiskName.trim(),
       exposedCount: Math.max(1, exposedCount),
-      type: "Psicossocial",
+      type: "Psicossocial" as const,
       sourcesField: sourcesField.trim(),
       possibleInjuries: possibleInjuries.trim(),
       diseaseHistory: diseaseHistory.trim() || "Nenhum registro oficial de adoecimento até o momento.",
@@ -130,12 +188,35 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
       efficacyIndicator: efficacyIndicator.trim() || "Avaliação de clima / Feedbacks formais periódicos"
     };
 
-    onChange({
-      riskInventory: [...report.riskInventory, newItem]
-    });
+    if (editingItemId) {
+      const updatedInventory = report.riskInventory.map((item) => {
+        if (item.id === editingItemId) {
+          return {
+            ...item,
+            ...updatedItemData
+          };
+        }
+        return item;
+      });
+
+      onChange({
+        riskInventory: updatedInventory
+      });
+      setEditingItemId(null);
+    } else {
+      const newItem: RiskInventoryItem = {
+        id: "inv-" + Date.now(),
+        ...updatedItemData
+      };
+
+      onChange({
+        riskInventory: [...report.riskInventory, newItem]
+      });
+    }
 
     // Reset Form
     setIsAdding(false);
+    setCustomRiskName("");
     setSourcesField("");
     setPossibleInjuries("");
     setDiseaseHistory("");
@@ -151,11 +232,9 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
   };
 
   const handleDeleteItem = (id: string) => {
-    if (confirm("Deseja realmente remover este item do inventário de riscos?")) {
-      onChange({
-        riskInventory: report.riskInventory.filter((item) => item.id !== id)
-      });
-    }
+    onChange({
+      riskInventory: report.riskInventory.filter((item) => item.id !== id)
+    });
   };
 
   const getSectorName = (sectorId: string) => {
@@ -181,16 +260,22 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
         </div>
 
         <button
-          onClick={() => setIsAdding(!isAdding)}
+          onClick={() => {
+            if (editingItemId) {
+              handleCancelEdit();
+            } else {
+              setIsAdding(!isAdding);
+            }
+          }}
           className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-5 py-2.5 rounded-lg transition-all cursor-pointer shadow-xs"
         >
-          {isAdding ? "Fechar Formulário" : "Adicionar Risco ao Inventário"}
+          {editingItemId ? "Cancelar Edição" : isAdding ? "Fechar Formulário" : "Adicionar Risco ao Inventário"}
         </button>
       </div>
 
       {/* Formulário de Adicionar ao Inventário */}
       {isAdding && (
-        <form onSubmit={handleCreateInventoryItem} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
+        <form id="risk-form-container" onSubmit={handleCreateInventoryItem} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
           <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
             <ShieldAlert className="w-4 h-4 text-slate-600" /> Preencher Registro de Risco no Setor
           </h4>
@@ -531,12 +616,23 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm py-3 px-4 rounded-xl transition cursor-pointer"
-          >
-            Adicionar Risco ao Inventário e Plano de Ação
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              type="submit"
+              className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm py-3 px-4 rounded-xl transition cursor-pointer shadow-xs"
+            >
+              {editingItemId ? "Salvar Alterações no Inventário" : "Adicionar Risco ao Inventário e Plano de Ação"}
+            </button>
+            {editingItemId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm py-3 px-4 rounded-xl transition cursor-pointer"
+              >
+                Cancelar Edição
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -551,116 +647,219 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
             Nenhum item adicionado ao inventário ainda. Clique no botão <strong>Adicionar Risco ao Inventário</strong> acima para registrar o primeiro.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-6">
             {report.riskInventory.map((item) => {
-              const colors = getColorClass(item.color);
-              const isExpanded = expandedItemId === item.id;
-
               return (
-                <div key={item.id} className="p-4 border border-slate-100 rounded-xl hover:shadow-xs transition space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs bg-slate-800 text-white px-2 py-0.5 rounded-full font-semibold">
-                          {getSectorName(item.sectorId)}
-                        </span>
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                          Exp: {item.exposedCount} func.
-                        </span>
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                          {item.type}
-                        </span>
-                      </div>
-                      <h5 className="font-bold text-slate-800 text-sm">{item.riskName}</h5>
+                <div key={item.id} className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs">
+                  {/* Header */}
+                  <div className="bg-slate-100 border-b border-slate-300 px-4 py-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded bg-slate-400 inline-block"></span>
+                      <h5 className="font-extrabold uppercase tracking-wide text-slate-700 text-xs">
+                        INVENTÁRIO DE RISCOS PSICOSSOCIAIS - {getSectorName(item.sectorId).toUpperCase()}
+                      </h5>
                     </div>
-
-                    <div className="flex items-center gap-2 self-start sm:self-center">
-                      <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border flex items-center gap-1.5 ${colors.bg} ${colors.border} ${colors.text}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
-                        Nível {item.riskLevel} ({item.riskScore})
-                      </span>
-
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                       <button
-                        onClick={() => setExpandedItemId(isExpanded ? null : item.id)}
-                        className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition cursor-pointer"
-                        title="Ver Detalhes"
+                        type="button"
+                        onClick={() => handleStartEdit(item)}
+                        className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded transition cursor-pointer flex items-center gap-1"
+                        title="Editar Ficha"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold">Editar</span>
                       </button>
-
-                      <button
-                        onClick={() => handleDeleteItem(item.id)}
-                        className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      
+                      {deletingItemId === item.id ? (
+                        <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 p-0.5 rounded-md">
+                          <span className="text-[9px] font-bold text-rose-800 px-1">Excluir?</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleDeleteItem(item.id);
+                              setDeletingItemId(null);
+                            }}
+                            className="text-[9px] font-black text-rose-700 hover:text-rose-900 bg-rose-100/50 px-1.5 py-0.5 rounded cursor-pointer"
+                          >
+                            Sim
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingItemId(null)}
+                            className="text-[9px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded cursor-pointer"
+                          >
+                            Não
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingItemId(item.id)}
+                          className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer flex items-center gap-1"
+                          title="Excluir Ficha"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-bold">Excluir</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Detalhes Expandidos */}
-                  {isExpanded && (
-                    <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100/80 text-xs space-y-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mt-2">
-                      <div className="space-y-1">
-                        <span className="font-bold text-slate-400 block uppercase tracking-wider text-[10px]">Fontes Encontradas / Situação de Trabalho</span>
-                        <p className="text-slate-700 leading-relaxed">{item.sourcesField}</p>
-                      </div>
+                  {/* Row 1: Bullet and Risk Name */}
+                  <div className="border-b border-slate-300 px-4 py-2 bg-slate-50/50 flex items-center gap-2 font-bold text-sm text-slate-900">
+                    <span className="w-2 h-2 bg-slate-700 rounded-xs"></span>
+                    <span>{item.riskName}</span>
+                  </div>
 
-                      <div className="space-y-1">
-                        <span className="font-bold text-slate-400 block uppercase tracking-wider text-[10px]">Possíveis Lesões / Danos à Saúde</span>
-                        <p className="text-slate-700 leading-relaxed">{item.possibleInjuries}</p>
-                      </div>
+                  {/* Row 2: Exposição */}
+                  <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
+                      <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
+                      <span className="text-slate-800 font-semibold">Contínua / Habitual</span>
+                    </div>
+                  </div>
 
-                      <div className="space-y-1">
-                        <span className="font-bold text-slate-400 block uppercase tracking-wider text-[10px]">Histórico de Doenças</span>
-                        <p className="text-slate-700 leading-relaxed">{item.diseaseHistory}</p>
-                      </div>
+                  {/* Row 3: Perigos, fontes e circunstâncias */}
+                  <div className="border-b border-slate-300 px-4 py-2">
+                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Perigos, Fontes e Circunstâncias:</span>
+                    <span className="text-slate-700 font-medium">{item.sourcesField || "Não registrado."}</span>
+                  </div>
 
-                      <div className="space-y-1">
-                        <span className="font-bold text-slate-400 block uppercase tracking-wider text-[10px]">Medidas Preventivas Existentes</span>
-                        <p className="text-slate-700 leading-relaxed">{item.existingControls}</p>
-                      </div>
+                  {/* Row 4: Metodologia */}
+                  <div className="border-b border-slate-300 px-4 py-2">
+                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Metodologia:</span>
+                    <span className="text-slate-700 font-medium">Critério Qualitativo baseado na metodologia do COPSOQ e Matriz de Riscos Psicossociais 5x5.</span>
+                  </div>
 
-                      <div className="space-y-1">
-                        <span className="font-bold text-slate-400 block uppercase tracking-wider text-[10px]">Estimativa de Incerteza</span>
-                        <p className="text-slate-700 font-semibold">{item.uncertainty}</p>
-                      </div>
+                  {/* Row 5: Medidas administrativas ou de organização do trabalho */}
+                  <div className="border-b border-slate-300 px-4 py-2">
+                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Medidas administrativas ou de organização do trabalho (Controles Existentes):</span>
+                    <span className="text-slate-700 font-medium">{item.existingControls || "Não evidenciado."}</span>
+                  </div>
 
-                      <div className="space-y-1">
-                        <span className="font-bold text-slate-400 block uppercase tracking-wider text-[10px]">Recomendação Preventiva</span>
-                        <p className="text-slate-700 leading-relaxed font-semibold">{item.recommendation}</p>
-                      </div>
+                  {/* Row 6: Descrição do Agente Nocivo */}
+                  <div className="border-b border-slate-300 px-4 py-2">
+                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Descrição do Agente Nocivo / Fator de Risco:</span>
+                    <span className="text-slate-700 font-medium">{item.riskName} (Risco Psicossocial Organizacional)</span>
+                  </div>
 
-                      <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-slate-100">
-                        <div className="space-y-1">
-                          <span className="font-bold text-slate-400 block uppercase tracking-wider text-[9px]">Prioridade</span>
-                          <span className="text-slate-800 font-bold">{item.priority}</span>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="font-bold text-slate-400 block uppercase tracking-wider text-[9px]">Responsável</span>
-                          <span className="text-slate-800 font-semibold">{item.responsible}</span>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="font-bold text-slate-400 block uppercase tracking-wider text-[9px]">Prazo</span>
-                          <span className="text-slate-800 font-semibold">{item.deadline}</span>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="font-bold text-slate-400 block uppercase tracking-wider text-[9px]">Status</span>
-                          <span className="text-slate-800 font-bold">{item.status}</span>
-                        </div>
-                      </div>
+                  {/* Row 7: Possíveis danos à saúde */}
+                  <div className="border-b border-slate-300 px-4 py-2">
+                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Possíveis danos à saúde:</span>
+                    <span className="text-slate-700 font-medium">{item.possibleInjuries || "Não registrado."}</span>
+                  </div>
 
-                      <div className="md:col-span-2 space-y-2 bg-slate-800 text-slate-100 p-3 rounded-xl">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Dados Vinculados ao Plano de Ação:</span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[11px] text-slate-300">
-                          <div><strong>Objetivo:</strong> {item.actionObjective}</div>
-                          <div><strong>Ação Proposta:</strong> {item.actionProposed}</div>
-                          <div><strong>Periodicidade:</strong> {item.periodicity}</div>
-                          <div><strong>Indicador de Eficácia:</strong> {item.efficacyIndicator}</div>
-                        </div>
-                      </div>
+                  {/* Row 8: Histórico de doenças / Queixas de adoecimento */}
+                  {item.diseaseHistory && (
+                    <div className="border-b border-slate-300 px-4 py-2">
+                      <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Histórico de doenças / Queixas de adoecimento:</span>
+                      <span className="text-slate-700 font-medium">{item.diseaseHistory}</span>
                     </div>
                   )}
+
+                  {/* Row 9: Probabilidade, Severidade, Nível do Risco */}
+                  <div className="border-b border-slate-300 grid grid-cols-1 sm:grid-cols-3">
+                    <div className="px-4 py-2 border-r border-slate-300 flex flex-col justify-center bg-slate-50/50">
+                      <span className="font-extrabold text-slate-500 text-[10px] uppercase tracking-wider block">Probabilidade</span>
+                      <span className="text-sm font-black text-slate-800">
+                        {PROBABILITY_LEVELS[item.probability - 1]} ({item.probability})
+                      </span>
+                    </div>
+                    <div className="px-4 py-2 border-r border-slate-300 flex flex-col justify-center bg-slate-50/50">
+                      <span className="font-extrabold text-slate-500 text-[10px] uppercase tracking-wider block">Severidade</span>
+                      <span className="text-sm font-black text-slate-800">
+                        {SEVERITY_LEVELS[item.severity - 1]} ({item.severity})
+                      </span>
+                    </div>
+                    <div className={`px-4 py-2 flex flex-col justify-center text-white ${
+                      item.color === "red"
+                        ? "bg-rose-600"
+                        : item.color === "orange"
+                        ? "bg-amber-500"
+                        : item.color === "yellow"
+                        ? "bg-yellow-500 text-slate-900"
+                        : item.color === "blue"
+                        ? "bg-blue-500"
+                        : "bg-emerald-600"
+                    }`}>
+                      <span className="font-extrabold text-[10px] uppercase tracking-wider block opacity-90">Nível do Risco / Perigo</span>
+                      <span className="text-sm font-black uppercase">
+                        Nível {item.riskLevel} (Score {item.riskScore})
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Row 10: Estimativa and 5x5 Matrix Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2">
+                    <div className="px-4 py-3 border-r border-slate-300 space-y-2 flex flex-col justify-between">
+                      <div>
+                        <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa de Incerteza / Confiança da Medida:</span>
+                        <span className="text-slate-800 font-bold text-sm">{item.uncertainty || "Certa"}</span>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[11px] space-y-1 mt-2">
+                        <span className="font-extrabold text-slate-600 block uppercase text-[8px] tracking-wider">Recomendação Preventiva Proposta (PGR):</span>
+                        <p className="text-slate-700 leading-normal font-semibold italic">"{item.recommendation}"</p>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 border-slate-300">
+                      <span className="font-extrabold text-slate-500 block text-[9px] uppercase tracking-wider mb-2">Matriz de Avaliação 5x5</span>
+                      <div className="grid grid-cols-6 gap-0.5 max-w-[220px] w-full text-[8px] font-bold text-center">
+                        {/* Top Header Labels */}
+                        <div className="text-[6px] text-slate-400 flex items-center justify-center">S \ P</div>
+                        {[1, 2, 3, 4, 5].map(p => (
+                          <div key={p} className="text-slate-400 flex items-center justify-center">P{p}</div>
+                        ))}
+
+                        {/* Matrix Rows */}
+                        {[5, 4, 3, 2, 1].map((s) => (
+                          <React.Fragment key={s}>
+                            <div className="text-slate-400 flex items-center justify-center font-bold">S{s}</div>
+                            {[1, 2, 3, 4, 5].map((p) => {
+                              const cell = getMatrixCell(p, s);
+                              const isActive = item.probability === p && item.severity === s;
+                              
+                              let cellBg = "bg-slate-200 text-slate-500";
+                              if (isActive) {
+                                cellBg = cell.color === "red"
+                                  ? "bg-rose-500 text-white animate-pulse"
+                                  : cell.color === "orange"
+                                  ? "bg-amber-500 text-white animate-pulse"
+                                  : cell.color === "yellow"
+                                  ? "bg-yellow-400 text-slate-900"
+                                  : cell.color === "blue"
+                                  ? "bg-blue-400 text-white"
+                                  : "bg-emerald-500 text-white";
+                              } else {
+                                cellBg = cell.color === "red"
+                                  ? "bg-rose-50/50 text-rose-300"
+                                  : cell.color === "orange"
+                                  ? "bg-amber-50/50 text-amber-300"
+                                  : cell.color === "yellow"
+                                  ? "bg-yellow-50/50 text-yellow-500/70"
+                                  : cell.color === "blue"
+                                  ? "bg-blue-50/50 text-blue-300"
+                                  : "bg-emerald-50/50 text-emerald-300";
+                              }
+
+                              return (
+                                <div
+                                  key={p}
+                                  className={`h-5 flex items-center justify-center rounded-xs border border-white/20 font-black font-mono transition-all ${cellBg}`}
+                                  title={`Probabilidade ${p} x Severidade ${s} = Score ${p*s} (Nível ${cell.level})`}
+                                >
+                                  {p * s}
+                                </div>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })}

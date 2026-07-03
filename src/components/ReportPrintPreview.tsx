@@ -30,6 +30,28 @@ const getRiskBadgeStyle = (color: string) => {
   }
 };
 
+const getRiskBorderAccent = (color: string) => {
+  switch (color) {
+    case "red": return "border-l-rose-500";
+    case "orange": return "border-l-orange-500";
+    case "yellow": return "border-l-amber-500";
+    case "green": return "border-l-emerald-500";
+    case "blue": return "border-l-blue-500";
+    default: return "border-l-slate-400";
+  }
+};
+
+const getRiskHeaderBg = (color: string) => {
+  switch (color) {
+    case "red": return "bg-rose-50/70";
+    case "orange": return "bg-orange-50/70";
+    case "yellow": return "bg-amber-50/70";
+    case "green": return "bg-emerald-50/70";
+    case "blue": return "bg-blue-50/70";
+    default: return "bg-slate-50/70";
+  }
+};
+
 const renderAsList = (text: string) => {
   if (!text || text.trim() === "" || text.trim() === "Inexistente." || text.trim() === "Não evidenciado.") {
     return <span className="text-slate-400 italic">Não evidenciado.</span>;
@@ -627,127 +649,91 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   Nenhum risco registrado no inventário.
                 </p>
               ) : (
-                <div className="space-y-8 print:space-y-12">
-                  {report.riskInventory.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-6 border-2 border-slate-300 rounded-2xl bg-white space-y-5 print:p-6 print:border-2 print:border-slate-400 print:rounded-xl print:break-inside-avoid print:page-break-inside-avoid shadow-xs"
-                    >
-                      {/* Cabeçalho da Ficha */}
-                      <div className="border-b-2 border-slate-200 pb-3 flex flex-col gap-1.5">
-                        <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">
-                          Ficha Técnica • Inventário de Risco Psicossocial
-                        </span>
-                        <h4 className="text-base font-black text-slate-900 uppercase tracking-tight">
-                          {item.riskName}
-                        </h4>
-                      </div>
+                <div className="space-y-6">
+                  {report.riskInventory.map((item, idx) => {
+                    const badgeStyle = getRiskBadgeStyle(item.color);
+                    const borderAccent = getRiskBorderAccent(item.color);
+                    const bgHeader = getRiskHeaderBg(item.color);
 
-                      {/* Informações de Localização */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 print:bg-white print:border print:border-slate-200 print:p-4 text-xs">
-                        <div>
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block mb-0.5 tracking-wider">Setor Avaliado:</span>
-                          <span className="text-slate-700 font-medium text-justify block">{getSectorName(item.sectorId)}</span>
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block mb-0.5 tracking-wider">Trabalhadores Expostos (GHE):</span>
-                          <span className="text-slate-700 font-medium text-justify block">{item.exposedCount} funcionários</span>
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block mb-0.5 tracking-wider">Exposição:</span>
-                          <span className="text-slate-700 font-bold text-justify block">Contínua / Habitual</span>
-                        </div>
-                      </div>
-
-                      {/* Corpo Detalhado */}
-                      <div className="space-y-4 text-xs">
-                        {/* Fonte Geradora */}
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-500">Fonte Geradora / Situação de Trabalho:</span>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100/80 print:bg-white print:border-none print:p-0">
-                            {renderAsList(item.sourcesField)}
+                    return (
+                      <div
+                        key={item.id}
+                        className={`border border-slate-200 rounded-xl overflow-hidden print:break-inside-avoid print:page-break-inside-avoid shadow-xs ${borderAccent} border-l-4 bg-white`}
+                      >
+                        {/* Ficha Header */}
+                        <div className={`px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 ${bgHeader}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-extrabold text-slate-400">#{String(idx + 1).padStart(2, '0')}</span>
+                            <h4 className="text-xs font-black text-slate-850 uppercase tracking-tight">
+                              {item.riskName}
+                            </h4>
+                          </div>
+                          <div className={`px-2.5 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider ${badgeStyle}`}>
+                            Nível {item.riskLevel === "Grave" ? "Crítico" : item.riskLevel.toUpperCase()}
                           </div>
                         </div>
 
-                        {/* Danos Possíveis */}
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-500">Danos Possíveis / Agravos à Saúde:</span>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100/80 print:bg-white print:border-none print:p-0">
-                            {renderAsList(item.possibleInjuries)}
-                          </div>
-                        </div>
-
-                        {/* Histórico */}
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-500">Histórico de Doenças / Queixas de Adoecimento:</span>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100/80 print:bg-white print:border-none print:p-0">
-                            {renderAsList(item.diseaseHistory)}
-                          </div>
-                        </div>
-
-                        {/* Controles Existentes */}
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-500">Controles Existentes / Medidas Adotadas:</span>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100/80 print:bg-white print:border-none print:p-0">
-                            {renderAsList(item.existingControls)}
-                          </div>
-                        </div>
-
-                        {/* Recomendações Preventivas */}
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-500">Recomendações Preventivas / Medidas Propostas:</span>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100/80 print:bg-white print:border-none print:p-0">
-                            {renderAsList(item.recommendation)}
-                          </div>
-                        </div>
-
-                        {/* Responsável e Prazo */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-200 pt-3 text-xs">
+                        {/* Ficha Meta Info Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-2 bg-slate-50/50 border-b border-slate-100 text-[10px]">
                           <div>
-                            <span className="font-extrabold text-slate-900 uppercase text-[9px] block mb-0.5 tracking-wider">Responsável pela Implantação:</span>
-                            <span className="text-slate-700 font-semibold">{item.responsible || "Liderança / Gestores"}</span>
+                            <span className="font-extrabold text-slate-450 uppercase text-[8px] block tracking-wider">Setor Avaliado</span>
+                            <span className="text-slate-700 font-bold">{getSectorName(item.sectorId)}</span>
                           </div>
                           <div>
-                            <span className="font-extrabold text-slate-900 uppercase text-[9px] block mb-0.5 tracking-wider">Prazo de Execução:</span>
-                            <span className="text-slate-700 font-extrabold font-mono">{item.deadline}</span>
+                            <span className="font-extrabold text-slate-450 uppercase text-[8px] block tracking-wider">Trabalhadores Expostos</span>
+                            <span className="text-slate-700 font-bold">{item.exposedCount} funcionários</span>
                           </div>
-                        </div>
-                      </div>
-
-                      {/* Matriz de Avaliação de Risco */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-2 print:bg-white print:border-slate-300 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="grid grid-cols-3 gap-4 flex-1 max-w-md">
-                          <div className="space-y-1 text-center sm:text-left">
-                            <span className="text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Probabilidade</span>
-                            <div className="text-lg font-mono font-black text-slate-800 flex items-baseline justify-center sm:justify-start gap-0.5">
-                              <span>{item.probability}</span>
-                              <span className="text-[10px] font-normal text-slate-400">/ 5</span>
-                            </div>
-                          </div>
-                          <div className="space-y-1 border-l border-slate-200 pl-4 text-center sm:text-left">
-                            <span className="text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Severidade</span>
-                            <div className="text-lg font-mono font-black text-slate-800 flex items-baseline justify-center sm:justify-start gap-0.5">
-                              <span>{item.severity}</span>
-                              <span className="text-[10px] font-normal text-slate-400">/ 5</span>
-                            </div>
-                          </div>
-                          <div className="space-y-1 border-l border-slate-200 pl-4 text-center sm:text-left">
-                            <span className="text-[9px] uppercase font-extrabold text-slate-400 tracking-wider">Resultado (Sc)</span>
-                            <div className="text-lg font-mono font-black text-slate-800">
-                              {item.riskScore}
-                            </div>
+                          <div>
+                            <span className="font-extrabold text-slate-450 uppercase text-[8px] block tracking-wider">Avaliação (Probabilidade × Severidade)</span>
+                            <span className="text-slate-700 font-extrabold">
+                              {item.probability} × {item.severity} = <span className="font-mono font-black text-slate-900">{item.riskScore}</span>
+                            </span>
                           </div>
                         </div>
 
-                        <div className="flex flex-col items-center md:items-end justify-center border-t border-slate-200 md:border-none pt-3 md:pt-0">
-                          <span className="text-[9px] uppercase font-extrabold text-slate-400 tracking-wider mb-1 block">Classificação Final do Risco</span>
-                          <div className={`px-4 py-1.5 rounded-lg border font-black text-[10px] uppercase tracking-wider flex items-center shadow-2xs ${getRiskBadgeStyle(item.color)}`}>
-                            <span>Nível {item.riskLevel === "Grave" ? "Crítico" : item.riskLevel.toUpperCase()}</span>
+                        {/* Ficha Content Split Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 text-[11px] leading-relaxed">
+                          <div className="space-y-3">
+                            <div>
+                              <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Fonte Geradora / Situação:</span>
+                              <div className="text-slate-700 text-justify">{renderAsList(item.sourcesField)}</div>
+                            </div>
+                            <div>
+                              <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Danos e Agravos Possíveis:</span>
+                              <div className="text-slate-700 text-justify">{renderAsList(item.possibleInjuries)}</div>
+                            </div>
+                            {item.diseaseHistory && item.diseaseHistory !== "Não evidenciado." && item.diseaseHistory !== "Inexistente." && (
+                              <div>
+                                <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Histórico / Queixas de Adoecimento:</span>
+                                <div className="text-slate-700 text-justify">{renderAsList(item.diseaseHistory)}</div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-3 md:border-l md:border-slate-100 md:pl-4">
+                            <div>
+                              <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Medidas de Controle Existentes:</span>
+                              <div className="text-slate-700 text-justify">{renderAsList(item.existingControls)}</div>
+                            </div>
+                            <div>
+                              <span className="font-black text-slate-450 uppercase text-[8px] block tracking-widest mb-0.5">Recomendações Propostas / PGR:</span>
+                              <div className="text-slate-700 text-justify">{renderAsList(item.recommendation)}</div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2 text-[10px]">
+                              <div>
+                                <span className="font-extrabold text-slate-400 uppercase text-[8px] block leading-none">Responsável</span>
+                                <span className="text-slate-700 font-semibold">{item.responsible || "Liderança / SESMT"}</span>
+                              </div>
+                              <div>
+                                <span className="font-extrabold text-slate-400 uppercase text-[8px] block leading-none">Prazo</span>
+                                <span className="text-slate-700 font-extrabold font-mono">{item.deadline}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -767,86 +753,83 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   Nenhum plano de ação registrado.
                 </p>
               ) : (
-                <div className="space-y-8 print:space-y-12">
-                  {report.riskInventory.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-6 border-2 border-slate-300 rounded-2xl bg-white space-y-5 print:p-6 print:border-2 print:border-slate-400 print:rounded-xl print:break-inside-avoid print:page-break-inside-avoid shadow-xs"
-                    >
-                      {/* Cabeçalho do Card de Plano de Ação */}
-                      <div className="border-b-2 border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">
-                            Ficha de Plano de Ação Preventivo • PGR
-                          </span>
-                          <h4 className="text-base font-black text-slate-900 uppercase tracking-tight">
-                            {item.riskName}
-                          </h4>
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          <span className={`px-2 py-1 rounded-md border text-[8px] font-black uppercase tracking-wider ${getPriorityColorPrint(item.priority)}`}>
-                            Prioridade {item.priority}
-                          </span>
-                          <span className={`px-2 py-1 rounded-md border text-[8px] font-black uppercase tracking-wider ${getStatusColorPrint(item.status)}`}>
-                            {item.status}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Informações de Localização */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 print:bg-white print:border print:border-slate-200 print:p-4 text-xs">
-                        <div>
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block mb-0.5 tracking-wider">Setor Beneficiado:</span>
-                          <span className="text-slate-700 font-semibold">{getSectorName(item.sectorId)}</span>
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block mb-0.5 tracking-wider">Prazo de Conclusão:</span>
-                          <span className="text-slate-700 font-extrabold font-mono text-justify">{item.deadline || "Imediato"}</span>
-                        </div>
-                        <div>
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block mb-0.5 tracking-wider">Periodicidade de Controle:</span>
-                          <span className="text-slate-700 font-semibold">{item.periodicity || "Mensal"}</span>
-                        </div>
-                      </div>
-
-                      {/* Corpo Detalhado */}
-                      <div className="space-y-4 text-xs">
-                        {/* Objetivo Específico */}
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-500">Objetivo Específico:</span>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100/80 print:bg-white print:border-none print:p-0">
-                            <p className="text-slate-700 leading-relaxed text-justify">
-                              {item.actionObjective || `Mitigar os fatores de risco e neutralizar os agentes causadores de desvios psicossociais no setor.`}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Medidas de Intervenção Recomendadas */}
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-500">Ação Proposta / Medida de Intervenção Recomendada:</span>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100/80 print:bg-white print:border-none print:p-0">
-                            {renderAsList(item.actionProposed || item.recommendation)}
-                          </div>
-                        </div>
-
-                        {/* Indicadores de Eficácia */}
-                        <div className="space-y-1">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-500">Indicadores de Eficácia para Monitoramento:</span>
-                          <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100/80 print:bg-white print:border-none print:p-0">
-                            <p className="text-slate-700 leading-relaxed text-justify">
-                              {item.efficacyIndicator || `Reavaliação semestral de clima organizacional e acompanhamento dos indicadores de absenteísmo médico.`}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Responsável pela Implantação */}
-                        <div className="border-t border-slate-200 pt-3">
-                          <span className="font-extrabold text-slate-900 uppercase text-[9px] block tracking-widest text-slate-400">Responsável pela Gestão e Execução:</span>
-                          <span className="text-slate-700 font-extrabold text-sm">{item.responsible || "Diretoria de Recursos Humanos / Engenharia de Segurança do Trabalho"}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs print:border-slate-300">
+                  <table className="min-w-full divide-y divide-slate-200 text-left text-[11px] bg-white">
+                    <thead className="bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider">
+                      <tr>
+                        <th className="px-3 py-2.5 rounded-tl-xl">Item / Risco</th>
+                        <th className="px-3 py-2.5">Setor</th>
+                        <th className="px-3 py-2.5 w-5/12">Medida de Intervenção Recomendada / Ação Proposta</th>
+                        <th className="px-3 py-2.5">Responsável / Prazo</th>
+                        <th className="px-3 py-2.5 text-center">Prioridade</th>
+                        <th className="px-3 py-2.5 text-center rounded-tr-xl">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {report.riskInventory.map((item, idx) => {
+                        const isEven = idx % 2 === 0;
+                        const rowBg = isEven ? "bg-white" : "bg-slate-50/55";
+                        return (
+                          <tr key={item.id} className={`${rowBg} hover:bg-slate-50 transition-colors print:break-inside-avoid`}>
+                            <td className="px-3 py-3 font-bold text-slate-900 align-top">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-slate-400 font-mono text-[9px]">#{String(idx + 1).padStart(2, '0')}</span>
+                                <span className="uppercase text-[11px] leading-tight font-black text-slate-800">{item.riskName}</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-slate-700 font-semibold align-top whitespace-nowrap">
+                              {getSectorName(item.sectorId)}
+                            </td>
+                            <td className="px-3 py-3 text-slate-600 align-top leading-relaxed text-justify">
+                              <div className="space-y-1.5">
+                                {item.actionObjective && (
+                                  <div className="text-[10px] text-slate-500 italic border-l-2 border-slate-200 pl-2 mb-1.5 leading-normal">
+                                    <strong>Objetivo:</strong> {item.actionObjective}
+                                  </div>
+                                )}
+                                <div className="text-[11px] text-slate-700">
+                                  {renderAsList(item.actionProposed || item.recommendation)}
+                                </div>
+                                {item.efficacyIndicator && (
+                                  <div className="text-[10px] text-slate-450 mt-1.5 border-t border-slate-100 pt-1 leading-normal">
+                                    <strong>Indicador:</strong> {item.efficacyIndicator}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-slate-700 align-top">
+                              <div className="flex flex-col gap-2 text-[10px]">
+                                <div>
+                                  <span className="text-[8px] font-black text-slate-400 uppercase block leading-none">Quem</span>
+                                  <span className="font-bold text-slate-800">{item.responsible || "Liderança / SESMT"}</span>
+                                </div>
+                                <div>
+                                  <span className="text-[8px] font-black text-slate-400 uppercase block leading-none">Quando</span>
+                                  <span className="font-mono font-extrabold text-slate-900">{item.deadline || "Imediato"}</span>
+                                </div>
+                                {item.periodicity && (
+                                  <div>
+                                    <span className="text-[8px] font-black text-slate-400 uppercase block leading-none">Freq.</span>
+                                    <span className="text-slate-500 font-medium">{item.periodicity}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-2 py-3 text-center align-top whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider inline-block ${getPriorityColorPrint(item.priority)}`}>
+                                {item.priority}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3 text-center align-top whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider inline-block ${getStatusColorPrint(item.status)}`}>
+                                {item.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

@@ -38,6 +38,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
   const [editingEmployees, setEditingEmployees] = useState<string>("");
   const [editingRespondents, setEditingRespondents] = useState<string>("");
   const [editingRecognized, setEditingRecognized] = useState(true);
+  const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
 
   const handleAddField = (field: keyof Report, value: any) => {
     onChange({ [field]: value });
@@ -107,14 +108,12 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
   };
 
   const handleRemoveSector = (id: string) => {
-    if (confirm("Tem certeza que deseja remover este setor? Isso excluirá seus dados de avaliação e registros no inventário de riscos.")) {
-      const updatedSectors = report.sectors.filter((s) => s.id !== id);
-      const updatedInventory = report.riskInventory.filter((item) => item.sectorId !== id);
-      onChange({
-        sectors: updatedSectors,
-        riskInventory: updatedInventory,
-      });
-    }
+    const updatedSectors = report.sectors.filter((s) => s.id !== id);
+    const updatedInventory = report.riskInventory.filter((item) => item.sectorId !== id);
+    onChange({
+      sectors: updatedSectors,
+      riskInventory: updatedInventory,
+    });
   };
 
   const startEditingSector = (sector: Sector) => {
@@ -657,13 +656,36 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => handleRemoveSector(sector.id)}
-                              className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                              title="Excluir Setor"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {deletingSectorId === sector.id ? (
+                              <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 p-1 rounded-md">
+                                <span className="text-[10px] font-bold text-rose-800 px-1">Excluir?</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleRemoveSector(sector.id);
+                                    setDeletingSectorId(null);
+                                  }}
+                                  className="text-[10px] font-black text-rose-700 hover:text-rose-900 bg-rose-100/50 px-1.5 py-0.5 rounded cursor-pointer"
+                                >
+                                  Sim
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeletingSectorId(null)}
+                                  className="text-[10px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded cursor-pointer"
+                                >
+                                  Não
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setDeletingSectorId(sector.id)}
+                                className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                                title="Excluir Setor"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>

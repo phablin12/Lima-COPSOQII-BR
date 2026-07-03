@@ -29,6 +29,7 @@ export const ProfessionalsRegistry: React.FC<ProfessionalsRegistryProps> = ({
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("");
   const [editReg, setEditReg] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,9 +48,7 @@ export const ProfessionalsRegistry: React.FC<ProfessionalsRegistryProps> = ({
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este profissional?")) {
-      onUpdateProfessionals(professionals.filter((p) => p.id !== id));
-    }
+    onUpdateProfessionals(professionals.filter((p) => p.id !== id));
   };
 
   const startEdit = (prof: Professional) => {
@@ -214,13 +213,36 @@ export const ProfessionalsRegistry: React.FC<ProfessionalsRegistryProps> = ({
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(prof.id)}
-                          className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {deletingId === prof.id ? (
+                          <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 p-0.5 rounded-md">
+                            <span className="text-[9px] font-bold text-rose-800 px-1">Excluir?</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleDelete(prof.id);
+                                setDeletingId(null);
+                              }}
+                              className="text-[9px] font-black text-rose-700 hover:text-rose-900 bg-rose-100/50 px-1.5 py-0.5 rounded cursor-pointer"
+                            >
+                              Sim
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingId(null)}
+                              className="text-[9px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded cursor-pointer"
+                            >
+                              Não
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeletingId(prof.id)}
+                            className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </>
                   )}

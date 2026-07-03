@@ -39,6 +39,7 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
   const [editRiskDegree, setEditRiskDegree] = useState<string>("1");
   const [editCnae, setEditCnae] = useState("");
   const [editLogo, setEditLogo] = useState<string>("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
     const file = e.target.files?.[0];
@@ -94,9 +95,7 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir esta empresa?")) {
-      onUpdateCompanies(companies.filter((c) => c.id !== id));
-    }
+    onUpdateCompanies(companies.filter((c) => c.id !== id));
   };
 
   const startEdit = (company: Company) => {
@@ -411,13 +410,36 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(company.id)}
-                          className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {deletingId === company.id ? (
+                          <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 p-0.5 rounded-md">
+                            <span className="text-[9px] font-bold text-rose-800 px-1">Excluir?</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleDelete(company.id);
+                                setDeletingId(null);
+                              }}
+                              className="text-[9px] font-black text-rose-700 hover:text-rose-900 bg-rose-100/50 px-1.5 py-0.5 rounded cursor-pointer"
+                            >
+                              Sim
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingId(null)}
+                              className="text-[9px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded cursor-pointer"
+                            >
+                              Não
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeletingId(company.id)}
+                            className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
