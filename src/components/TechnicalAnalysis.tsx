@@ -57,8 +57,8 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
   // Get moderate and unfavorable dimensions for the current sector
   const getCriticalDimensions = (sector: Sector) => {
     return COPSOQ_DIMENSIONS.map((dim) => {
-      const score = sector.scores[dim.key] ?? 3.0;
-      const ratingInfo = getDimensionRating(score);
+      const score = sector.scores[dim.key] ?? 0.0;
+      const ratingInfo = getDimensionRating(score, dim.type);
       return {
         ...dim,
         score,
@@ -66,7 +66,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
         colorClass: ratingInfo.colorClass,
         bgClass: ratingInfo.bgClass,
       };
-    }).filter((dim) => dim.rating !== "Favorável");
+    }).filter((dim) => dim.rating !== "Favorável" && dim.rating !== "Não Avaliado" && dim.score > 0);
   };
 
   const criticalDimensions = currentSector ? getCriticalDimensions(currentSector) : [];

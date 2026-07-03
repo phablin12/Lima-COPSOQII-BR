@@ -95,6 +95,18 @@ interface ReportPrintPreviewProps {
 }
 
 export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, assessor }) => {
+  const getEmissionDateFormatted = () => {
+    const months = [
+      "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+      "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
+    ];
+    const d = new Date();
+    const day = d.getDate();
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    return `Tangará da Serra - MT, ${day} de ${month} de ${year}`;
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -554,10 +566,10 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               {report.sectors.map((sector) => {
                 // Get critical dimensions for this sector
                 const critical = COPSOQ_DIMENSIONS.map((d) => {
-                  const score = sector.scores[d.key] ?? 3.0;
-                  const rat = getDimensionRating(score);
+                  const score = sector.scores[d.key] ?? 0.0;
+                  const rat = getDimensionRating(score, d.type);
                   return { name: d.name, score, rating: rat.rating };
-                }).filter((d) => d.rating !== "Favorável");
+                }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score > 0);
 
                 return (
                   <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6">
@@ -871,12 +883,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- ASSINATURAS DO PROFISSIONAL DE SST --- */}
-        <div className="pt-20 space-y-12 print:pt-24 page-break-inside-avoid">
+        <div className="pt-20 space-y-10 print:pt-24 page-break-inside-avoid">
           <p className="text-xs text-slate-500 text-center">
             Este laudo reflete fielmente as avaliações fáticas realizadas em campo nas datas especificadas.
           </p>
           
-          <div className="flex flex-col items-center justify-center space-y-2">
+          <div className="text-center text-xs font-bold text-slate-700 tracking-wide">
+            {getEmissionDateFormatted()}
+          </div>
+          
+          <div className="flex flex-col items-center justify-center pt-28 pb-8">
             <div className="w-64 border-t-2 border-slate-800 text-center pt-2">
               <p className="text-sm font-bold text-slate-850 uppercase">{report.professionalName || "Profissional Responsável"}</p>
               <p className="text-xs text-slate-500">{report.professionalRole}</p>

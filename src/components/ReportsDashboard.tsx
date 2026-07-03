@@ -173,6 +173,15 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         </div>
       </div>
 
+      {/* Informativo sobre Download de PDF vs Backup JSON */}
+      <div className="bg-amber-50/60 border border-amber-100 rounded-2xl p-4 flex gap-3 text-xs text-amber-900 leading-relaxed shadow-3xs">
+        <span className="text-base select-none">💡</span>
+        <div>
+          <strong className="font-bold block text-amber-950 mb-0.5">Como baixar o laudo oficial em PDF?</strong>
+          Para obter o documento final formatado em PDF para entrega ao seu cliente, <strong className="font-bold text-amber-950">clique sobre o relatório desejado abaixo para abri-lo</strong>, navegue até a aba <strong className="font-bold text-amber-950">"Visualizar Impressão"</strong> no menu lateral esquerdo e clique no botão <strong className="font-bold text-amber-950">"Imprimir / Salvar em PDF"</strong>. O botão de download <strong className="font-bold text-amber-950">(↓)</strong> presente na lista abaixo serve exclusivamente para gerar um backup de segurança no formato de dados <strong className="font-bold text-amber-950">JSON</strong> (para transferência entre computadores).
+        </div>
+      </div>
+
       {/* Tabela / Lista de Relatórios */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
@@ -234,7 +243,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                     <button
                       onClick={(e) => handleExportReport(report, e)}
                       className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                      title="Exportar Backup JSON"
+                      title="Exportar Backup de Segurança (JSON)"
                     >
                       <Download className="w-4 h-4" />
                     </button>
