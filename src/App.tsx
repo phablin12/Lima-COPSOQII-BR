@@ -74,6 +74,29 @@ import {
 } from "./firebase";
 import { Login } from "./components/Login";
 
+// Safe JSON parser helper to prevent crashes due to corrupt or invalid localStorage strings
+const safeParseJSON = <T,>(value: string | null, fallback: T): T => {
+  if (!value) return fallback;
+  try {
+    // Prevent parsing "undefined" or bad state strings
+    if (value === "undefined" || value === "null") return fallback;
+    return JSON.parse(value) as T;
+  } catch (err) {
+    console.error("Erro ao fazer parse de JSON no localStorage:", err);
+    return fallback;
+  }
+};
+
+// Sanitizes loaded reports to guarantee that sectors and riskInventory arrays exist
+const sanitizeReports = (list: Report[]): Report[] => {
+  if (!Array.isArray(list)) return [];
+  return list.map((r) => ({
+    ...r,
+    sectors: Array.isArray(r.sectors) ? r.sectors : [],
+    riskInventory: Array.isArray(r.riskInventory) ? r.riskInventory : [],
+  }));
+};
+
 export default function App() {
   // Central State
   const [reports, setReports] = useState<Report[]>([]);
@@ -84,7 +107,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("cadastro");
   const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization">("dashboard");
   const [lastSaved, setLastSaved] = useState<string | null>(null);
-  const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">("synced");
+  const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">(db ? "synced" : "offline");
   
   // Assessing Company details
   const [assessor, setAssessor] = useState({
@@ -105,6 +128,11 @@ export default function App() {
 
   // A. Monitor Firebase Authentication State
   useEffect(() => {
+    if (!auth) {
+      console.warn("Autenticação do Firebase não inicializada. Executando em modo local.");
+      setAuthLoading(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
@@ -117,29 +145,30 @@ export default function App() {
     try {
       const storedReports = localStorage.getItem("sst_psicossocial_reports");
       if (storedReports) {
-        setReports(JSON.parse(storedReports));
+        const parsed = safeParseJSON<Report[]>(storedReports, []);
+        setReports(sanitizeReports(parsed));
       }
 
       const storedCatalog = localStorage.getItem("sst_psicossocial_catalog");
       if (storedCatalog) {
-        setGlobalCatalog(JSON.parse(storedCatalog));
+        setGlobalCatalog(safeParseJSON<CatalogRisk[]>(storedCatalog, DEFAULT_RISK_CATALOG));
       } else {
         setGlobalCatalog(DEFAULT_RISK_CATALOG);
       }
 
       const storedCompanies = localStorage.getItem("sst_psicossocial_companies");
       if (storedCompanies) {
-        setCompanies(JSON.parse(storedCompanies));
+        setCompanies(safeParseJSON<any[]>(storedCompanies, []));
       }
 
       const storedProfessionals = localStorage.getItem("sst_psicossocial_professionals");
       if (storedProfessionals) {
-        setProfessionals(JSON.parse(storedProfessionals));
+        setProfessionals(safeParseJSON<any[]>(storedProfessionals, []));
       }
 
       const storedAssessor = localStorage.getItem("sst_psicossocial_assessor");
       if (storedAssessor) {
-        setAssessor(JSON.parse(storedAssessor));
+        setAssessor(safeParseJSON<typeof assessor>(storedAssessor, assessor));
       }
     } catch (err) {
       console.error("Erro ao ler dados do localStorage:", err);
@@ -148,7 +177,7 @@ export default function App() {
 
   // C. Real-Time Synchronization from Firestore - Listeners for instant updates
   useEffect(() => {
-    if (!user) return;
+    if (!user || !db) return;
 
     setSyncState("syncing");
 
@@ -184,14 +213,15 @@ export default function App() {
             const dateB = b.updatedAt || b.createdAt || "";
             return dateB.localeCompare(dateA);
           });
-          setReports(list);
-          localStorage.setItem("sst_psicossocial_reports", JSON.stringify(list));
+          const sanitized = sanitizeReports(list);
+          setReports(sanitized);
+          localStorage.setItem("sst_psicossocial_reports", JSON.stringify(sanitized));
         } else {
           // Firestore is empty - try to seed from local storage if available, but keep local state
           const stored = localStorage.getItem("sst_psicossocial_reports");
           if (stored) {
-            const parsed = JSON.parse(stored) as Report[];
-            uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, parsed, saveReportToFirestore);
+            const parsed = safeParseJSON<Report[]>(stored, []);
+            uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, sanitizeReports(parsed), saveReportToFirestore);
           }
         }
         setSyncState("synced");
@@ -222,7 +252,7 @@ export default function App() {
           // Firestore is empty - seed from local
           const stored = localStorage.getItem("sst_psicossocial_companies");
           if (stored) {
-            const parsed = JSON.parse(stored);
+            const parsed = safeParseJSON<any[]>(stored, []);
             uploadLocalIfCollectionIsEmpty(COMPANIES_COLLECTION, parsed, saveCompanyToFirestore);
           }
         }
@@ -253,7 +283,7 @@ export default function App() {
           // Firestore is empty - seed from local
           const stored = localStorage.getItem("sst_psicossocial_professionals");
           if (stored) {
-            const parsed = JSON.parse(stored);
+            const parsed = safeParseJSON<any[]>(stored, []);
             uploadLocalIfCollectionIsEmpty(PROFESSIONALS_COLLECTION, parsed, saveProfessionalToFirestore);
           }
         }
@@ -282,7 +312,7 @@ export default function App() {
         } else {
           // Seed Firestore with default catalog if database is empty
           const storedCatalog = localStorage.getItem("sst_psicossocial_catalog");
-          const catalogToSave = storedCatalog ? JSON.parse(storedCatalog) : DEFAULT_RISK_CATALOG;
+          const catalogToSave = storedCatalog ? safeParseJSON<CatalogRisk[]>(storedCatalog, DEFAULT_RISK_CATALOG) : DEFAULT_RISK_CATALOG;
           await saveCatalogToFirestore(catalogToSave);
         }
         setSyncState("synced");
@@ -305,7 +335,7 @@ export default function App() {
           localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(data));
         } else {
           const storedAssessor = localStorage.getItem("sst_psicossocial_assessor");
-          const assessorToSave = storedAssessor ? JSON.parse(storedAssessor) : assessor;
+          const assessorToSave = storedAssessor ? safeParseJSON<typeof assessor>(storedAssessor, assessor) : assessor;
           await saveAssessorToFirestore(assessorToSave);
         }
         setSyncState("synced");
@@ -826,6 +856,8 @@ export default function App() {
                 ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
                 : syncState === "syncing"
                 ? "bg-blue-50 text-blue-700 border-blue-100 animate-pulse"
+                : syncState === "offline"
+                ? "bg-amber-50 text-amber-700 border-amber-100"
                 : "bg-rose-50 text-rose-700 border-rose-150"
             }`}>
               {syncState === "synced" ? (
@@ -837,6 +869,11 @@ export default function App() {
                 <>
                   <Cloud className="w-3.5 h-3.5 text-blue-500 animate-bounce shrink-0" />
                   <span className="hidden xs:inline">Salvando na Nuvem...</span>
+                </>
+              ) : syncState === "offline" ? (
+                <>
+                  <CloudOff className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span className="hidden xs:inline">Modo Local (Offline)</span>
                 </>
               ) : (
                 <>

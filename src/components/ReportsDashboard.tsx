@@ -60,12 +60,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       // Deep copy sectors
-      sectors: reportToCopy.sectors.map((s) => ({
+      sectors: (reportToCopy.sectors || []).map((s) => ({
         ...s,
         id: "sector-" + Math.random(),
       })),
       // Deep copy inventory items and adjust sector associations
-      riskInventory: reportToCopy.riskInventory.map((item) => ({
+      riskInventory: (reportToCopy.riskInventory || []).map((item) => ({
         ...item,
         id: "inv-" + Math.random(),
       })),
@@ -236,9 +236,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                       Responsável: {report.professionalName || <span className="italic text-slate-400">Não cadastrado</span>}
                     </span>
                     <span className="text-slate-300">|</span>
-                    <span>Setores: {report.sectors.length}</span>
+                    <span>Setores: {(report.sectors || []).length}</span>
                     <span className="text-slate-300">|</span>
-                    <span>Itens no Inventário: {report.riskInventory.length}</span>
+                    <span>Itens no Inventário: {(report.riskInventory || []).length}</span>
                   </div>
                 </div>
 
