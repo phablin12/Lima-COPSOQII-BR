@@ -46,7 +46,18 @@ import {
   signOut
 } from "firebase/auth";
 import { 
+  onSnapshot, 
+  collection, 
+  doc 
+} from "firebase/firestore";
+import { 
   auth,
+  db,
+  REPORTS_COLLECTION,
+  COMPANIES_COLLECTION,
+  PROFESSIONALS_COLLECTION,
+  CATALOG_COLLECTION,
+  SETTINGS_COLLECTION,
   saveReportToFirestore, 
   deleteReportFromFirestore, 
   loadReportsFromFirestore,
@@ -135,20 +146,22 @@ export default function App() {
     }
   }, []);
 
-  // C. Background Sync from Firestore (Cloud Source of Truth) - Only when authenticated!
+  // C. Real-Time Synchronization from Firestore - Listeners for instant updates
   useEffect(() => {
     if (!user) return;
 
-    const syncWithFirebaseOnMount = async () => {
-      setSyncState("syncing");
-      try {
-        // Load reports
-        const dbReports = await loadReportsFromFirestore();
-        if (dbReports && dbReports.length > 0) {
-          setReports(dbReports);
-          localStorage.setItem("sst_psicossocial_reports", JSON.stringify(dbReports));
-        } else {
-          // Seed Firestore if empty
+    setSyncState("syncing");
+
+    // 1. Real-time Reports Listener
+    const unsubReports = onSnapshot(
+      collection(db, REPORTS_COLLECTION),
+      async (snapshot) => {
+        const list: Report[] = [];
+        snapshot.forEach((d) => {
+          list.push({ ...d.data(), id: d.id } as Report);
+        });
+
+        if (list.length === 0) {
           const storedReports = localStorage.getItem("sst_psicossocial_reports");
           if (storedReports) {
             const parsed = JSON.parse(storedReports);
@@ -156,15 +169,28 @@ export default function App() {
               await saveReportToFirestore(r);
             }
           }
-        }
-
-        // Load companies
-        const dbCompanies = await loadCompaniesFromFirestore();
-        if (dbCompanies && dbCompanies.length > 0) {
-          setCompanies(dbCompanies);
-          localStorage.setItem("sst_psicossocial_companies", JSON.stringify(dbCompanies));
         } else {
-          // Seed Firestore if empty
+          setReports(list);
+          localStorage.setItem("sst_psicossocial_reports", JSON.stringify(list));
+        }
+        setSyncState("synced");
+      },
+      (error) => {
+        console.error("Erro no onSnapshot de relatórios:", error);
+        setSyncState("error");
+      }
+    );
+
+    // 2. Real-time Companies Listener
+    const unsubCompanies = onSnapshot(
+      collection(db, COMPANIES_COLLECTION),
+      async (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach((d) => {
+          list.push({ ...d.data(), id: d.id });
+        });
+
+        if (list.length === 0) {
           const storedCompanies = localStorage.getItem("sst_psicossocial_companies");
           if (storedCompanies) {
             const parsed = JSON.parse(storedCompanies);
@@ -172,15 +198,28 @@ export default function App() {
               await saveCompanyToFirestore(c);
             }
           }
-        }
-
-        // Load professionals
-        const dbProfessionals = await loadProfessionalsFromFirestore();
-        if (dbProfessionals && dbProfessionals.length > 0) {
-          setProfessionals(dbProfessionals);
-          localStorage.setItem("sst_psicossocial_professionals", JSON.stringify(dbProfessionals));
         } else {
-          // Seed Firestore if empty
+          setCompanies(list);
+          localStorage.setItem("sst_psicossocial_companies", JSON.stringify(list));
+        }
+        setSyncState("synced");
+      },
+      (error) => {
+        console.error("Erro no onSnapshot de empresas:", error);
+        setSyncState("error");
+      }
+    );
+
+    // 3. Real-time Professionals Listener
+    const unsubProfessionals = onSnapshot(
+      collection(db, PROFESSIONALS_COLLECTION),
+      async (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach((d) => {
+          list.push({ ...d.data(), id: d.id });
+        });
+
+        if (list.length === 0) {
           const storedProfessionals = localStorage.getItem("sst_psicossocial_professionals");
           if (storedProfessionals) {
             const parsed = JSON.parse(storedProfessionals);
@@ -188,42 +227,71 @@ export default function App() {
               await saveProfessionalToFirestore(p);
             }
           }
-        }
-
-        // Load catalog
-        const dbCatalog = await loadCatalogFromFirestore();
-        if (dbCatalog && dbCatalog.length > 0) {
-          setGlobalCatalog(dbCatalog);
-          localStorage.setItem("sst_psicossocial_catalog", JSON.stringify(dbCatalog));
         } else {
-          // Seed Firestore if empty
+          setProfessionals(list);
+          localStorage.setItem("sst_psicossocial_professionals", JSON.stringify(list));
+        }
+        setSyncState("synced");
+      },
+      (error) => {
+        console.error("Erro no onSnapshot de profissionais:", error);
+        setSyncState("error");
+      }
+    );
+
+    // 4. Real-time Catalog Listener
+    const unsubCatalog = onSnapshot(
+      collection(db, CATALOG_COLLECTION),
+      async (snapshot) => {
+        const list: CatalogRisk[] = [];
+        snapshot.forEach((d) => {
+          list.push({ ...d.data(), id: d.id } as CatalogRisk);
+        });
+
+        if (list.length === 0) {
           const storedCatalog = localStorage.getItem("sst_psicossocial_catalog");
           const catalogToSave = storedCatalog ? JSON.parse(storedCatalog) : DEFAULT_RISK_CATALOG;
           await saveCatalogToFirestore(catalogToSave);
-          setGlobalCatalog(catalogToSave);
-          localStorage.setItem("sst_psicossocial_catalog", JSON.stringify(catalogToSave));
-        }
-
-        // Load assessor
-        const dbAssessor = await loadAssessorFromFirestore();
-        if (dbAssessor) {
-          setAssessor(dbAssessor as any);
-          localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(dbAssessor));
         } else {
-          // Seed Firestore if empty
+          setGlobalCatalog(list);
+          localStorage.setItem("sst_psicossocial_catalog", JSON.stringify(list));
+        }
+        setSyncState("synced");
+      },
+      (error) => {
+        console.error("Erro no onSnapshot de catálogo:", error);
+        setSyncState("error");
+      }
+    );
+
+    // 5. Real-time Assessor (Settings) Listener
+    const unsubAssessor = onSnapshot(
+      doc(db, SETTINGS_COLLECTION, "assessor"),
+      async (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as typeof assessor;
+          setAssessor(data);
+          localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(data));
+        } else {
           const storedAssessor = localStorage.getItem("sst_psicossocial_assessor");
           const assessorToSave = storedAssessor ? JSON.parse(storedAssessor) : assessor;
           await saveAssessorToFirestore(assessorToSave);
         }
-
         setSyncState("synced");
-      } catch (err) {
-        console.error("Erro ao sincronizar com Firebase:", err);
+      },
+      (error) => {
+        console.error("Erro no onSnapshot do assessor:", error);
         setSyncState("error");
       }
-    };
+    );
 
-    syncWithFirebaseOnMount();
+    return () => {
+      unsubReports();
+      unsubCompanies();
+      unsubProfessionals();
+      unsubCatalog();
+      unsubAssessor();
+    };
   }, [user]);
 
   // 1b. Helper to persist companies
@@ -295,28 +363,16 @@ export default function App() {
     }
   };
 
-  // 2. Persist reports to localStorage and Firestore
-  const saveReportsToStorage = async (updatedReports: Report[]) => {
-    setReports(updatedReports);
-    try {
-      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updatedReports));
-      setLastSaved(new Date().toLocaleTimeString());
-    } catch (err) {
-      console.error("Erro ao persistir relatórios no localStorage:", err);
-    }
-
+  // 2. Import / save multiple reports to Firestore
+  const handleUpdateAllReports = async (updatedReports: Report[]) => {
     setSyncState("syncing");
     try {
-      const deleted = reports.filter((or) => !updatedReports.some((nr) => nr.id === or.id));
-      for (const dr of deleted) {
-        await deleteReportFromFirestore(dr.id);
-      }
-      for (const nr of updatedReports) {
-        await saveReportToFirestore(nr);
+      for (const r of updatedReports) {
+        await saveReportToFirestore(r);
       }
       setSyncState("synced");
     } catch (err) {
-      console.error("Erro ao sincronizar relatórios no Firestore:", err);
+      console.error("Erro ao salvar relatórios:", err);
       setSyncState("error");
     }
   };
@@ -341,38 +397,61 @@ export default function App() {
   };
 
   // 4. Create new report
-  const handleCreateReport = (newReport: Report) => {
-    const updated = [newReport, ...reports];
-    saveReportsToStorage(updated);
+  const handleCreateReport = async (newReport: Report) => {
+    setSyncState("syncing");
+    try {
+      await saveReportToFirestore(newReport);
+      setSyncState("synced");
+    } catch (err) {
+      console.error("Erro ao criar relatório no Firestore:", err);
+      setSyncState("error");
+    }
     setCurrentReportId(newReport.id);
     setActiveTab("cadastro"); // Reset to first step on new report
   };
 
   // 5. Delete report
-  const handleDeleteReport = (id: string) => {
-    const updated = reports.filter((r) => r.id !== id);
-    saveReportsToStorage(updated);
+  const handleDeleteReport = async (id: string) => {
+    setSyncState("syncing");
+    try {
+      await deleteReportFromFirestore(id);
+      setSyncState("synced");
+    } catch (err) {
+      console.error("Erro ao deletar relatório no Firestore:", err);
+      setSyncState("error");
+    }
     if (currentReportId === id) {
       setCurrentReportId(null);
     }
   };
 
   // 6. Update current report attributes
-  const handleUpdateCurrentReport = (updatedFields: Partial<Report>) => {
+  const handleUpdateCurrentReport = async (updatedFields: Partial<Report>) => {
     if (!currentReportId) return;
 
-    const updated = reports.map((r) => {
-      if (r.id === currentReportId) {
-        return {
-          ...r,
-          ...updatedFields,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return r;
-    });
+    const current = reports.find((r) => r.id === currentReportId);
+    if (!current) return;
 
-    saveReportsToStorage(updated);
+    const updatedReport = {
+      ...current,
+      ...updatedFields,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Optimistic local update
+    setReports((prev) =>
+      prev.map((r) => (r.id === currentReportId ? updatedReport : r))
+    );
+
+    setSyncState("syncing");
+    try {
+      await saveReportToFirestore(updatedReport);
+      setSyncState("synced");
+      setLastSaved(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error("Erro ao atualizar relatório no Firestore:", err);
+      setSyncState("error");
+    }
   };
 
   // Get active report
@@ -741,7 +820,7 @@ export default function App() {
                   onSelectReport={setCurrentReportId}
                   onCreateReport={handleCreateReport}
                   onDeleteReport={handleDeleteReport}
-                  onUpdateAllReports={saveReportsToStorage}
+                  onUpdateAllReports={handleUpdateAllReports}
                   defaultCoverImage={assessor.defaultCoverImage}
                 />
               )}
