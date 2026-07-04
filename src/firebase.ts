@@ -41,17 +41,54 @@ export const SETTINGS_COLLECTION = "settings";
 
 // --- HELPERS FOR SYNCHRONIZATION ---
 
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: string;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
 /**
  * Handle firestore operation errors with detailed debugging as per skill guide
  */
-function handleFirestoreError(error: unknown, operation: string, path: string) {
-  const errInfo = {
+function handleFirestoreError(error: unknown, operation: string, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid || null,
+      email: auth?.currentUser?.email || null,
+      emailVerified: auth?.currentUser?.emailVerified || null,
+      isAnonymous: auth?.currentUser?.isAnonymous || null,
+      tenantId: auth?.currentUser?.tenantId || null,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
     operationType: operation,
-    path,
-    authInfo: { userId: null, email: null } // No auth active in standard client scope yet
+    path
   };
   console.error("Firestore Error [" + operation + "]:", JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
 }
 
 // 1. Reports Sync Helpers

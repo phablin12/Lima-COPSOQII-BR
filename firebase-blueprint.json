@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "Report": {
+      "title": "Report",
+      "description": "An SST psychosocial risk report",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "dateStart": { "type": "string" },
+        "dateEnd": { "type": "string" },
+        "professionalName": { "type": "string" },
+        "professionalRole": { "type": "string" },
+        "professionalReg": { "type": "string" },
+        "sectors": { "type": "array" },
+        "riskInventory": { "type": "array" },
+        "chapters": { "type": "object" },
+        "finalConsiderations": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "companyName", "createdAt", "updatedAt"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "A client company definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "fantasyName": { "type": "string" },
+        "cnpj": { "type": "string" }
+      },
+      "required": ["id"]
+    },
+    "Professional": {
+      "title": "Professional",
+      "description": "A safety professional definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "reg": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "CatalogRisk": {
+      "title": "CatalogRisk",
+      "description": "A psychosocial risk catalog item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "source": { "type": "string" },
+        "possibleInjuries": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "AssessorSettings": {
+      "title": "AssessorSettings",
+      "description": "Custom workspace settings of the assessor company",
+      "type": "object",
+      "properties": {
+        "fantasyName": { "type": "string" },
+        "socialName": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "logo": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "SST psychosocial reports"
+    },
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Client companies registry"
+    },
+    "/professionals/{profId}": {
+      "schema": "Professional",
+      "description": "Technical professionals registry"
+    },
+    "/catalog/{catalogId}": {
+      "schema": "CatalogRisk",
+      "description": "Psychosocial risks catalog"
+    },
+    "/settings/{settingsId}": {
+      "schema": "AssessorSettings",
+      "description": "Assessor workspace settings"
+    }
+  }
+}

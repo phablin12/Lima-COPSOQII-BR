@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Reports collection validation
+    function isValidReport(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.companyName is string && data.companyName.size() <= 256
+        && data.createdAt is string
+        && data.updatedAt is string;
+    }
+
+    match /reports/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(reportId) && isValidReport(request.resource.data);
+      allow update: if isSignedIn() && isValidId(reportId) && isValidReport(request.resource.data);
+      allow delete: if isSignedIn() && isValidId(reportId);
+    }
+
+    // Companies collection validation
+    function isValidCompany(data) {
+      return data.id is string && data.id.size() <= 128;
+    }
+
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(companyId) && isValidCompany(request.resource.data);
+      allow update: if isSignedIn() && isValidId(companyId) && isValidCompany(request.resource.data);
+      allow delete: if isSignedIn() && isValidId(companyId);
+    }
+
+    // Professionals collection validation
+    function isValidProfessional(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 256;
+    }
+
+    match /professionals/{profId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(profId) && isValidProfessional(request.resource.data);
+      allow update: if isSignedIn() && isValidId(profId) && isValidProfessional(request.resource.data);
+      allow delete: if isSignedIn() && isValidId(profId);
+    }
+
+    // Catalog collection validation
+    function isValidCatalogItem(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 256;
+    }
+
+    match /catalog/{catalogId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(catalogId) && isValidCatalogItem(request.resource.data);
+      allow delete: if isSignedIn() && isValidId(catalogId);
+    }
+
+    // Settings collection validation
+    match /settings/{settingsId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(settingsId);
+      allow delete: if isSignedIn() && isValidId(settingsId);
+    }
+  }
+}
