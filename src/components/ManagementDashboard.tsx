@@ -68,8 +68,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
 }) => {
   // 1. Calculate General Metrics
   const totalReports = reports.length;
-  const totalSectors = reports.reduce((sum, r) => sum + (r.sectors || []).length, 0);
-  const totalRisksMapped = reports.reduce((sum, r) => sum + (r.riskInventory || []).length, 0);
+  const totalSectors = reports.reduce((sum, r) => sum + r.sectors.length, 0);
+  const totalRisksMapped = reports.reduce((sum, r) => sum + r.riskInventory.length, 0);
   
   // Count risks by status
   let pendingActions = 0;
@@ -77,7 +77,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
   let completedActions = 0;
 
   reports.forEach(r => {
-    (r.riskInventory || []).forEach(item => {
+    r.riskInventory.forEach(item => {
       if (item.status === "Concluído") completedActions++;
       else if (item.status === "Em Andamento") inProgressActions++;
       else pendingActions++;
@@ -110,7 +110,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
       const bucket = last6Months.find(m => m.monthIndex === rMonth && m.year === rYear);
       if (bucket) {
         bucket.Laudos++;
-        bucket.Riscos += (r.riskInventory || []).length;
+        bucket.Riscos += r.riskInventory.length;
       }
     });
 
@@ -135,7 +135,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
   let lowPriorityCount = 0;
 
   reports.forEach(r => {
-    (r.riskInventory || []).forEach(item => {
+    r.riskInventory.forEach(item => {
       if (item.priority === "Alta") highPriorityCount++;
       else if (item.priority === "Média") mediumPriorityCount++;
       else lowPriorityCount++;
@@ -153,12 +153,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
     const list: { sectorName: string; companyName: string; scoreSum: number; criticalCount: number }[] = [];
 
     reports.forEach(r => {
-      (r.sectors || []).forEach(s => {
+      r.sectors.forEach(s => {
         let criticalCount = 0;
         let scoreSum = 0;
 
         COPSOQ_DIMENSIONS.forEach(d => {
-          const score = s.scores?.[d.key] ?? 0;
+          const score = s.scores[d.key] ?? 0;
           if (score > 0) {
             const rating = getDimensionRating(score, d.type);
             scoreSum += score;

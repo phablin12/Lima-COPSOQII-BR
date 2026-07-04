@@ -67,19 +67,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     setLoading(true);
 
-    if (!auth) {
-      // Simula um login local resiliente se as chaves do Firebase estiverem pendentes ou inválidas
-      setTimeout(() => {
-        onLoginSuccess({
-          uid: "offline-user",
-          email: email,
-          displayName: "Operador Local (Offline)"
-        });
-        setLoading(false);
-      }, 500);
-      return;
-    }
-
     try {
       // Sign In Flow (Signup option disabled per user request)
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -118,22 +105,11 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         </div>
 
         {/* Informative Label */}
-        {!auth ? (
-          <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-center">
-            <p className="text-xs text-amber-700 font-extrabold flex items-center justify-center gap-1">
-              <span>⚠️ MODO LOCAL ATIVO</span>
-            </p>
-            <p className="text-[10px] text-amber-600 mt-1 font-semibold leading-relaxed">
-              O Firebase está indisponível ou desconfigurado. Para testar o app, você pode fazer login local digitando qualquer e-mail e senha.
-            </p>
-          </div>
-        ) : (
-          <div className="bg-slate-50 border border-slate-150 p-3 rounded-xl text-center">
-            <p className="text-xs text-slate-500 font-semibold">
-              Faça login com sua conta corporativa para continuar
-            </p>
-          </div>
-        )}
+        <div className="bg-slate-50 border border-slate-150 p-3 rounded-xl text-center">
+          <p className="text-xs text-slate-500 font-semibold">
+            Faça login com sua conta corporativa para continuar
+          </p>
+        </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
