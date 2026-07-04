@@ -152,26 +152,47 @@ export default function App() {
 
     setSyncState("syncing");
 
+    // Helper to merge and upload missing local items to Firestore if collection is empty
+    const uploadLocalIfCollectionIsEmpty = async (collectionName: string, localData: any[], saveFn: (item: any) => Promise<void>) => {
+      try {
+        if (localData && localData.length > 0) {
+          console.log(`Subindo dados locais para a coleção ${collectionName} vazia no Firestore...`);
+          for (const item of localData) {
+            await saveFn(item);
+          }
+        }
+      } catch (err) {
+        console.error(`Erro ao subir dados locais para ${collectionName}:`, err);
+      }
+    };
+
     // 1. Real-time Reports Listener
     const unsubReports = onSnapshot(
       collection(db, REPORTS_COLLECTION),
       async (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) return;
+
         const list: Report[] = [];
         snapshot.forEach((d) => {
           list.push({ ...d.data(), id: d.id } as Report);
         });
 
-        if (list.length === 0) {
-          const storedReports = localStorage.getItem("sst_psicossocial_reports");
-          if (storedReports) {
-            const parsed = JSON.parse(storedReports);
-            for (const r of parsed) {
-              await saveReportToFirestore(r);
-            }
-          }
-        } else {
+        if (list.length > 0) {
+          // Sort reports Consistently across all PCs by updatedAt / createdAt descending
+          list.sort((a, b) => {
+            const dateA = a.updatedAt || a.createdAt || "";
+            const dateB = b.updatedAt || b.createdAt || "";
+            return dateB.localeCompare(dateA);
+          });
           setReports(list);
           localStorage.setItem("sst_psicossocial_reports", JSON.stringify(list));
+        } else {
+          // Firestore is empty - try to seed from local storage if available, but keep local state
+          const stored = localStorage.getItem("sst_psicossocial_reports");
+          if (stored) {
+            const parsed = JSON.parse(stored) as Report[];
+            uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, parsed, saveReportToFirestore);
+          }
         }
         setSyncState("synced");
       },
@@ -185,22 +206,25 @@ export default function App() {
     const unsubCompanies = onSnapshot(
       collection(db, COMPANIES_COLLECTION),
       async (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) return;
+
         const list: any[] = [];
         snapshot.forEach((d) => {
           list.push({ ...d.data(), id: d.id });
         });
 
-        if (list.length === 0) {
-          const storedCompanies = localStorage.getItem("sst_psicossocial_companies");
-          if (storedCompanies) {
-            const parsed = JSON.parse(storedCompanies);
-            for (const c of parsed) {
-              await saveCompanyToFirestore(c);
-            }
-          }
-        } else {
+        if (list.length > 0) {
+          // Sort alphabetically
+          list.sort((a, b) => (a.fantasyName || a.name || "").localeCompare(b.fantasyName || b.name || ""));
           setCompanies(list);
           localStorage.setItem("sst_psicossocial_companies", JSON.stringify(list));
+        } else {
+          // Firestore is empty - seed from local
+          const stored = localStorage.getItem("sst_psicossocial_companies");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            uploadLocalIfCollectionIsEmpty(COMPANIES_COLLECTION, parsed, saveCompanyToFirestore);
+          }
         }
         setSyncState("synced");
       },
@@ -214,22 +238,24 @@ export default function App() {
     const unsubProfessionals = onSnapshot(
       collection(db, PROFESSIONALS_COLLECTION),
       async (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) return;
+
         const list: any[] = [];
         snapshot.forEach((d) => {
           list.push({ ...d.data(), id: d.id });
         });
 
-        if (list.length === 0) {
-          const storedProfessionals = localStorage.getItem("sst_psicossocial_professionals");
-          if (storedProfessionals) {
-            const parsed = JSON.parse(storedProfessionals);
-            for (const p of parsed) {
-              await saveProfessionalToFirestore(p);
-            }
-          }
-        } else {
+        if (list.length > 0) {
+          list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
           setProfessionals(list);
           localStorage.setItem("sst_psicossocial_professionals", JSON.stringify(list));
+        } else {
+          // Firestore is empty - seed from local
+          const stored = localStorage.getItem("sst_psicossocial_professionals");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            uploadLocalIfCollectionIsEmpty(PROFESSIONALS_COLLECTION, parsed, saveProfessionalToFirestore);
+          }
         }
         setSyncState("synced");
       },
@@ -243,18 +269,21 @@ export default function App() {
     const unsubCatalog = onSnapshot(
       collection(db, CATALOG_COLLECTION),
       async (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) return;
+
         const list: CatalogRisk[] = [];
         snapshot.forEach((d) => {
           list.push({ ...d.data(), id: d.id } as CatalogRisk);
         });
 
-        if (list.length === 0) {
+        if (list.length > 0) {
+          setGlobalCatalog(list);
+          localStorage.setItem("sst_psicossocial_catalog", JSON.stringify(list));
+        } else {
+          // Seed Firestore with default catalog if database is empty
           const storedCatalog = localStorage.getItem("sst_psicossocial_catalog");
           const catalogToSave = storedCatalog ? JSON.parse(storedCatalog) : DEFAULT_RISK_CATALOG;
           await saveCatalogToFirestore(catalogToSave);
-        } else {
-          setGlobalCatalog(list);
-          localStorage.setItem("sst_psicossocial_catalog", JSON.stringify(list));
         }
         setSyncState("synced");
       },
@@ -268,6 +297,8 @@ export default function App() {
     const unsubAssessor = onSnapshot(
       doc(db, SETTINGS_COLLECTION, "assessor"),
       async (docSnap) => {
+        if (docSnap.metadata.hasPendingWrites) return;
+
         if (docSnap.exists()) {
           const data = docSnap.data() as typeof assessor;
           setAssessor(data);
@@ -398,6 +429,16 @@ export default function App() {
 
   // 4. Create new report
   const handleCreateReport = async (newReport: Report) => {
+    // Immediate optimistic local update
+    const updated = [newReport, ...reports];
+    setReports(updated);
+    try {
+      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updated));
+      setLastSaved(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error("Erro ao salvar relatório localmente:", err);
+    }
+
     setSyncState("syncing");
     try {
       await saveReportToFirestore(newReport);
@@ -412,6 +453,16 @@ export default function App() {
 
   // 5. Delete report
   const handleDeleteReport = async (id: string) => {
+    // Immediate optimistic local update
+    const updated = reports.filter((r) => r.id !== id);
+    setReports(updated);
+    try {
+      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updated));
+      setLastSaved(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error("Erro ao remover relatório localmente:", err);
+    }
+
     setSyncState("syncing");
     try {
       await deleteReportFromFirestore(id);
@@ -438,16 +489,20 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     };
 
-    // Optimistic local update
-    setReports((prev) =>
-      prev.map((r) => (r.id === currentReportId ? updatedReport : r))
-    );
+    // Immediate optimistic local update
+    const updatedReports = reports.map((r) => (r.id === currentReportId ? updatedReport : r));
+    setReports(updatedReports);
+    try {
+      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updatedReports));
+      setLastSaved(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error("Erro ao atualizar relatório localmente:", err);
+    }
 
     setSyncState("syncing");
     try {
       await saveReportToFirestore(updatedReport);
       setSyncState("synced");
-      setLastSaved(new Date().toLocaleTimeString());
     } catch (err) {
       console.error("Erro ao atualizar relatório no Firestore:", err);
       setSyncState("error");

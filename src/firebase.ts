@@ -13,15 +13,18 @@ import {
   getAuth
 } from "firebase/auth";
 
+// Resolve env variable compatibility with tsc
+const env = (import.meta as any).env || {};
+
 // Configuration provided by the user for their Firebase project
 const firebaseConfig = {
-  apiKey: "AIzaSyC1-GZOdiBIZDGXUVotc_MhcsVtngbHrdg",
-  authDomain: "relatorio-copsoqii-br-lima-eng.firebaseapp.com",
-  projectId: "relatorio-copsoqii-br-lima-eng",
-  storageBucket: "relatorio-copsoqii-br-lima-eng.firebasestorage.app",
-  messagingSenderId: "963283915356",
-  appId: "1:963283915356:web:e9678f9df792fdbdf54c99",
-  measurementId: "G-RRK45EXJ8Y"
+  apiKey: env.VITE_FIREBASE_API_KEY || "AIzaSyC1-GZOdiBIZDGXUVotc_MhcsVtngbHrdg",
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || "relatorio-copsoqii-br-lima-eng.firebaseapp.com",
+  projectId: env.VITE_FIREBASE_PROJECT_ID || "relatorio-copsoqii-br-lima-eng",
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || "relatorio-copsoqii-br-lima-eng.firebasestorage.app",
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || "963283915356",
+  appId: env.VITE_FIREBASE_APP_ID || "1:963283915356:web:e9678f9df792fdbdf54c99",
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || "G-RRK45EXJ8Y"
 };
 
 // Initialize Firebase
