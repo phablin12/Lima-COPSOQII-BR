@@ -87,14 +87,46 @@ export default function App() {
   const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">("synced");
   
   // Assessing Company details
-  const [assessor, setAssessor] = useState({
+  const [assessor, setAssessor] = useState<{
+    fantasyName: string;
+    socialName: string;
+    cnpj: string;
+    address: string;
+    phone: string;
+    logo: string;
+    favicon?: string;
+    siteName?: string;
+    defaultCoverImage?: string;
+  }>({
     fantasyName: "Lima engenharia e assessoria em segurança do trabalho",
     socialName: "E. L. de Jesus – Segurança",
     cnpj: "18.195.986/0001-68",
     address: "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT",
     phone: "65 99998-0418",
-    logo: ""
+    logo: "",
+    favicon: "",
+    siteName: "SST Psicossocial",
+    defaultCoverImage: ""
   });
+
+  // Dynamic Browser tab title and favicon sync
+  useEffect(() => {
+    if (assessor.siteName) {
+      document.title = assessor.siteName;
+    } else {
+      document.title = "SST Psicossocial";
+    }
+
+    if (assessor.favicon) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = assessor.favicon;
+    }
+  }, [assessor]);
 
   // Mobile sidebar drawer state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
