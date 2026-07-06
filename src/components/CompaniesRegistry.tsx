@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { Building, Plus, Trash2, Edit2, Check, X, ShieldCheck } from "lucide-react";
+import { Building, Plus, Trash2, Edit2, Check, X, ShieldCheck, Copy } from "lucide-react";
 
 interface Company {
   id: string;
@@ -70,6 +70,18 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
   const [editLogo, setEditLogo] = useState<string>("");
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleDuplicate = (company: Company) => {
+    const duplicatedCompany: Company = {
+      ...company,
+      id: "comp-" + Date.now(),
+      name: `${company.name} (Cópia)`,
+      fantasyName: company.fantasyName ? `${company.fantasyName} (Cópia)` : undefined,
+    };
+    onUpdateCompanies([...companies, duplicatedCompany]);
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
     const file = e.target.files?.[0];
@@ -421,17 +433,46 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
 
         {/* Lista de Empresas Cadastradas */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs xl:col-span-7 space-y-4">
-          <h4 className="font-semibold text-slate-800 text-sm border-b border-slate-100 pb-3">
-            Empresas Cadastradas ({companies.length})
-          </h4>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <h4 className="font-semibold text-slate-800 text-sm">
+              Empresas Cadastradas ({companies.length})
+            </h4>
+            <input
+              type="text"
+              placeholder="Buscar por nome, fantasia, CNPJ..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none w-full sm:w-64"
+            />
+          </div>
 
           {companies.length === 0 ? (
             <p className="text-sm text-slate-400 italic text-center py-10">
               Nenhuma empresa cadastrada ainda.
             </p>
-          ) : (
-            <div className="divide-y divide-slate-100 max-h-[750px] overflow-y-auto pr-1">
-              {companies.map((company) => (
+          ) : (() => {
+            const filteredCompanies = companies.filter((company) => {
+              const q = searchQuery.toLowerCase().trim();
+              if (!q) return true;
+              return (
+                company.name.toLowerCase().includes(q) ||
+                (company.fantasyName || "").toLowerCase().includes(q) ||
+                (company.cnpj || "").toLowerCase().includes(q) ||
+                (company.city || "").toLowerCase().includes(q)
+              );
+            });
+
+            if (filteredCompanies.length === 0) {
+              return (
+                <p className="text-sm text-slate-400 italic text-center py-10">
+                  Nenhuma empresa corresponde à sua busca.
+                </p>
+              );
+            }
+
+            return (
+              <div className="divide-y divide-slate-100 max-h-[750px] overflow-y-auto pr-1">
+                {filteredCompanies.map((company) => (
                 <div key={company.id} className="py-4 flex flex-col gap-2">
                   {editingId === company.id ? (
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
@@ -660,6 +701,13 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
 
                       <div className="flex items-center gap-1">
                         <button
+                          onClick={() => handleDuplicate(company)}
+                          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition cursor-pointer"
+                          title="Duplicar Empresa"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => startEdit(company)}
                           className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition cursor-pointer"
                           title="Editar"
@@ -702,7 +750,8 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                 </div>
               ))}
             </div>
-          )}
+            );
+          })()}
         </div>
 
       </div>

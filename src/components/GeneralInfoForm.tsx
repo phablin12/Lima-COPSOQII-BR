@@ -176,34 +176,6 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
 
   return (
     <div className="space-y-8" id="general-info-container">
-      {/* Opções Globais do Relatório */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-          <FileCheck2 className="w-5 h-5 text-slate-600" />
-          Configurações Gerais do Laudo
-        </h3>
-        <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-100">
-          <div className="space-y-1">
-            <h4 className="text-sm font-bold text-slate-700">Reconhecimento Geral de Riscos</h4>
-            <p className="text-xs text-slate-500">
-              Caso a empresa não reconheça nenhum risco psicossocial nas devolutivas, ative este controle para omitir os capítulos de Inventário de Riscos (NR-01) e Plano de Ação no laudo final.
-            </p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={report.risksRecognized !== false}
-              onChange={(e) => handleAddField("risksRecognized", e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-800"></div>
-            <span className="ml-3 text-xs font-bold text-slate-700 uppercase">
-              {report.risksRecognized !== false ? "Reconhece Riscos" : "Sem Riscos"}
-            </span>
-          </label>
-        </div>
-      </div>
-
       {/* Dados da Empresa */}
       <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">

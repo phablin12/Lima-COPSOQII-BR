@@ -27,6 +27,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
+  const [reportSearchQuery, setReportSearchQuery] = useState("");
 
   const handleCreateNewReport = () => {
     const newReport: Report = {
@@ -144,24 +145,26 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
   return (
     <div className="space-y-6" id="reports-dashboard">
-      {/* Intro Hero Section */}
-      <div className="bg-slate-800 text-white p-8 rounded-3xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-3 z-10 max-w-xl">
-          <span className="text-xs bg-slate-700 text-amber-300 font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-            SST Psicossocial
-          </span>
-          <h2 className="text-2xl font-black md:text-3xl tracking-tight leading-tight">
-            Elaborador de Laudos de Riscos Psicossociais
+      {/* Intro Header Section */}
+      <div className="bg-slate-50 border border-slate-150 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-2 max-w-2xl text-left">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] bg-slate-200 text-slate-800 font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">
+              Diagnóstico Psicossocial
+            </span>
+          </div>
+          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight leading-tight">
+            Gestão de Diagnósticos e Relatórios de Riscos Psicossociais
           </h2>
-          <p className="text-slate-300 text-xs leading-relaxed">
-            Sistema profissional para gerenciar laudos de riscos ergonômicos e psicossociais utilizando a metodologia <strong>COPSOQ II – BR</strong> em atendimento à <strong>NR-01 (GRO/PGR)</strong>.
+          <p className="text-slate-600 text-xs leading-relaxed">
+            Sistema profissional para elaborar e gerenciar relatórios e diagnósticos dos fatores de riscos psicossociais, utilizando a metodologia científica do <strong>COPSOQ II – BR</strong> em atendimento às diretrizes da <strong>NR-01 (GRO/PGR)</strong>.
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 z-10 shrink-0">
+        <div className="flex flex-col sm:flex-row gap-3 shrink-0">
           <button
             onClick={handleCreateNewReport}
-            className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-500 px-6 py-3 rounded-xl transition cursor-pointer shadow-sm animate-pulse hover:animate-none"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-6 py-3 rounded-xl transition cursor-pointer shadow-sm"
           >
             <Plus className="w-4 h-4" /> Novo Relatório
           </button>
@@ -170,11 +173,18 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
       {/* Tabela / Lista de Relatórios */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
             <FileText className="w-4 h-4 text-slate-400" />
             Seus Relatórios Arquivados ({reports.length})
           </h3>
+          <input
+            type="text"
+            placeholder="Buscar por empresa, CNPJ, responsável..."
+            value={reportSearchQuery}
+            onChange={(e) => setReportSearchQuery(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none w-full sm:w-64"
+          />
         </div>
 
         {reports.length === 0 ? (
@@ -183,71 +193,91 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
               <FolderHeart className="w-8 h-8" />
             </div>
             <div className="max-w-md mx-auto space-y-2">
-              <h4 className="font-bold text-slate-800">Nenhum laudo elaborado ainda</h4>
+              <h4 className="font-bold text-slate-800">Nenhum relatório elaborado ainda</h4>
               <p className="text-xs text-slate-500">
                 Comece clicando em <strong>Novo Relatório</strong> no topo ou importe um arquivo JSON existente para alimentar o sistema.
               </p>
             </div>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {reports.map((report) => (
-              <div
-                key={report.id}
-                onClick={() => onSelectReport(report.id)}
-                className="p-5 hover:bg-slate-50/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer border-l-4 border-transparent hover:border-slate-800"
-              >
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-bold text-slate-800 hover:text-slate-900 transition text-sm">
-                      {report.companyName}
-                    </h4>
-                    {report.cnpj && (
-                      <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                        CNPJ: {report.cnpj}
+        ) : (() => {
+          const filteredReports = reports.filter((report) => {
+            const query = reportSearchQuery.toLowerCase().trim();
+            if (!query) return true;
+            return (
+              report.companyName.toLowerCase().includes(query) ||
+              (report.cnpj || "").toLowerCase().includes(query) ||
+              (report.professionalName || "").toLowerCase().includes(query)
+            );
+          });
+
+          if (filteredReports.length === 0) {
+            return (
+              <p className="text-sm text-slate-450 italic text-center py-12">
+                Nenhum relatório corresponde à sua busca.
+              </p>
+            );
+          }
+
+          return (
+            <div className="divide-y divide-slate-100">
+              {filteredReports.map((report) => (
+                <div
+                  key={report.id}
+                  onClick={() => onSelectReport(report.id)}
+                  className="p-5 hover:bg-slate-50/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer border-l-4 border-transparent hover:border-slate-800"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-bold text-slate-800 hover:text-slate-900 transition text-sm">
+                        {report.companyName}
+                      </h4>
+                      {report.cnpj && (
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                          CNPJ: {report.cnpj}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
+                      <span className="flex items-center gap-1">
+                        Responsável: {report.professionalName || <span className="italic text-slate-400">Não cadastrado</span>}
                       </span>
-                    )}
+                      <span className="text-slate-300">|</span>
+                      <span>Setores: {report.sectors.length}</span>
+                      <span className="text-slate-300">|</span>
+                      <span>Itens no Inventário: {report.riskInventory.length}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
-                    <span className="flex items-center gap-1">
-                      Responsável: {report.professionalName || <span className="italic text-slate-400">Não cadastrado</span>}
+
+                  <div className="flex items-center gap-2.5 self-end md:self-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mr-2 text-right">
+                      Criado em:<br />
+                      <span className="font-mono text-slate-500 lowercase">{formatDate(report.createdAt)}</span>
                     </span>
-                    <span className="text-slate-300">|</span>
-                    <span>Setores: {report.sectors.length}</span>
-                    <span className="text-slate-300">|</span>
-                    <span>Itens no Inventário: {report.riskInventory.length}</span>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => handleDuplicateReport(report, e)}
+                        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                        title="Duplicar Relatório"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteReport(report.id, e)}
+                        className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Excluir Relatório"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <ChevronRight className="w-5 h-5 text-slate-300" />
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2.5 self-end md:self-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mr-2 text-right">
-                    Criado em:<br />
-                    <span className="font-mono text-slate-500 lowercase">{formatDate(report.createdAt)}</span>
-                  </span>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => handleDuplicateReport(report, e)}
-                      className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                      title="Duplicar Relatório"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteReport(report.id, e)}
-                      className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                      title="Excluir Relatório"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <ChevronRight className="w-5 h-5 text-slate-300" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Info Boxes / Rodapé Técnico */}

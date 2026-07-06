@@ -92,6 +92,9 @@ export interface Report {
   chapters: ReportChapters;
   finalConsiderations: string;
   risksRecognized?: boolean; // Whether the company recognizes the risks (influences chapter 6 & 7 rendering)
+  hideChapter5?: boolean; // Whether to hide Chapter 5 in the final report
+  hideChapter6?: boolean; // Whether to hide Chapter 6 in the final report
+  hideChapter7?: boolean; // Whether to hide Chapter 7 in the final report
   createdAt: string;
   updatedAt: string;
 }
