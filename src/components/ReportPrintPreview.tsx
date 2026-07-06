@@ -5,7 +5,7 @@
 
 import React from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
-import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity } from "lucide-react";
+import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
 
 const getLevelEmoji = (level: string) => {
@@ -847,7 +847,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     if (sectorRisks.length === 0) return null;
 
                     return (
-                      <div key={sector.id} className="space-y-4 print:break-inside-avoid-page">
+                      <div key={sector.id} className="space-y-4">
                         <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-amber-400"></span>
@@ -1038,7 +1038,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                   {/* Fallback for unrecognized sector risks if any */}
                   {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
-                    <div className="space-y-4 print:break-inside-avoid-page">
+                    <div className="space-y-4">
                       <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-amber-400"></span>
@@ -1249,7 +1249,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     if (sectorRisks.length === 0) return null;
 
                     return (
-                      <div key={sector.id} className="space-y-4 print:break-inside-avoid-page">
+                      <div key={sector.id} className="space-y-4">
                         <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
@@ -1262,83 +1262,93 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                         <div className="space-y-4">
                           {sectorRisks.map((item, idx) => {
                             return (
-                              <div key={item.id} className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-[10px] print:break-inside-avoid print:border-slate-350">
-                                {/* Row 1: Action Title / Fator de Risco */}
-                                <div className="bg-slate-50 border-b border-slate-300 px-4 py-2 flex flex-row justify-between items-center gap-4">
-                                  <div className="flex items-center gap-2 font-bold text-xs text-slate-900">
-                                    <span className="w-2 h-2 bg-slate-700 rounded-xs"></span>
-                                    <span>Ação Recomendada #{idx + 1} • {item.riskName}</span>
+                              <div key={item.id} className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
+                                {/* Header do Card */}
+                                <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-300 flex flex-row items-center justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-[10px] bg-slate-800 text-white font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                        Setor: {sector.name}
+                                      </span>
+                                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                        Risco Associado: {item.riskName}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <span className={`px-2 py-0.5 rounded border text-[8px] font-black uppercase tracking-wider inline-block ${getPriorityColorPrint(item.priority)}`}>
+
+                                  {/* Badges de Gestão e Controles */}
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase ${getPriorityColorPrint(item.priority)}`}>
                                       Prioridade: {item.priority}
                                     </span>
-                                    <span className={`px-2 py-0.5 rounded border text-[8px] font-black uppercase tracking-wider inline-block ${getStatusColorPrint(item.status)}`}>
-                                      {item.status}
+                                    <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase ${getStatusColorPrint(item.status)}`}>
+                                      Status: {item.status}
                                     </span>
                                   </div>
                                 </div>
 
-                                {/* Row 2: Two columns */}
-                                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 text-[10px]">
-                                  {/* Left side: Strategic Objective & Proposed Action */}
-                                  <div className="md:col-span-7 space-y-3">
-                                    <div>
-                                      <span className="font-extrabold text-slate-500 block text-[9px] uppercase tracking-wider mb-1">
-                                        Objetivo Estratégico da Ação
-                                      </span>
-                                      <p className="text-slate-800 font-semibold bg-slate-50/50 p-2.5 rounded-lg border border-slate-200">
-                                        {item.actionObjective || `Mitigar os impactos decorrentes de ${item.riskName}.`}
-                                      </p>
+                                {/* Conteúdo do Card */}
+                                <div className="p-6">
+                                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 text-sm">
+                                    {/* Lado Esquerdo: Ações Principais (Objetivo e Proposta) */}
+                                    <div className="md:col-span-7 space-y-4">
+                                      <div className="space-y-1.5">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
+                                          <Target className="w-3.5 h-3.5 text-slate-400" /> Objetivo Estratégico da Ação
+                                        </span>
+                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150">
+                                          {item.actionObjective || `Mitigar os impactos decorrentes de ${item.riskName}.`}
+                                        </p>
+                                      </div>
+
+                                      <div className="space-y-1.5">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
+                                          <Shield className="w-3.5 h-3.5 text-slate-400" /> Detalhamento da Ação Proposta / Medida de Controle
+                                        </span>
+                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150">
+                                          {item.actionProposed || item.recommendation}
+                                        </p>
+                                      </div>
                                     </div>
 
-                                    <div>
-                                      <span className="font-extrabold text-slate-500 block text-[9px] uppercase tracking-wider mb-1">
-                                        Detalhamento da Ação Proposta / Medida de Controle
-                                      </span>
-                                      <p className="text-slate-700 leading-relaxed bg-slate-50/50 p-2.5 rounded-lg border border-slate-200">
-                                        {item.actionProposed || item.recommendation}
-                                      </p>
-                                    </div>
-                                  </div>
+                                    {/* Lado Direito: Atributos de Gestão/Cronograma */}
+                                    <div className="md:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
+                                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <User className="w-3 h-3 text-slate-400" /> Responsável
+                                          </span>
+                                          <span className="font-bold text-slate-800 block">
+                                            {item.responsible || "Liderança e Gestão de Pessoas"}
+                                          </span>
+                                        </div>
 
-                                  {/* Right side: Management parameters */}
-                                  <div className="md:col-span-5 bg-slate-50/30 p-3 rounded-lg border border-slate-200 space-y-3 text-[9px] print:bg-white">
-                                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-                                      <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">
-                                          Responsável
-                                        </span>
-                                        <span className="font-bold text-slate-800 block mt-0.5">
-                                          {item.responsible || "Liderança e Gestão de Pessoas"}
-                                        </span>
-                                      </div>
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
+                                          </span>
+                                          <span className="font-semibold text-slate-700 block">
+                                            {item.periodicity || "Mensal"}
+                                          </span>
+                                        </div>
 
-                                      <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">
-                                          Periodicidade
-                                        </span>
-                                        <span className="font-semibold text-slate-700 block mt-0.5">
-                                          {item.periodicity || "Mensal"}
-                                        </span>
-                                      </div>
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <CheckSquare className="w-3 h-3 text-slate-400" /> Indicador de Eficácia
+                                          </span>
+                                          <span className="font-medium text-slate-600 block">
+                                            {item.efficacyIndicator || "Reavaliação anual"}
+                                          </span>
+                                        </div>
 
-                                      <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">
-                                          Indicador de Eficácia
-                                        </span>
-                                        <span className="font-medium text-slate-600 block mt-0.5">
-                                          {item.efficacyIndicator || "Reavaliação anual"}
-                                        </span>
-                                      </div>
-
-                                      <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">
-                                          Prazo Limite
-                                        </span>
-                                        <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-1.5 py-0.5 rounded-md w-fit mt-0.5">
-                                          {item.deadline || "Mês Corrente + 3"}
-                                        </span>
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <Clock className="w-3 h-3 text-slate-400" /> Prazo Limite
+                                          </span>
+                                          <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
+                                            {item.deadline || "Mês Corrente + 3"}
+                                          </span>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -1353,7 +1363,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                   {/* Fallback for unrecognized sector actions */}
                   {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
-                    <div className="space-y-4 print:break-inside-avoid-page">
+                    <div className="space-y-4">
                       <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
@@ -1368,83 +1378,93 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                           .filter(item => !report.sectors.some(s => s.id === item.sectorId))
                           .map((item, idx) => {
                             return (
-                              <div key={item.id} className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-[10px] print:break-inside-avoid print:border-slate-350">
-                                {/* Row 1: Action Title / Fator de Risco */}
-                                <div className="bg-slate-50 border-b border-slate-300 px-4 py-2 flex flex-row justify-between items-center gap-4">
-                                  <div className="flex items-center gap-2 font-bold text-xs text-slate-900">
-                                    <span className="w-2 h-2 bg-slate-700 rounded-xs"></span>
-                                    <span>Ação Recomendada #{idx + 1} • {item.riskName}</span>
+                              <div key={item.id} className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
+                                {/* Header do Card */}
+                                <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-300 flex flex-row items-center justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-[10px] bg-slate-800 text-white font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                        Setor: Não Identificado
+                                      </span>
+                                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                        Risco Associado: {item.riskName}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <span className={`px-2 py-0.5 rounded border text-[8px] font-black uppercase tracking-wider inline-block ${getPriorityColorPrint(item.priority)}`}>
+
+                                  {/* Badges de Gestão e Controles */}
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase ${getPriorityColorPrint(item.priority)}`}>
                                       Prioridade: {item.priority}
                                     </span>
-                                    <span className={`px-2 py-0.5 rounded border text-[8px] font-black uppercase tracking-wider inline-block ${getStatusColorPrint(item.status)}`}>
-                                      {item.status}
+                                    <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase ${getStatusColorPrint(item.status)}`}>
+                                      Status: {item.status}
                                     </span>
                                   </div>
                                 </div>
 
-                                {/* Row 2: Two columns */}
-                                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 text-[10px]">
-                                  {/* Left side: Strategic Objective & Proposed Action */}
-                                  <div className="md:col-span-7 space-y-3">
-                                    <div>
-                                      <span className="font-extrabold text-slate-500 block text-[9px] uppercase tracking-wider mb-1">
-                                        Objetivo Estratégico da Ação
-                                      </span>
-                                      <p className="text-slate-800 font-semibold bg-slate-50/50 p-2.5 rounded-lg border border-slate-200">
-                                        {item.actionObjective || `Mitigar os impactos decorrentes de ${item.riskName}.`}
-                                      </p>
+                                {/* Conteúdo do Card */}
+                                <div className="p-6">
+                                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 text-sm">
+                                    {/* Lado Esquerdo: Ações Principais (Objetivo e Proposta) */}
+                                    <div className="md:col-span-7 space-y-4">
+                                      <div className="space-y-1.5">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
+                                          <Target className="w-3.5 h-3.5 text-slate-400" /> Objetivo Estratégico da Ação
+                                        </span>
+                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150">
+                                          {item.actionObjective || `Mitigar os impactos decorrentes de ${item.riskName}.`}
+                                        </p>
+                                      </div>
+
+                                      <div className="space-y-1.5">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
+                                          <Shield className="w-3.5 h-3.5 text-slate-400" /> Detalhamento da Ação Proposta / Medida de Controle
+                                        </span>
+                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150">
+                                          {item.actionProposed || item.recommendation}
+                                        </p>
+                                      </div>
                                     </div>
 
-                                    <div>
-                                      <span className="font-extrabold text-slate-500 block text-[9px] uppercase tracking-wider mb-1">
-                                        Detalhamento da Ação Proposta / Medida de Controle
-                                      </span>
-                                      <p className="text-slate-700 leading-relaxed bg-slate-50/50 p-2.5 rounded-lg border border-slate-200">
-                                        {item.actionProposed || item.recommendation}
-                                      </p>
-                                    </div>
-                                  </div>
+                                    {/* Lado Direito: Atributos de Gestão/Cronograma */}
+                                    <div className="md:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
+                                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <User className="w-3 h-3 text-slate-400" /> Responsável
+                                          </span>
+                                          <span className="font-bold text-slate-800 block">
+                                            {item.responsible || "Liderança e Gestão de Pessoas"}
+                                          </span>
+                                        </div>
 
-                                  {/* Right side: Management parameters */}
-                                  <div className="md:col-span-5 bg-slate-50/30 p-3 rounded-lg border border-slate-200 space-y-3 text-[9px] print:bg-white">
-                                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-                                      <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">
-                                          Responsável
-                                        </span>
-                                        <span className="font-bold text-slate-800 block mt-0.5">
-                                          {item.responsible || "Liderança e Gestão de Pessoas"}
-                                        </span>
-                                      </div>
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
+                                          </span>
+                                          <span className="font-semibold text-slate-700 block">
+                                            {item.periodicity || "Mensal"}
+                                          </span>
+                                        </div>
 
-                                      <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">
-                                          Periodicidade
-                                        </span>
-                                        <span className="font-semibold text-slate-700 block mt-0.5">
-                                          {item.periodicity || "Mensal"}
-                                        </span>
-                                      </div>
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <CheckSquare className="w-3 h-3 text-slate-400" /> Indicador de Eficácia
+                                          </span>
+                                          <span className="font-medium text-slate-600 block">
+                                            {item.efficacyIndicator || "Reavaliação anual"}
+                                          </span>
+                                        </div>
 
-                                      <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">
-                                          Indicador de Eficácia
-                                        </span>
-                                        <span className="font-medium text-slate-600 block mt-0.5">
-                                          {item.efficacyIndicator || "Reavaliação anual"}
-                                        </span>
-                                      </div>
-
-                                      <div>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">
-                                          Prazo Limite
-                                        </span>
-                                        <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-1.5 py-0.5 rounded-md w-fit mt-0.5">
-                                          {item.deadline || "Mês Corrente + 3"}
-                                        </span>
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <Clock className="w-3 h-3 text-slate-400" /> Prazo Limite
+                                          </span>
+                                          <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
+                                            {item.deadline || "Mês Corrente + 3"}
+                                          </span>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
