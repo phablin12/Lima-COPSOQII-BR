@@ -113,6 +113,7 @@ interface ReportPrintPreviewProps {
     address: string;
     phone: string;
     logo: string;
+    defaultCoverImage?: string;
   };
 }
 
@@ -246,11 +247,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
       <div className="bg-white p-8 sm:p-16 border border-slate-200 shadow-sm rounded-2xl mx-auto max-w-[900px] font-sans text-slate-800 print:border-none print:shadow-none print:p-0 leading-relaxed space-y-12">
         
         {/* --- CAPA (Capa do Relatório) --- */}
-        {report.coverImage ? (
+        {(report.coverImage || assessor.defaultCoverImage) ? (
           <div className="min-h-[1050px] print:h-screen print:min-h-0 flex flex-col justify-center items-center pb-16 print:pb-0 page-break-after">
             <div className="w-full h-full max-h-[1000px] flex items-center justify-center">
               <img 
-                src={report.coverImage} 
+                src={report.coverImage || assessor.defaultCoverImage} 
                 alt="Capa Customizada" 
                 className="max-w-full max-h-full object-contain print:max-h-[95vh] rounded-2xl print:rounded-none shadow-sm print:shadow-none"
                 referrerPolicy="no-referrer"

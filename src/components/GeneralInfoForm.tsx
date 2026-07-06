@@ -6,6 +6,7 @@
 import React, { useState } from "react";
 import { Report, Sector } from "../types";
 import { Building, Calendar, User, ShieldAlert, Plus, Trash2, Edit2, Users, FileCheck2, ToggleLeft, CheckCircle2 } from "lucide-react";
+import { compressImage } from "../imageUtils";
 
 interface GeneralInfoFormProps {
   report: Report;
@@ -204,7 +205,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
               <span className="text-slate-500 font-medium">Auto-preencher:</span>
               <select
                 onChange={(e) => handleSelectCompany(e.target.value)}
-                defaultValue=""
+                value={companies.find((c) => c.name === report.companyName)?.id || ""}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white outline-none focus:ring-1 focus:ring-slate-400"
               >
                 <option value="" disabled>Selecione uma empresa salva...</option>
@@ -308,14 +309,15 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const r = new FileReader();
-                      r.onloadend = () => {
-                        handleAddField("companyLogo", r.result as string);
-                      };
-                      r.readAsDataURL(file);
+                      try {
+                        const compressed = await compressImage(file, 300, 300, 0.8);
+                        handleAddField("companyLogo", compressed);
+                      } catch (err) {
+                        console.error("Erro ao comprimir logo do cliente:", err);
+                      }
                     }
                   }}
                   className="hidden"
@@ -325,48 +327,6 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             <div className="text-xs text-slate-400">
               <span className="font-bold block text-slate-500">Logomarca do Cliente</span>
               Selecione uma imagem para figurar no cabeçalho e na capa das páginas geradas para este laudo.
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-slate-600 block">Design da Folha de Rosto (Capa Customizada)</label>
-          <div className="flex items-center gap-3">
-            {report.coverImage ? (
-              <div className="relative w-16 h-16 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center">
-                <img src={report.coverImage} alt="Capa do Relatório" className="max-w-full max-h-full object-contain" />
-                <button
-                  type="button"
-                  onClick={() => handleAddField("coverImage", "")}
-                  className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-xs cursor-pointer"
-                >
-                  Remover
-                </button>
-              </div>
-            ) : (
-              <label className="w-16 h-16 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50">
-                <Plus className="w-5 h-5 text-slate-400" />
-                <span className="text-[9px] text-slate-400 font-bold uppercase mt-1">Enviar</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const r = new FileReader();
-                      r.onloadend = () => {
-                        handleAddField("coverImage", r.result as string);
-                      };
-                      r.readAsDataURL(file);
-                    }
-                  }}
-                  className="hidden"
-                />
-              </label>
-            )}
-            <div className="text-xs text-slate-400">
-              <span className="font-bold block text-slate-500">Imagem da Folha de Rosto (Opcional)</span>
-              Envie o design da sua folha de rosto. Caso não envie, o sistema gerará uma folha de rosto textual padrão altamente corporativa.
             </div>
           </div>
         </div>
@@ -413,7 +373,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
               <span className="text-slate-500 font-medium">Auto-preencher:</span>
               <select
                 onChange={(e) => handleSelectProfessional(e.target.value)}
-                defaultValue=""
+                value={professionals.find((p) => p.name === report.professionalName)?.id || ""}
                 className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white outline-none focus:ring-1 focus:ring-slate-400"
               >
                 <option value="" disabled>Selecione um profissional salvo...</option>

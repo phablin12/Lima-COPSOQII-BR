@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Sliders, Building, Image as ImageIcon, Link, Phone, Shield, Upload, Check, Trash2, Globe } from "lucide-react";
+import { compressImage } from "../imageUtils";
 
 interface CompanyCustomizationProps {
   assessor: {
@@ -49,14 +50,39 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
     setDefaultCoverImage(assessor.defaultCoverImage || "");
   }, [assessor]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setter(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 300, 300, 0.8);
+        setLogo(compressed);
+      } catch (err) {
+        console.error("Erro ao processar logo:", err);
+      }
+    }
+  };
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressed = await compressImage(file, 64, 64, 0.85);
+        setFavicon(compressed);
+      } catch (err) {
+        console.error("Erro ao processar favicon:", err);
+      }
+    }
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressed = await compressImage(file, 1200, 1200, 0.75);
+        setDefaultCoverImage(compressed);
+      } catch (err) {
+        console.error("Erro ao processar imagem de capa:", err);
+      }
     }
   };
 
@@ -160,7 +186,7 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileUpload(e, setLogo)}
+                        onChange={handleLogoUpload}
                         className="hidden"
                       />
                     </label>
@@ -194,7 +220,7 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleFileUpload(e, setFavicon)}
+                        onChange={handleFaviconUpload}
                         className="hidden"
                       />
                     </label>
@@ -231,7 +257,7 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                         <input
                           type="file"
                           accept="image/*"
-                          onChange={(e) => handleFileUpload(e, setDefaultCoverImage)}
+                          onChange={handleCoverUpload}
                           className="hidden"
                         />
                       </label>

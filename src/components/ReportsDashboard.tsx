@@ -6,7 +6,7 @@
 import React, { useRef, useState } from "react";
 import { Report } from "../types";
 import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS } from "../defaultChapters";
-import { FolderHeart, Plus, FileText, Trash2, Copy, Download, Upload, AlertTriangle, ShieldCheck, ChevronRight } from "lucide-react";
+import { FolderHeart, Plus, FileText, Trash2, Copy, Download, Upload, AlertTriangle, ShieldCheck, ChevronRight, Cloud } from "lucide-react";
 
 interface ReportsDashboardProps {
   reports: Report[];
@@ -159,35 +159,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 z-10 shrink-0">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImportReport}
-            accept=".json"
-            className="hidden"
-          />
-          <button
-            onClick={handleTriggerImport}
-            className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-100 hover:text-white bg-slate-700 hover:bg-slate-600 px-5 py-3 rounded-xl transition cursor-pointer border border-slate-600"
-          >
-            <Upload className="w-4 h-4" /> Importar Backup (.json)
-          </button>
-          
           <button
             onClick={handleCreateNewReport}
-            className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-500 px-6 py-3 rounded-xl transition cursor-pointer shadow-sm"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-500 px-6 py-3 rounded-xl transition cursor-pointer shadow-sm animate-pulse hover:animate-none"
           >
             <Plus className="w-4 h-4" /> Novo Relatório
           </button>
-        </div>
-      </div>
-
-      {/* Informativo sobre Download de PDF vs Backup JSON */}
-      <div className="bg-amber-50/60 border border-amber-100 rounded-2xl p-4 flex gap-3 text-xs text-amber-900 leading-relaxed shadow-3xs">
-        <span className="text-base select-none">💡</span>
-        <div>
-          <strong className="font-bold block text-amber-950 mb-0.5">Como baixar o laudo oficial em PDF?</strong>
-          Para obter o documento final formatado em PDF para entrega ao seu cliente, <strong className="font-bold text-amber-950">clique sobre o relatório desejado abaixo para abri-lo</strong>, navegue até a aba <strong className="font-bold text-amber-950">"Visualizar Impressão"</strong> no menu lateral esquerdo e clique no botão <strong className="font-bold text-amber-950">"Imprimir / Salvar em PDF"</strong>. O botão de download <strong className="font-bold text-amber-950">(↓)</strong> presente na lista abaixo serve exclusivamente para gerar um backup de segurança no formato de dados <strong className="font-bold text-amber-950">JSON</strong> (para transferência entre computadores).
         </div>
       </div>
 
@@ -250,13 +227,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={(e) => handleExportReport(report, e)}
-                      className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                      title="Exportar Backup de Segurança (JSON)"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                    <button
                       onClick={(e) => handleDuplicateReport(report, e)}
                       className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                       title="Duplicar Relatório"
@@ -292,12 +262,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           </div>
         </div>
 
-        <div className="bg-amber-50 border border-amber-100 p-5 rounded-2xl flex gap-3 text-xs text-amber-850">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl flex gap-3 text-xs text-emerald-850">
+          <Cloud className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <h5 className="font-bold uppercase tracking-wider text-[10px]">Privacidade e Armazenamento</h5>
-            <p className="leading-relaxed">
-              Todos os seus relatórios e dados de digitação são salvos de forma offline e persistente no navegador (localStorage). Recomendamos exportar o backup em arquivo <strong>.json</strong> para arquivar localmente ou em nuvem com segurança.
+            <h5 className="font-bold uppercase tracking-wider text-[10px] text-emerald-950">Sincronização em Tempo Real</h5>
+            <p className="leading-relaxed text-emerald-900">
+              Todas as alterações realizadas em laudos, empresas ou profissionais são salvas de forma segura e instantânea no banco de dados em nuvem. Outros usuários credenciados verão as atualizações em tempo real em qualquer dispositivo.
             </p>
           </div>
         </div>

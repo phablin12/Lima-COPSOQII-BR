@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Report, CatalogRisk } from "./types";
 import { DEFAULT_RISK_CATALOG } from "./defaultCatalog";
 import { ReportsDashboard } from "./components/ReportsDashboard";
@@ -78,6 +78,10 @@ export default function App() {
   // Central State
   const [reports, setReports] = useState<Report[]>([]);
   const [currentReportId, setCurrentReportId] = useState<string | null>(null);
+
+  // Debounce Refs for report saving
+  const latestReportToSaveRef = useRef<Report | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [globalCatalog, setGlobalCatalog] = useState<CatalogRisk[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<{ id: string; name: string; role: string; reg: string }[]>([]);
@@ -509,7 +513,7 @@ export default function App() {
   };
 
   // 6. Update current report attributes
-  const handleUpdateCurrentReport = async (updatedFields: Partial<Report>) => {
+  const handleUpdateCurrentReport = (updatedFields: Partial<Report>) => {
     if (!currentReportId) return;
 
     const current = reports.find((r) => r.id === currentReportId);
@@ -521,7 +525,7 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     };
 
-    // Immediate optimistic local update
+    // Immediate optimistic local update for fluid UI experience
     const updatedReports = reports.map((r) => (r.id === currentReportId ? updatedReport : r));
     setReports(updatedReports);
     try {
@@ -531,14 +535,26 @@ export default function App() {
       console.error("Erro ao atualizar relatório localmente:", err);
     }
 
+    // Schedule debounced Firestore save
+    latestReportToSaveRef.current = updatedReport;
     setSyncState("syncing");
-    try {
-      await saveReportToFirestore(updatedReport);
-      setSyncState("synced");
-    } catch (err) {
-      console.error("Erro ao atualizar relatório no Firestore:", err);
-      setSyncState("error");
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      const reportToSave = latestReportToSaveRef.current;
+      if (!reportToSave) return;
+
+      try {
+        await saveReportToFirestore(reportToSave);
+        setSyncState("synced");
+      } catch (err) {
+        console.error("Erro ao atualizar relatório no Firestore:", err);
+        setSyncState("error");
+      }
+    }, 1000); // 1-second debounce
   };
 
   // Get active report
@@ -753,7 +769,7 @@ export default function App() {
                     }`}
                   >
                     <FileText className="w-4 h-4 shrink-0 text-slate-450" />
-                    Laudos & Relatórios
+                    Relatórios
                   </button>
                 </div>
 
