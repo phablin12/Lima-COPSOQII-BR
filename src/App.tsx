@@ -82,6 +82,12 @@ export default function App() {
   // Debounce Refs for report saving
   const latestReportToSaveRef = useRef<Report | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Seeding check refs to prevent deleted items from reappearing when database is empty
+  const hasCheckedReportsSeedingRef = useRef(false);
+  const hasCheckedCompaniesSeedingRef = useRef(false);
+  const hasCheckedProfessionalsSeedingRef = useRef(false);
+
   const [globalCatalog, setGlobalCatalog] = useState<CatalogRisk[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<{ id: string; name: string; role: string; reg: string }[]>([]);
@@ -188,6 +194,11 @@ export default function App() {
 
     setSyncState("syncing");
 
+    // Reset seeding tracking refs on login / user change
+    hasCheckedReportsSeedingRef.current = false;
+    hasCheckedCompaniesSeedingRef.current = false;
+    hasCheckedProfessionalsSeedingRef.current = false;
+
     // Helper to merge and upload missing local items to Firestore if collection is empty
     const uploadLocalIfCollectionIsEmpty = async (collectionName: string, localData: any[], saveFn: (item: any) => Promise<void>) => {
       try {
@@ -214,6 +225,7 @@ export default function App() {
         });
 
         if (list.length > 0) {
+          hasCheckedReportsSeedingRef.current = true;
           // Sort reports Consistently across all PCs by updatedAt / createdAt descending
           list.sort((a, b) => {
             const dateA = a.updatedAt || a.createdAt || "";
@@ -224,10 +236,16 @@ export default function App() {
           localStorage.setItem("sst_psicossocial_reports", JSON.stringify(list));
         } else {
           // Firestore is empty - try to seed from local storage if available, but keep local state
-          const stored = localStorage.getItem("sst_psicossocial_reports");
-          if (stored) {
-            const parsed = JSON.parse(stored) as Report[];
-            uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, parsed, saveReportToFirestore);
+          if (!hasCheckedReportsSeedingRef.current) {
+            hasCheckedReportsSeedingRef.current = true;
+            const stored = localStorage.getItem("sst_psicossocial_reports");
+            if (stored) {
+              const parsed = JSON.parse(stored) as Report[];
+              uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, parsed, saveReportToFirestore);
+            }
+          } else {
+            setReports([]);
+            localStorage.setItem("sst_psicossocial_reports", JSON.stringify([]));
           }
         }
         setSyncState("synced");
@@ -250,16 +268,23 @@ export default function App() {
         });
 
         if (list.length > 0) {
+          hasCheckedCompaniesSeedingRef.current = true;
           // Sort alphabetically
           list.sort((a, b) => (a.fantasyName || a.name || "").localeCompare(b.fantasyName || b.name || ""));
           setCompanies(list);
           localStorage.setItem("sst_psicossocial_companies", JSON.stringify(list));
         } else {
           // Firestore is empty - seed from local
-          const stored = localStorage.getItem("sst_psicossocial_companies");
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            uploadLocalIfCollectionIsEmpty(COMPANIES_COLLECTION, parsed, saveCompanyToFirestore);
+          if (!hasCheckedCompaniesSeedingRef.current) {
+            hasCheckedCompaniesSeedingRef.current = true;
+            const stored = localStorage.getItem("sst_psicossocial_companies");
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              uploadLocalIfCollectionIsEmpty(COMPANIES_COLLECTION, parsed, saveCompanyToFirestore);
+            }
+          } else {
+            setCompanies([]);
+            localStorage.setItem("sst_psicossocial_companies", JSON.stringify([]));
           }
         }
         setSyncState("synced");
@@ -282,15 +307,22 @@ export default function App() {
         });
 
         if (list.length > 0) {
+          hasCheckedProfessionalsSeedingRef.current = true;
           list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
           setProfessionals(list);
           localStorage.setItem("sst_psicossocial_professionals", JSON.stringify(list));
         } else {
           // Firestore is empty - seed from local
-          const stored = localStorage.getItem("sst_psicossocial_professionals");
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            uploadLocalIfCollectionIsEmpty(PROFESSIONALS_COLLECTION, parsed, saveProfessionalToFirestore);
+          if (!hasCheckedProfessionalsSeedingRef.current) {
+            hasCheckedProfessionalsSeedingRef.current = true;
+            const stored = localStorage.getItem("sst_psicossocial_professionals");
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              uploadLocalIfCollectionIsEmpty(PROFESSIONALS_COLLECTION, parsed, saveProfessionalToFirestore);
+            }
+          } else {
+            setProfessionals([]);
+            localStorage.setItem("sst_psicossocial_professionals", JSON.stringify([]));
           }
         }
         setSyncState("synced");

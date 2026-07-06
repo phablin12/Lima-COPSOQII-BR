@@ -8,16 +8,29 @@ import { Report, Sector } from "../types";
 import { Building, Calendar, User, ShieldAlert, Plus, Trash2, Edit2, Users, FileCheck2, ToggleLeft, CheckCircle2 } from "lucide-react";
 import { compressImage } from "../imageUtils";
 
+const ESTADOS_BRASILEIROS = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", 
+  "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", 
+  "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+];
+
 interface GeneralInfoFormProps {
   report: Report;
   onChange: (updatedReport: Partial<Report>) => void;
   companies?: {
     id: string;
+    fantasyName?: string;
     name: string;
     cnpj: string;
-    address?: string;
-    riskDegree?: number;
     cnae?: string;
+    riskDegree?: number;
+    address?: string;
+    number?: string;
+    sector?: string;
+    cep?: string;
+    bairro?: string;
+    city?: string;
+    state?: string;
     logo?: string;
   }[];
   professionals?: { id: string; name: string; role: string; reg: string }[];
@@ -48,21 +61,20 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
   const handleSelectCompany = (companyId: string) => {
     const chosen = companies.find((c) => c.id === companyId);
     if (chosen) {
-      // Build beautiful full address from separate fields if present
-      let finalAddress = chosen.address || "";
-      if (chosen.number) finalAddress += `, ${chosen.number}`;
-      if (chosen.bairro) finalAddress += ` - ${chosen.bairro}`;
-      if (chosen.city) finalAddress += `, ${chosen.city}`;
-      if (chosen.state) finalAddress += ` - ${chosen.state}`;
-      if (chosen.cep) finalAddress += ` (CEP: ${chosen.cep})`;
-
       onChange({
         companyName: chosen.name,
         cnpj: chosen.cnpj,
-        companyAddress: finalAddress,
+        companyAddress: chosen.address || "",
         companyRiskDegree: chosen.riskDegree || 1,
         companyCnae: chosen.cnae || "",
         companyLogo: chosen.logo || "",
+        companyFantasyName: chosen.fantasyName || "",
+        companyNumber: chosen.number || "",
+        companySector: chosen.sector || "",
+        companyCep: chosen.cep || "",
+        companyBairro: chosen.bairro || "",
+        companyCity: chosen.city || "",
+        companyState: chosen.state || "SP",
       });
     }
   };
@@ -219,6 +231,17 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-600">Nome Fantasia</label>
+            <input
+              type="text"
+              value={report.companyFantasyName || ""}
+              onChange={(e) => handleAddField("companyFantasyName", e.target.value)}
+              placeholder="Ex: Filial Sul"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+            />
+          </div>
+
+          <div className="space-y-1">
             <label className="text-sm font-medium text-slate-600">Razão Social / Nome da Empresa</label>
             <input
               type="text"
@@ -228,9 +251,11 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
             />
           </div>
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600">CNPJ da Empresa</label>
+            <label className="text-sm font-medium text-slate-600">CNPJ / CAEPF da Empresa</label>
             <input
               type="text"
               value={report.cnpj}
@@ -239,9 +264,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
             />
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-600">CNAE Principal</label>
             <input
@@ -261,34 +284,121 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
             />
           </div>
+        </div>
 
-          <div className="space-y-1">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-1 md:col-span-1">
             <label className="text-sm font-medium text-slate-600">Grau de Risco</label>
             <select
               value={report.companyRiskDegree || "1"}
               onChange={(e) => handleAddField("companyRiskDegree", parseInt(e.target.value) || 1)}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
             >
-              <option value="1">Grau de Risco 1</option>
-              <option value="2">Grau de Risco 2</option>
-              <option value="3">Grau de Risco 3</option>
-              <option value="4">Grau de Risco 4</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
             </select>
+          </div>
+
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-sm font-medium text-slate-600">Setor / Atividade</label>
+            <input
+              type="text"
+              value={report.companySector || ""}
+              onChange={(e) => handleAddField("companySector", e.target.value)}
+              placeholder="Ex: Produção Pesada"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+            />
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-slate-600">Endereço Completo</label>
-          <input
-            type="text"
-            value={report.companyAddress || ""}
-            onChange={(e) => handleAddField("companyAddress", e.target.value)}
-            placeholder="Ex: Av. das Indústrias, 1500 - Bloco B, Porto Alegre - RS"
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-          />
+        {/* Endereço Detalhado */}
+        <div className="border-t border-slate-100 pt-4 space-y-4">
+          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-widest">Endereço da Empresa</span>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="space-y-1 md:col-span-3">
+              <label className="text-sm font-medium text-slate-600">Logradouro / Endereço</label>
+              <input
+                type="text"
+                value={report.companyAddress || ""}
+                onChange={(e) => handleAddField("companyAddress", e.target.value)}
+                placeholder="Ex: Av. das Palmeiras"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+              />
+            </div>
+
+            <div className="space-y-1 md:col-span-1">
+              <label className="text-sm font-medium text-slate-600">Número</label>
+              <input
+                type="text"
+                value={report.companyNumber || ""}
+                onChange={(e) => handleAddField("companyNumber", e.target.value)}
+                placeholder="Ex: 500-A"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-600">CEP</label>
+              <input
+                type="text"
+                value={report.companyCep || ""}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+                  let masked = digits;
+                  if (digits.length > 5) {
+                    masked = `${digits.slice(0, 5)}-${digits.slice(5)}`;
+                  }
+                  handleAddField("companyCep", masked);
+                }}
+                placeholder="Ex: 78250-000"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-600">Bairro</label>
+              <input
+                type="text"
+                value={report.companyBairro || ""}
+                onChange={(e) => handleAddField("companyBairro", e.target.value)}
+                placeholder="Ex: Centro"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-12 gap-2">
+              <div className="col-span-8 space-y-1">
+                <label className="text-sm font-medium text-slate-600">Cidade</label>
+                <input
+                  type="text"
+                  value={report.companyCity || ""}
+                  onChange={(e) => handleAddField("companyCity", e.target.value)}
+                  placeholder="Cidade"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+                />
+              </div>
+              <div className="col-span-4 space-y-1">
+                <label className="text-sm font-medium text-slate-600">UF</label>
+                <select
+                  value={report.companyState || "SP"}
+                  onChange={(e) => handleAddField("companyState", e.target.value)}
+                  className="w-full px-2 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+                >
+                  {ESTADOS_BRASILEIROS.map((uf) => (
+                    <option key={uf} value={uf}>{uf}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1 border-t border-slate-100 pt-4">
           <label className="text-sm font-medium text-slate-600 block">Logo do Cliente (Laudo Atual)</label>
           <div className="flex items-center gap-3">
             {report.companyLogo ? (

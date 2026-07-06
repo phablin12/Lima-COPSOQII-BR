@@ -53,7 +53,6 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
 
   const handleStartEdit = (item: RiskInventoryItem) => {
     setEditingItemId(item.id);
@@ -353,7 +352,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setSourcesField(e.target.value)}
                   placeholder="Ex: Introdução de novo sistema informatizado de faturamento sem treinamento prévio da equipe."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
                 />
               </div>
 
@@ -364,7 +363,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setPossibleInjuries(e.target.value)}
                   placeholder="Ex: Estresse ocupacional crônico, dores cefálicas tensionais, crises episódicas de ansiedade no setor."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
                 />
               </div>
             </div>
@@ -377,7 +376,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setDiseaseHistory(e.target.value)}
                   placeholder="Ex: Houve 1 afastamento médico de 5 dias nos últimos 12 meses por queixas correlacionadas a estresse."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
                 />
               </div>
 
@@ -388,7 +387,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setExistingControls(e.target.value)}
                   placeholder="Ex: Canais de comunicação abertos com o supervisor direto para reportar conflitos."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
                 />
               </div>
             </div>
@@ -484,7 +483,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   }}
                   placeholder="Ex: Realizar rodadas de feedback individual com a nova equipe de faturamento e treinamento instrucional do novo CRM de forma urgente."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
                 />
               </div>
             </div>
@@ -643,173 +642,11 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
           <h4 className="font-semibold text-slate-800 text-sm">
             Itens Cadastrados no Inventário de Riscos ({report.riskInventory.length})
           </h4>
-          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 w-fit self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-3 py-1 text-[11px] font-bold rounded-md transition cursor-pointer ${
-                viewMode === "table"
-                  ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Grade (Linhas e Colunas)
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("cards")}
-              className={`px-3 py-1 text-[11px] font-bold rounded-md transition cursor-pointer ${
-                viewMode === "cards"
-                  ? "bg-white text-slate-800 shadow-xs border border-slate-200"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Fichas Técnicas (Cards)
-            </button>
-          </div>
         </div>
 
         {report.riskInventory.length === 0 ? (
           <div className="py-12 text-center text-slate-400 text-sm">
             Nenhum item adicionado ao inventário ainda. Clique no botão <strong>Adicionar Risco ao Inventário</strong> acima para registrar o primeiro.
-          </div>
-        ) : viewMode === "table" ? (
-          /* Visualização de Tabela de Engenharia (Grade / Linhas e Colunas) */
-          <div className="overflow-x-auto border border-slate-300 rounded-xl">
-            <table className="min-w-full border-collapse text-left text-xs text-slate-800">
-              <thead className="bg-slate-800 text-slate-100 font-bold uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="border border-slate-300 px-3 py-2.5 bg-slate-900 text-center w-12">#</th>
-                  <th className="border border-slate-300 px-3 py-2.5 w-1/6">Setor / GHE</th>
-                  <th className="border border-slate-300 px-3 py-2.5 w-1/5">Perigo / Fator de Risco</th>
-                  <th className="border border-slate-300 px-3 py-2.5 w-1/4">Fontes / Danos / Histórico</th>
-                  <th className="border border-slate-300 px-3 py-2.5 w-1/6">Controles Existentes</th>
-                  <th className="border border-slate-300 px-3 py-2.5 text-center w-24">Probabilidade</th>
-                  <th className="border border-slate-300 px-3 py-2.5 text-center w-24">Severidade</th>
-                  <th className="border border-slate-300 px-3 py-2.5 text-center w-32">Nível do Risco (PxS)</th>
-                  <th className="border border-slate-300 px-3 py-2.5 w-1/5">Recomendação PGR</th>
-                  <th className="border border-slate-300 px-3 py-2.5 text-center w-28">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-300 bg-white">
-                {report.riskInventory.map((item, index) => {
-                  let scoreBg = "";
-                  let scoreText = "text-white";
-                  if (item.color === "red") {
-                    scoreBg = "bg-rose-600 border-rose-700";
-                  } else if (item.color === "orange") {
-                    scoreBg = "bg-amber-500 border-amber-600";
-                  } else if (item.color === "yellow") {
-                    scoreBg = "bg-yellow-400 border-yellow-500 text-slate-900";
-                  } else if (item.color === "blue") {
-                    scoreBg = "bg-blue-500 border-blue-600";
-                  } else {
-                    scoreBg = "bg-emerald-600 border-emerald-700";
-                  }
-
-                  return (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition duration-150 align-top">
-                      <td className="border border-slate-300 px-3 py-2 text-center font-bold text-slate-400 bg-slate-50/30">
-                        {index + 1}
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2">
-                        <div className="font-extrabold text-slate-900 uppercase text-[11px]">{getSectorName(item.sectorId)}</div>
-                        <div className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">{item.exposedCount} func. expostos</div>
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2">
-                        <div className="font-bold text-slate-800 leading-normal">{item.riskName}</div>
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2">
-                        <div className="space-y-1 text-[11px] leading-relaxed">
-                          <div>
-                            <strong className="text-slate-500 uppercase text-[9px] tracking-wider block">Fontes Geradoras:</strong>
-                            <span className="text-slate-700 font-medium">{item.sourcesField || "-"}</span>
-                          </div>
-                          <div>
-                            <strong className="text-slate-500 uppercase text-[9px] tracking-wider block">Danos à Saúde:</strong>
-                            <span className="text-slate-700 font-medium">{item.possibleInjuries || "-"}</span>
-                          </div>
-                          {item.diseaseHistory && (
-                            <div>
-                              <strong className="text-slate-500 uppercase text-[9px] tracking-wider block">Histórico/Queixas:</strong>
-                              <span className="text-slate-700 font-medium">{item.diseaseHistory}</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2">
-                        <div className="text-slate-700 leading-normal">{item.existingControls || "Não evidenciado."}</div>
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2 text-center font-bold">
-                        <div className="bg-slate-50 py-1 px-1.5 rounded border border-slate-200 text-slate-800 font-bold text-[11px] whitespace-nowrap">
-                          {PROBABILITY_LEVELS[item.probability - 1]?.label || item.probability}
-                        </div>
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2 text-center font-bold">
-                        <div className="bg-slate-50 py-1 px-1.5 rounded border border-slate-200 text-slate-800 font-bold text-[11px] whitespace-nowrap">
-                          {SEVERITY_LEVELS[item.severity - 1]?.label || item.severity}
-                        </div>
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2 text-center">
-                        <div className={`py-1.5 px-2 rounded border font-black uppercase text-[10px] tracking-wide ${scoreBg} ${scoreText}`}>
-                          Score {item.riskScore}
-                          <span className="block text-[8px] font-bold opacity-90 mt-0.5">{item.riskLevel}</span>
-                        </div>
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2">
-                        <div className="text-slate-700 italic font-semibold leading-normal">
-                          "{item.recommendation}"
-                        </div>
-                      </td>
-                      <td className="border border-slate-300 px-3 py-2">
-                        <div className="flex flex-col gap-1 items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={() => handleStartEdit(item)}
-                            className="w-full flex items-center justify-center gap-1 py-1 px-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-250 rounded transition cursor-pointer font-bold text-[10px]"
-                          >
-                            <Edit2 className="w-3 h-3" /> Editar
-                          </button>
-                          
-                          {deletingItemId === item.id ? (
-                            <div className="flex flex-col gap-1 bg-rose-50 border border-rose-200 p-1 rounded w-full">
-                              <span className="text-[9px] font-bold text-rose-800 text-center">Excluir?</span>
-                              <div className="flex gap-1 justify-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleDeleteItem(item.id);
-                                    setDeletingItemId(null);
-                                  }}
-                                  className="text-[9px] font-black text-rose-700 hover:text-rose-900 bg-rose-100/50 px-1.5 py-0.5 rounded cursor-pointer"
-                                >
-                                  Sim
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeletingItemId(null)}
-                                  className="text-[9px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded cursor-pointer"
-                                >
-                                  Não
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setDeletingItemId(item.id)}
-                              className="w-full flex items-center justify-center gap-1 py-1 px-2 text-rose-500 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-650 rounded transition cursor-pointer font-bold text-[10px]"
-                            >
-                              <Trash2 className="w-3 h-3" /> Excluir
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         ) : (
           /* Visualização de Fichas Técnicas (Cards) */

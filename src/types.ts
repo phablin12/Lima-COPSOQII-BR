@@ -73,6 +73,13 @@ export interface Report {
   companyRiskDegree?: number; // Risk level: 1, 2, 3, or 4
   companyCnae?: string; // Main CNAE: 0000-0/00
   companyLogo?: string; // Base64 logo of the assessed company
+  companyFantasyName?: string;
+  companyNumber?: string;
+  companySector?: string;
+  companyCep?: string;
+  companyBairro?: string;
+  companyCity?: string;
+  companyState?: string;
   coverImage?: string; // Base64 cover page image (optional)
   dateStart: string;
   dateEnd: string;

@@ -130,6 +130,24 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     return `Tangará da Serra - MT, ${day} de ${month} de ${year}`;
   };
 
+  const getCompanyFullAddress = () => {
+    const r = report;
+    if (!r) return "";
+    if (r.companyAddress && !r.companyNumber && !r.companyCep && !r.companyBairro && !r.companyCity) {
+      return r.companyAddress;
+    }
+    const parts: string[] = [];
+    if (r.companyAddress) parts.push(r.companyAddress);
+    if (r.companyNumber) parts.push(r.companyNumber);
+    if (r.companyBairro) parts.push(r.companyBairro);
+    if (r.companyCity || r.companyState) {
+      const cityState = [r.companyCity, r.companyState].filter(Boolean).join(" - ");
+      if (cityState) parts.push(cityState);
+    }
+    if (r.companyCep) parts.push(`CEP: ${r.companyCep}`);
+    return parts.filter(Boolean).join(", ");
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -279,7 +297,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               </h2>
               <div className="w-24 h-1 bg-slate-800 mx-auto my-6" />
               <h3 className="text-2xl font-black text-slate-900 uppercase leading-snug">
-                {report.companyName || "[NOME DA EMPRESA NÃO INFORMADO]"}
+                {report.companyFantasyName ? `${report.companyName} (${report.companyFantasyName})` : (report.companyName || "[NOME DA EMPRESA NÃO INFORMADO]")}
               </h3>
               {report.cnpj && (
                 <p className="text-sm text-slate-500 font-mono">CNPJ: {report.cnpj}</p>
@@ -319,11 +337,17 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     <span className="font-bold text-slate-800">Grau {report.companyRiskDegree}</span>
                   </div>
                 )}
+                {report.companySector && (
+                  <div>
+                    <span className="text-slate-400 block font-medium">Setor / Atividade:</span>
+                    <span className="font-bold text-slate-800">{report.companySector}</span>
+                  </div>
+                )}
               </div>
-              {report.companyAddress && (
+              {getCompanyFullAddress() && (
                 <div className="text-xs pt-2 border-t border-slate-200">
                   <span className="text-slate-400 block font-medium">Endereço Completo:</span>
-                  <span className="font-bold text-slate-800">{report.companyAddress}</span>
+                  <span className="font-bold text-slate-800">{getCompanyFullAddress()}</span>
                 </div>
               )}
 
@@ -402,10 +426,22 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                         <span className="font-bold text-slate-800 block">Grau {report.companyRiskDegree}</span>
                       </div>
                     )}
-                    {report.companyAddress && (
+                    {report.companyFantasyName && (
+                      <div>
+                        <span className="text-slate-400 block font-semibold text-[9px] uppercase tracking-wider">Nome Fantasia:</span>
+                        <span className="font-bold text-slate-800 block">{report.companyFantasyName}</span>
+                      </div>
+                    )}
+                    {report.companySector && (
+                      <div>
+                        <span className="text-slate-400 block font-semibold text-[9px] uppercase tracking-wider">Setor / Atividade:</span>
+                        <span className="font-bold text-slate-800 block">{report.companySector}</span>
+                      </div>
+                    )}
+                    {getCompanyFullAddress() && (
                       <div className="sm:col-span-2 border-t border-slate-200/60 pt-2 mt-1">
                         <span className="text-slate-400 block font-semibold text-[9px] uppercase tracking-wider">Endereço Completo:</span>
-                        <span className="font-bold text-slate-800 block">{report.companyAddress}</span>
+                        <span className="font-bold text-slate-800 block">{getCompanyFullAddress()}</span>
                       </div>
                     )}
                   </div>
