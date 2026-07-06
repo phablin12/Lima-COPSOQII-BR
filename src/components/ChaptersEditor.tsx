@@ -45,7 +45,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
       case "introducao":
         return "1. Introdução do Relatório";
       case "fundamentacao":
-        return "2. Fundamentação Teórica e Metodológica";
+        return "2. Fundamentação Teórica";
       case "metodologia":
         return "3. Metodologia de Avaliação";
       case "consideracoes":

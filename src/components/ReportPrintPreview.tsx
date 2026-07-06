@@ -514,6 +514,138 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           );
         })()}
 
+        {/* --- SUMÁRIO (ATUALIZAÇÃO AUTOMÁTICA) --- */}
+        <div className="min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
+          {renderHeader("Sumário Geral do Relatório")}
+
+          <div className="my-auto max-w-2xl mx-auto w-full space-y-8">
+            <div className="text-center">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-1">Índice Geral</span>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                Sumário
+              </h2>
+              <div className="w-12 h-1 bg-slate-800 mx-auto mt-2 rounded"></div>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* 1. Introdução */}
+              <div className="flex items-end gap-2">
+                <span className="font-bold text-slate-850">1. INTRODUÇÃO</span>
+                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                <span className="text-slate-500 font-bold font-mono">03</span>
+              </div>
+
+              {/* 2. Fundamentação Teórica */}
+              <div className="flex items-end gap-2">
+                <span className="font-bold text-slate-850">2. FUNDAMENTAÇÃO TEÓRICA</span>
+                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                <span className="text-slate-500 font-bold font-mono">04</span>
+              </div>
+
+              {/* 3. Metodologia de Avaliação */}
+              <div className="flex items-end gap-2">
+                <span className="font-bold text-slate-850">3. METODOLOGIA DE AVALIAÇÃO</span>
+                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                <span className="text-slate-500 font-bold font-mono">05</span>
+              </div>
+
+              {/* 4. Apresentação dos Resultados */}
+              <div className="space-y-1.5">
+                <div className="flex items-end gap-2">
+                  <span className="font-bold text-slate-850">4. APRESENTAÇÃO DOS RESULTADOS</span>
+                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                  <span className="text-slate-500 font-bold font-mono">06</span>
+                </div>
+                {report.sectors.map((sector, index) => (
+                  <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                    <span className="font-medium">4.{index + 1}. Resultados do Setor: {sector.name}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                    <span className="text-slate-400 font-medium font-mono">06</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 5. Análise Técnica dos Riscos e Investigação Qualitativa */}
+              <div className="space-y-1.5">
+                <div className="flex items-end gap-2">
+                  <span className="font-bold text-slate-850">5. ANÁLISE TÉCNICA E DEVOLUTIVAS</span>
+                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                  <span className="text-slate-500 font-bold font-mono">07</span>
+                </div>
+                {report.sectors.map((sector, index) => (
+                  <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                    <span className="font-medium">5.{index + 1}. Diagnóstico Qualitativo: {sector.name}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                    <span className="text-slate-400 font-medium font-mono">07</span>
+                  </div>
+                ))}
+              </div>
+
+              {report.risksRecognized !== false && (
+                <>
+                  {/* 6. Inventário de Riscos Psicossociais */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-end gap-2">
+                      <span className="font-bold text-slate-850">6. INVENTÁRIO DE RISCOS PSICOSSOCIAIS</span>
+                      <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                      <span className="text-slate-500 font-bold font-mono">08</span>
+                    </div>
+                    {report.sectors.map((sector, index) => {
+                      const hasRisks = report.riskInventory.some(r => r.sectorId === sector.id);
+                      if (!hasRisks) return null;
+                      return (
+                        <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                          <span className="font-medium">6.{index + 1}. Riscos de {sector.name}</span>
+                          <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                          <span className="text-slate-400 font-medium font-mono">08</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 7. Cronograma e Plano de Ação */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-end gap-2">
+                      <span className="font-bold text-slate-850">7. CRONOGRAMA E PLANO DE AÇÃO</span>
+                      <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                      <span className="text-slate-500 font-bold font-mono">09</span>
+                    </div>
+                    {report.sectors.map((sector, index) => {
+                      const hasActions = report.riskInventory.some(r => r.sectorId === sector.id);
+                      if (!hasActions) return null;
+                      return (
+                        <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                          <span className="font-medium">7.{index + 1}. Ações de {sector.name}</span>
+                          <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                          <span className="text-slate-400 font-medium font-mono">09</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* 8. Considerações Finais */}
+              <div className="flex items-end gap-2">
+                <span className="font-bold text-slate-850">8. CONSIDERAÇÕES FINAIS</span>
+                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                <span className="text-slate-500 font-bold font-mono">10</span>
+              </div>
+
+              {/* 9. Referências Bibliográficas */}
+              <div className="flex items-end gap-2">
+                <span className="font-bold text-slate-850">9. REFERÊNCIAS BIBLIOGRÁFICAS</span>
+                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                <span className="text-slate-500 font-bold font-mono">11</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center text-[10px] text-slate-400 font-semibold border-t border-slate-100 pt-4">
+            Este sumário é gerado e atualizado dinamicamente com base nas informações setoriais registradas.
+          </div>
+        </div>
+
         {/* --- CAPÍTULO 1: INTRODUÇÃO --- */}
         <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("1. Introdução")}
@@ -529,7 +661,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("2. Fundamentação Teórica")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-            2. Fundamentação Teórica e Metodológica
+            2. Fundamentação Teórica
           </h3>
           <p className="text-sm whitespace-pre-wrap text-slate-700 leading-relaxed text-justify">
             {report.chapters.fundamentacao}
@@ -682,7 +814,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             <div className="space-y-4 print:pt-12 page-break-before">
               {renderHeader("6. Inventário de Riscos GRO")}
               <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-                6. Inventário de Riscos Psicossociais (NR-01 / GRO)
+                6. Inventário de Riscos Psicossociais
               </h3>
               <p className="text-sm text-slate-700">
                 Abaixo estão estruturados de forma sistemática os riscos psicossociais evidenciados em campo, incluindo as fontes geradoras, as populações expostas, as medidas preventivas existentes e a respectiva avaliação de severidade e probabilidade através da matriz 5x5.
@@ -942,7 +1074,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             <div className="space-y-4 print:pt-12 page-break-before">
               {renderHeader("7. Cronograma e Plano de Ação")}
               <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-                7. Cronograma e Plano de Ação Preventivo (SST)
+                7. Cronograma e Plano de Ação
               </h3>
               <p className="text-sm text-slate-700">
                 Com base no inventário técnico de riscos psicossociais, estabeleceram-se as seguintes ações integradas com objetivo, responsáveis, prioridade, prazos e indicadores de eficácia, conforme as diretrizes do PGR.
