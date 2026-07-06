@@ -794,7 +794,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                           <>
                                             <div className="w-[1px] h-3 bg-slate-300"></div>
                                             <div>
-                                              <span className="text-slate-400 font-bold mr-1">Incerteza:</span>
+                                              <span className="text-slate-400 font-bold mr-1">Estimativa:</span>
                                               <span className="font-extrabold text-slate-800">{item.uncertainty}</span>
                                             </div>
                                           </>
@@ -913,7 +913,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                           <>
                                             <div className="w-[1px] h-3 bg-slate-300"></div>
                                             <div>
-                                              <span className="text-slate-400 font-bold mr-1">Incerteza:</span>
+                                              <span className="text-slate-400 font-bold mr-1">Estimativa:</span>
                                               <span className="font-extrabold text-slate-800">{item.uncertainty}</span>
                                             </div>
                                           </>

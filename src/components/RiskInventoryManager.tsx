@@ -453,7 +453,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Incerteza da Estimativa</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Estimativa da Medida (Incerteza)</label>
                   <select
                     value={uncertainty}
                     onChange={(e) => setUncertainty(e.target.value as any)}
@@ -800,7 +800,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   <div className="grid grid-cols-1 md:grid-cols-2">
                     <div className="px-4 py-3 border-r border-slate-300 space-y-2 flex flex-col justify-between">
                       <div>
-                        <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa de Incerteza / Confiança da Medida:</span>
+                        <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa:</span>
                         <span className="text-slate-800 font-bold text-sm">{item.uncertainty || "Certa"}</span>
                       </div>
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[11px] space-y-1 mt-2">
