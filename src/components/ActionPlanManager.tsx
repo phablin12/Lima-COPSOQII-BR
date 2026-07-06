@@ -101,7 +101,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
         <div className="space-y-1">
           <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
             <ClipboardList className="w-5 h-5 text-slate-600" />
-            Cronograma e Plano de Ação Preventivo (SST)
+            Cronograma e Plano de Ação
           </h3>
           <p className="text-xs text-slate-500">
             Gerencie e acompanhe as ações corretivas/preventivas vinculadas aos riscos detectados no laudo.
