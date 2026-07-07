@@ -189,7 +189,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const renderHeader = (chapterTitle: string) => (
-    <div className="border-b border-slate-200 pb-3 mb-6 flex items-center justify-between gap-4 print:flex">
+    <div className="border-b border-slate-200 pb-3 mb-6 flex items-center justify-between gap-4 print:flex print-avoid-break-after">
       <div className="flex items-center gap-3">
         {/* Assessora Logo */}
         {assessor.logo ? (
@@ -878,7 +878,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                     return (
                       <div key={sector.id} className="space-y-4">
-                        <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white">
+                        <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                             <h4 className="text-[10px] font-black uppercase tracking-wider">
@@ -993,7 +993,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 </div>
 
                                 {/* Row 10: Estimativa and 5x5 Matrix Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 text-left">
+                                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 text-left">
                                   <div className="px-4 py-3 border-r border-slate-300 space-y-2 flex flex-col justify-between">
                                     <div>
                                       <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa:</span>
@@ -1004,7 +1004,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                       <p className="text-slate-700 leading-relaxed font-semibold italic">"{item.recommendation}"</p>
                                     </div>
                                   </div>
-                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 border-slate-300 print:bg-white">
+                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 print:border-t-0 border-slate-300 print:bg-white">
                                     <span className="font-extrabold text-slate-500 block text-[8px] uppercase tracking-wider mb-1.5">Matriz de Avaliação 5x5</span>
                                     <div className="grid grid-cols-6 gap-0.5 max-w-[200px] w-full text-[7px] font-bold text-center">
                                       {/* Top Header Labels */}
@@ -1069,7 +1069,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   {/* Fallback for unrecognized sector risks if any */}
                   {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
                     <div className="space-y-4">
-                      <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4">
+                      <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
@@ -1183,7 +1183,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 </div>
 
                                 {/* Row 10: Estimativa and 5x5 Matrix Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 text-left">
+                                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 text-left">
                                   <div className="px-4 py-3 border-r border-slate-300 space-y-2 flex flex-col justify-between">
                                     <div>
                                       <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa:</span>
@@ -1194,7 +1194,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                       <p className="text-slate-700 leading-relaxed font-semibold italic">"{item.recommendation}"</p>
                                     </div>
                                   </div>
-                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 border-slate-300 print:bg-white">
+                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 print:border-t-0 border-slate-300 print:bg-white">
                                     <span className="font-extrabold text-slate-500 block text-[8px] uppercase tracking-wider mb-1.5">Matriz de Avaliação 5x5</span>
                                     <div className="grid grid-cols-6 gap-0.5 max-w-[200px] w-full text-[7px] font-bold text-center">
                                       {/* Top Header Labels */}
@@ -1280,7 +1280,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                     return (
                       <div key={sector.id} className="space-y-4">
-                        <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white">
+                        <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                             <h4 className="text-[10px] font-black uppercase tracking-wider">
@@ -1319,9 +1319,9 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                 {/* Conteúdo do Card */}
                                 <div className="p-6">
-                                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 text-sm">
+                                  <div className="grid grid-cols-1 md:grid-cols-12 print:grid-cols-12 gap-6 text-sm">
                                     {/* Lado Esquerdo: Ações Principais (Objetivo e Proposta) */}
-                                    <div className="md:col-span-7 space-y-4">
+                                    <div className="md:col-span-7 print:col-span-7 space-y-4">
                                       <div className="space-y-1.5">
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Target className="w-3.5 h-3.5 text-slate-400" /> Objetivo Estratégico da Ação
@@ -1342,7 +1342,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                     </div>
 
                                     {/* Lado Direito: Atributos de Gestão/Cronograma */}
-                                    <div className="md:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
+                                    <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
                                       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                                         <div className="space-y-1">
                                           <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
@@ -1394,7 +1394,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   {/* Fallback for unrecognized sector actions */}
                   {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
                     <div className="space-y-4">
-                      <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4">
+                      <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
@@ -1435,9 +1435,9 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                 {/* Conteúdo do Card */}
                                 <div className="p-6">
-                                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 text-sm">
+                                  <div className="grid grid-cols-1 md:grid-cols-12 print:grid-cols-12 gap-6 text-sm">
                                     {/* Lado Esquerdo: Ações Principais (Objetivo e Proposta) */}
-                                    <div className="md:col-span-7 space-y-4">
+                                    <div className="md:col-span-7 print:col-span-7 space-y-4">
                                       <div className="space-y-1.5">
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Target className="w-3.5 h-3.5 text-slate-400" /> Objetivo Estratégico da Ação
@@ -1458,7 +1458,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                     </div>
 
                                     {/* Lado Direito: Atributos de Gestão/Cronograma */}
-                                    <div className="md:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
+                                    <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
                                       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                                         <div className="space-y-1">
                                           <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">

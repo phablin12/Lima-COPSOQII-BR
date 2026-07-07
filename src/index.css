@@ -40,9 +40,17 @@
     page-break-after: always !important;
   }
 
-  .page-break-inside-avoid {
+  .page-break-inside-avoid,
+  .print\:break-inside-avoid,
+  [class*="print:break-inside-avoid"] {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+  }
+
+  .print-avoid-break-after,
+  h1, h2, h3, h4, h5, h6 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
   }
 
   /* Hide web-only elements like sidebars and action buttons */
