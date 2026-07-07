@@ -1343,28 +1343,26 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                     {/* Lado Direito: Atributos de Gestão/Cronograma */}
                                     <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
-                                      <div className="grid grid-cols-1 sm:grid-cols-12 print:grid-cols-12 gap-y-4 sm:gap-y-0 print:gap-y-0 gap-x-4">
-                                        <div className="col-span-12 sm:col-span-5 print:col-span-5 space-y-3.5 sm:border-r sm:border-slate-150 print:border-r print:border-slate-150 sm:pr-4 print:pr-4">
-                                          <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                              <User className="w-3 h-3 text-slate-400" /> Responsável
-                                            </span>
-                                            <span className="font-bold text-slate-800 block">
-                                              {item.responsible || "Liderança e Gestão de Pessoas"}
-                                            </span>
-                                          </div>
+                                      <div className="space-y-3">
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <User className="w-3 h-3 text-slate-400" /> Responsável
+                                          </span>
+                                          <span className="font-bold text-slate-800 block">
+                                            {item.responsible || "Liderança e Gestão de Pessoas"}
+                                          </span>
+                                        </div>
 
+                                        <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-150/60">
                                           <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                               <Clock className="w-3 h-3 text-slate-400" /> Prazo
                                             </span>
-                                            <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
+                                            <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit text-[11px]">
                                               {item.deadline || "Mês Corrente + 3"}
                                             </span>
                                           </div>
-                                        </div>
 
-                                        <div className="col-span-12 sm:col-span-7 print:col-span-7 space-y-3.5">
                                           <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                               <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
@@ -1373,17 +1371,18 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                               {item.periodicity || "Mensal"}
                                             </span>
                                           </div>
-
-                                          <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                              <CheckSquare className="w-3 h-3 text-slate-400" /> Indicador de Eficácia
-                                            </span>
-                                            <span className="font-medium text-slate-600 block leading-relaxed">
-                                              {item.efficacyIndicator || "Reavaliação anual"}
-                                            </span>
-                                          </div>
                                         </div>
                                       </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Indicador de Eficácia (Desmembrado e maior em largura) */}
+                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
+                                    <div className="flex items-center gap-1.5 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider shrink-0">
+                                      <CheckSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Indicador de Eficácia Recomendado
+                                    </div>
+                                    <div className="font-bold text-slate-800 leading-relaxed bg-white/65 px-3 py-1 rounded-lg border border-slate-150/50 print:bg-transparent print:border-none print:p-0">
+                                      {item.efficacyIndicator || "Reavaliação anual"}
                                     </div>
                                   </div>
                                 </div>
@@ -1463,28 +1462,26 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                     {/* Lado Direito: Atributos de Gestão/Cronograma */}
                                     <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
-                                      <div className="grid grid-cols-1 sm:grid-cols-12 print:grid-cols-12 gap-y-4 sm:gap-y-0 print:gap-y-0 gap-x-4">
-                                        <div className="col-span-12 sm:col-span-5 print:col-span-5 space-y-3.5 sm:border-r sm:border-slate-150 print:border-r print:border-slate-150 sm:pr-4 print:pr-4">
-                                          <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                              <User className="w-3 h-3 text-slate-400" /> Responsável
-                                            </span>
-                                            <span className="font-bold text-slate-800 block">
-                                              {item.responsible || "Liderança e Gestão de Pessoas"}
-                                            </span>
-                                          </div>
+                                      <div className="space-y-3">
+                                        <div className="space-y-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <User className="w-3 h-3 text-slate-400" /> Responsável
+                                          </span>
+                                          <span className="font-bold text-slate-800 block">
+                                            {item.responsible || "Liderança e Gestão de Pessoas"}
+                                          </span>
+                                        </div>
 
+                                        <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-150/60">
                                           <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                               <Clock className="w-3 h-3 text-slate-400" /> Prazo
                                             </span>
-                                            <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
+                                            <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit text-[11px]">
                                               {item.deadline || "Mês Corrente + 3"}
                                             </span>
                                           </div>
-                                        </div>
 
-                                        <div className="col-span-12 sm:col-span-7 print:col-span-7 space-y-3.5">
                                           <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                               <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
@@ -1493,17 +1490,18 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                               {item.periodicity || "Mensal"}
                                             </span>
                                           </div>
-
-                                          <div className="space-y-1">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                              <CheckSquare className="w-3 h-3 text-slate-400" /> Indicador de Eficácia
-                                            </span>
-                                            <span className="font-medium text-slate-600 block leading-relaxed">
-                                              {item.efficacyIndicator || "Reavaliação anual"}
-                                            </span>
-                                          </div>
                                         </div>
                                       </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Indicador de Eficácia (Desmembrado e maior em largura) */}
+                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
+                                    <div className="flex items-center gap-1.5 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider shrink-0">
+                                      <CheckSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Indicador de Eficácia Recomendado
+                                    </div>
+                                    <div className="font-bold text-slate-800 leading-relaxed bg-white/65 px-3 py-1 rounded-lg border border-slate-150/50 print:bg-transparent print:border-none print:p-0">
+                                      {item.efficacyIndicator || "Reavaliação anual"}
                                     </div>
                                   </div>
                                 </div>
