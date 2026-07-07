@@ -4,7 +4,21 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { Sliders, Building, Image as ImageIcon, Link, Phone, Shield, Upload, Check, Trash2, Globe } from "lucide-react";
+import { 
+  Building, 
+  Globe, 
+  Upload, 
+  Check, 
+  Trash2, 
+  Mail, 
+  Phone, 
+  Link as LinkIcon, 
+  User, 
+  FileText, 
+  MapPin, 
+  Settings,
+  Sparkles
+} from "lucide-react";
 import { compressImage } from "../imageUtils";
 
 interface CompanyCustomizationProps {
@@ -18,6 +32,18 @@ interface CompanyCustomizationProps {
     favicon?: string;
     siteName?: string;
     defaultCoverImage?: string;
+    email?: string;
+    website?: string;
+    technicalResponsible?: string;
+    technicalResponsibleReg?: string;
+    stateReg?: string;
+    municipalReg?: string;
+    cep?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    legalResponsible?: string;
+    legalResponsibleCpf?: string;
   };
   onUpdateAssessor: (newAssessor: any) => void;
 }
@@ -26,6 +52,10 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
   assessor,
   onUpdateAssessor,
 }) => {
+  // Navigation tab inside Minha Empresa
+  const [activeSubTab, setActiveSubTab] = useState<"cadastro" | "sistema">("cadastro");
+
+  // State bindings for all fields
   const [fantasyName, setFantasyName] = useState(assessor.fantasyName || "");
   const [socialName, setSocialName] = useState(assessor.socialName || "");
   const [cnpj, setCnpj] = useState(assessor.cnpj || "");
@@ -35,6 +65,21 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
   const [favicon, setFavicon] = useState(assessor.favicon || "");
   const [siteName, setSiteName] = useState(assessor.siteName || "SST Psicossocial");
   const [defaultCoverImage, setDefaultCoverImage] = useState(assessor.defaultCoverImage || "");
+  
+  // New fields
+  const [email, setEmail] = useState(assessor.email || "");
+  const [website, setWebsite] = useState(assessor.website || "");
+  const [technicalResponsible, setTechnicalResponsible] = useState(assessor.technicalResponsible || "");
+  const [technicalResponsibleReg, setTechnicalResponsibleReg] = useState(assessor.technicalResponsibleReg || "");
+  const [stateReg, setStateReg] = useState(assessor.stateReg || "");
+  const [municipalReg, setMunicipalReg] = useState(assessor.municipalReg || "");
+  const [cep, setCep] = useState(assessor.cep || "");
+  const [neighborhood, setNeighborhood] = useState(assessor.neighborhood || "");
+  const [city, setCity] = useState(assessor.city || "");
+  const [state, setState] = useState(assessor.state || "");
+  const [legalResponsible, setLegalResponsible] = useState(assessor.legalResponsible || "");
+  const [legalResponsibleCpf, setLegalResponsibleCpf] = useState(assessor.legalResponsibleCpf || "");
+
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success">("idle");
 
   // Keep state in sync with prop changes
@@ -48,6 +93,20 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
     setFavicon(assessor.favicon || "");
     setSiteName(assessor.siteName || "SST Psicossocial");
     setDefaultCoverImage(assessor.defaultCoverImage || "");
+    
+    // New fields sync
+    setEmail(assessor.email || "");
+    setWebsite(assessor.website || "");
+    setTechnicalResponsible(assessor.technicalResponsible || "");
+    setTechnicalResponsibleReg(assessor.technicalResponsibleReg || "");
+    setStateReg(assessor.stateReg || "");
+    setMunicipalReg(assessor.municipalReg || "");
+    setCep(assessor.cep || "");
+    setNeighborhood(assessor.neighborhood || "");
+    setCity(assessor.city || "");
+    setState(assessor.state || "");
+    setLegalResponsible(assessor.legalResponsible || "");
+    setLegalResponsibleCpf(assessor.legalResponsibleCpf || "");
   }, [assessor]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,11 +159,23 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
       favicon,
       siteName: siteName.trim(),
       defaultCoverImage,
+      email: email.trim(),
+      website: website.trim(),
+      technicalResponsible: technicalResponsible.trim(),
+      technicalResponsibleReg: technicalResponsibleReg.trim(),
+      stateReg: stateReg.trim(),
+      municipalReg: municipalReg.trim(),
+      cep: cep.trim(),
+      neighborhood: neighborhood.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      legalResponsible: legalResponsible.trim(),
+      legalResponsibleCpf: legalResponsibleCpf.trim()
     };
 
     onUpdateAssessor(updated);
 
-    // Update document title and favicon
+    // Update document title and favicon dynamically
     if (updated.siteName) {
       document.title = updated.siteName;
     }
@@ -130,59 +201,323 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
 
   return (
     <div className="space-y-6" id="company-customization">
-      {/* Cabeçalho */}
-      <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-xs">
-        <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
-          <Sliders className="w-5 h-5 text-slate-600" />
-          Personalização do Sistema & Minha Empresa
+      {/* Title Header */}
+      <div className="bg-white p-5 md:p-6 rounded-2xl border border-slate-100 shadow-xs text-left">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] bg-slate-800 text-amber-300 font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+            <Building className="w-3 h-3 text-amber-300" /> Cadastros Gerais
+          </span>
+        </div>
+        <h3 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+          Minha Empresa (Assessoria de SST)
         </h3>
-        <p className="text-xs text-slate-500 mt-1">
-          Personalize a identidade visual do sistema, o título do site, favicon, imagem de capa padrão e os dados cadastrais da sua empresa de assessoria.
+        <p className="text-xs text-slate-500 mt-0.5">
+          Gerencie todas as informações cadastrais de faturamento, frentes técnicas, assinaturas do laudo e identidade visual do sistema.
         </p>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* Coluna da Esquerda: Identidade Visual e Site */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
-              <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Globe className="w-4 h-4 text-slate-600" /> Identidade Visual do Site
-              </h4>
+      {/* Internal Tabs navigation */}
+      <div className="flex border-b border-slate-200">
+        <button
+          onClick={() => setActiveSubTab("cadastro")}
+          className={`px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+            activeSubTab === "cadastro" 
+              ? "border-slate-800 text-slate-900 font-black" 
+              : "border-transparent text-slate-500 hover:text-slate-850 hover:border-slate-200"
+          }`}
+        >
+          <Building className="w-4 h-4" /> Dados Cadastrais & Faturamento
+        </button>
+        <button
+          onClick={() => setActiveSubTab("sistema")}
+          className={`px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+            activeSubTab === "sistema" 
+              ? "border-slate-800 text-slate-900 font-black" 
+              : "border-transparent text-slate-500 hover:text-slate-850 hover:border-slate-200"
+          }`}
+        >
+          <Settings className="w-4 h-4" /> Identidade Visual & Sistema
+        </button>
+      </div>
 
-              {/* Nome do Site */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Nome do Site / Sistema</label>
-                <input
-                  type="text"
-                  required
-                  value={siteName}
-                  onChange={(e) => setSiteName(e.target.value)}
-                  placeholder="Ex: SST Psicossocial"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white transition"
-                />
+      <form onSubmit={handleSave} className="space-y-6">
+        {activeSubTab === "cadastro" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
+            {/* DADOS JURÍDICOS E CONTATO */}
+            <div className="lg:col-span-8 space-y-6">
+              
+              {/* Card 1: Identificação da Empresa */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+                <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Building className="w-4 h-4 text-slate-500" /> Identificação Corporativa
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Nome Fantasia</label>
+                    <input
+                      type="text"
+                      required
+                      value={fantasyName}
+                      onChange={(e) => setFantasyName(e.target.value)}
+                      placeholder="Ex: Lima Engenharia e Segurança"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Razão Social</label>
+                    <input
+                      type="text"
+                      required
+                      value={socialName}
+                      onChange={(e) => setSocialName(e.target.value)}
+                      placeholder="Ex: E. L. de Jesus - Segurança do Trabalho"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">CNPJ / CPF</label>
+                    <input
+                      type="text"
+                      required
+                      value={cnpj}
+                      onChange={(e) => setCnpj(e.target.value)}
+                      placeholder="Ex: 18.195.986/0001-68"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Inscrição Estadual</label>
+                    <input
+                      type="text"
+                      value={stateReg}
+                      onChange={(e) => setStateReg(e.target.value)}
+                      placeholder="Isento ou nº"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Inscrição Municipal</label>
+                    <input
+                      type="text"
+                      value={municipalReg}
+                      onChange={(e) => setMunicipalReg(e.target.value)}
+                      placeholder="Nº Inscrição Municipal"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Logo do Sistema */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Logo da Sua Empresa (Sidebar)</label>
-                <div className="flex items-center gap-4">
+              {/* Card 2: Localização */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+                <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <MapPin className="w-4 h-4 text-slate-500" /> Endereço & Localização
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="space-y-1.5 md:col-span-1">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">CEP</label>
+                    <input
+                      type="text"
+                      value={cep}
+                      onChange={(e) => setCep(e.target.value)}
+                      placeholder="78300-000"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 md:col-span-3">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Endereço Completo</label>
+                    <input
+                      type="text"
+                      required
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Av. Mato grosso, 108-W, Centro"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Bairro</label>
+                    <input
+                      type="text"
+                      value={neighborhood}
+                      onChange={(e) => setNeighborhood(e.target.value)}
+                      placeholder="Ex: Centro"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Cidade</label>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="Tangará da Serra"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Estado / UF</label>
+                    <input
+                      type="text"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      placeholder="MT"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Responsáveis Técnicos & Legais */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+                <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <User className="w-4 h-4 text-slate-500" /> Responsáveis & Assinaturas
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Responsável Técnico Principal</label>
+                    <input
+                      type="text"
+                      value={technicalResponsible}
+                      onChange={(e) => setTechnicalResponsible(e.target.value)}
+                      placeholder="Nome do Responsável Técnico"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Registro de Classe (CREA/CONFEA/MTE)</label>
+                    <input
+                      type="text"
+                      value={technicalResponsibleReg}
+                      onChange={(e) => setTechnicalResponsibleReg(e.target.value)}
+                      placeholder="Ex: MTE: 000000 ou CREA-MT 098765"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Responsável Legal / Administrador</label>
+                    <input
+                      type="text"
+                      value={legalResponsible}
+                      onChange={(e) => setLegalResponsible(e.target.value)}
+                      placeholder="Nome do Sócio ou Gestor Legal"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">CPF do Responsável Legal</label>
+                    <input
+                      type="text"
+                      value={legalResponsibleCpf}
+                      onChange={(e) => setLegalResponsibleCpf(e.target.value)}
+                      placeholder="000.000.000-00"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* DADOS DE CONTATO E LOGO */}
+            <div className="lg:col-span-4 space-y-6">
+              
+              {/* Card Contato Comercial */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+                <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Mail className="w-4 h-4 text-slate-500" /> Contatos Comerciais
+                </h4>
+
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Telefone de Contato</label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                      <input
+                        type="text"
+                        required
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="(65) 99998-0418"
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">E-mail Comercial</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="contato@empresa.com.br"
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Website Oficial</label>
+                    <div className="relative">
+                      <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                      <input
+                        type="text"
+                        value={website}
+                        onChange={(e) => setWebsite(e.target.value)}
+                        placeholder="www.limasst.com.br"
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logotipo da Assessoria */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+                <h4 className="font-extrabold text-slate-800 text-sm border-b border-slate-100 pb-3">
+                  Logomarca Oficial (SST)
+                </h4>
+                
+                <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                   {logo ? (
-                    <div className="relative w-16 h-16 border border-slate-200 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-xs shrink-0">
-                      <img src={logo} alt="Logo" className="max-w-full max-h-full object-contain" />
-                      <button
-                        type="button"
-                        onClick={() => setLogo("")}
-                        className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-[10px] font-bold cursor-pointer"
-                      >
-                        Remover
-                      </button>
+                    <div className="relative w-28 h-28 border border-slate-250 bg-white rounded-2xl overflow-hidden flex items-center justify-center group shadow-xs">
+                      <img src={logo} alt="Logo" className="max-w-full max-h-full object-contain p-2" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setLogo("")}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black cursor-pointer uppercase tracking-wider flex items-center gap-1 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Remover
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <label className="w-16 h-16 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center justify-center cursor-pointer transition bg-slate-50 shrink-0">
-                      <Upload className="w-4 h-4 text-slate-400" />
-                      <span className="text-[8px] text-slate-400 font-bold uppercase mt-1">Logo</span>
+                    <label className="w-28 h-28 border-2 border-dashed border-slate-200 hover:border-slate-400 bg-white rounded-2xl flex flex-col items-center justify-center cursor-pointer transition">
+                      <Upload className="w-5 h-5 text-slate-450" />
+                      <span className="text-[9px] text-slate-500 font-extrabold uppercase mt-1.5">Carregar</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -191,69 +526,99 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                       />
                     </label>
                   )}
-                  <div className="text-[10px] text-slate-450 leading-tight">
-                    <span className="font-bold text-slate-600 block mb-0.5">Logo do Sistema</span>
-                    Recomendado: imagem quadrada fundo branco ou transparente. Aparece no topo do menu lateral.
-                  </div>
+                  <p className="text-[10px] text-slate-450 text-center mt-3 leading-tight font-medium">
+                    Será impressa no cabeçalho dos relatórios e diagnósticos ao lado do logo do cliente.
+                  </p>
                 </div>
               </div>
 
-              {/* Favicon do Sistema */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Favicon do Site (Ícone do Navegador)</label>
-                <div className="flex items-center gap-4">
-                  {favicon ? (
-                    <div className="relative w-12 h-12 border border-slate-200 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-xs shrink-0">
-                      <img src={favicon} alt="Favicon" className="max-w-full max-h-full object-contain" />
-                      <button
-                        type="button"
-                        onClick={() => setFavicon("")}
-                        className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-[10px] font-bold cursor-pointer"
-                      >
-                        Excluir
-                      </button>
+            </div>
+          </div>
+        ) : (
+          /* IDENTIDADE VISUAL E SISTEMA */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
+            <div className="lg:col-span-6 space-y-6">
+              
+              {/* Site Name and Favicon */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-5">
+                <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <Globe className="w-4 h-4 text-slate-500" /> Branding do Software
+                </h4>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Nome do Site / Sistema</label>
+                  <input
+                    type="text"
+                    required
+                    value={siteName}
+                    onChange={(e) => setSiteName(e.target.value)}
+                    placeholder="Ex: SST Psicossocial"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-semibold text-slate-800 bg-white transition"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-extrabold text-slate-450 uppercase tracking-widest block">Favicon do Site (Ícone do Navegador)</label>
+                  <div className="flex items-center gap-4">
+                    {favicon ? (
+                      <div className="relative w-12 h-12 border border-slate-200 rounded-xl overflow-hidden bg-white flex items-center justify-center shadow-xs shrink-0">
+                        <img src={favicon} alt="Favicon" className="max-w-full max-h-full object-contain" />
+                        <button
+                          type="button"
+                          onClick={() => setFavicon("")}
+                          className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-[10px] font-bold cursor-pointer"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="w-12 h-12 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center justify-center cursor-pointer transition bg-slate-50 shrink-0">
+                        <Upload className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Icon</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFaviconUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                    <div className="text-[10px] text-slate-450 leading-tight">
+                      <span className="font-bold text-slate-650 block mb-0.5">Favicon</span>
+                      Aparece na aba e na barra de favoritos do navegador do usuário.
                     </div>
-                  ) : (
-                    <label className="w-12 h-12 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center justify-center cursor-pointer transition bg-slate-50 shrink-0">
-                      <Upload className="w-3.5 h-3.5 text-slate-400" />
-                      <span className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Favicon</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFaviconUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                  <div className="text-[10px] text-slate-450 leading-tight">
-                    <span className="font-bold text-slate-600 block mb-0.5">Favicon</span>
-                    Recomendado: formato .ico ou .png de 32x32px. Ícone que aparece na aba do navegador.
                   </div>
                 </div>
               </div>
 
-              {/* Capa Padrão do Relatório */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Imagem de Capa Padrão do Laudo</label>
+            </div>
+
+            {/* Imagem de Capa do Relatório */}
+            <div className="lg:col-span-6 space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+                <h4 className="font-extrabold text-slate-800 text-sm border-b border-slate-100 pb-3">
+                  Imagem de Capa Padrão para Laudos
+                </h4>
+
                 <div className="flex flex-col gap-3">
                   {defaultCoverImage ? (
-                    <div className="relative w-full h-32 border border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center group shadow-2xs">
+                    <div className="relative w-full h-36 border border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center group shadow-2xs">
                       <img src={defaultCoverImage} alt="Capa Padrão" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => setDefaultCoverImage("")}
-                          className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-750 text-white rounded text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                         >
-                          <Trash2 className="w-3 h-3" /> Remover
+                          <Trash2 className="w-3.5 h-3.5" /> Remover
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex gap-2">
-                      <label className="flex-1 h-20 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center justify-center cursor-pointer transition bg-slate-50">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <label className="flex-1 h-24 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-xl flex flex-col items-center justify-center cursor-pointer transition bg-slate-50">
                         <Upload className="w-4 h-4 text-slate-400" />
-                        <span className="text-[10px] text-slate-500 font-bold uppercase mt-1">Carregar Imagem de Capa</span>
+                        <span className="text-[10px] text-slate-500 font-extrabold uppercase mt-1">Fazer Upload</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -264,118 +629,48 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                       <button
                         type="button"
                         onClick={loadDefaultCover}
-                        className="px-3 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500 hover:text-slate-700 text-xs font-semibold transition"
+                        className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-600 hover:text-slate-800 text-xs font-bold transition cursor-pointer"
                       >
-                        Carregar Capa Clássica
+                        Carregar Capa Clássica (Geral)
                       </button>
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-450 leading-tight">
-                    Capa que será aplicada automaticamente em todos os novos relatórios gerados no sistema, poupando a necessidade de upload manual a cada cadastro.
+                  <p className="text-[10px] text-slate-450 leading-tight font-medium">
+                    Esta capa será aplicada automaticamente na abertura de todos os novos laudos gerados pela Lima SST, garantindo a uniformidade de design da sua marca.
                   </p>
                 </div>
               </div>
-
             </div>
           </div>
+        )}
 
-          {/* Coluna da Direita: Dados Cadastrais da Empresa */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-              <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
-                <Building className="w-4 h-4 text-slate-600" /> Dados Cadastrais da Sua Assessoria
-              </h4>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Nome Fantasia</label>
-                  <input
-                    type="text"
-                    required
-                    value={fantasyName}
-                    onChange={(e) => setFantasyName(e.target.value)}
-                    placeholder="Ex: Lima Engenharia e Segurança"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Razão Social</label>
-                  <input
-                    type="text"
-                    required
-                    value={socialName}
-                    onChange={(e) => setSocialName(e.target.value)}
-                    placeholder="Ex: E. L. de Jesus - Segurança do Trabalho"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">CNPJ / CPF</label>
-                  <input
-                    type="text"
-                    required
-                    value={cnpj}
-                    onChange={(e) => setCnpj(e.target.value)}
-                    placeholder="Ex: 18.195.986/0001-68"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Telefone de Contato</label>
-                  <input
-                    type="text"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Ex: (65) 99998-0418"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Endereço Completo da Empresa</label>
-                <textarea
-                  required
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Ex: Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT"
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white font-sans"
-                />
-              </div>
-
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
-                <button
-                  type="submit"
-                  disabled={saveStatus === "saving"}
-                  className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs uppercase tracking-widest rounded-xl transition duration-200 flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
-                >
-                  {saveStatus === "saving" ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Salvando...</span>
-                    </>
-                  ) : saveStatus === "success" ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-400" />
-                      <span>Alterações Salvas!</span>
-                    </>
-                  ) : (
-                    <span>Salvar Configurações</span>
-                  )}
-                </button>
-              </div>
-
-            </div>
+        {/* Global Save Button */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-2xs flex items-center justify-between gap-4">
+          <div className="text-[11px] text-slate-450 text-left font-bold">
+            <span className="text-slate-700 block">Sincronização em Tempo Real</span>
+            Os dados cadastrais serão replicados para a assinatura de todos os laudos ativos e em conformidade.
           </div>
-
+          <button
+            type="submit"
+            disabled={saveStatus === "saving"}
+            className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs uppercase tracking-widest rounded-xl transition duration-200 flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+          >
+            {saveStatus === "saving" ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Salvando...</span>
+              </>
+            ) : saveStatus === "success" ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>Salvo com Sucesso!</span>
+              </>
+            ) : (
+              <span>Salvar Alterações da Empresa</span>
+            )}
+          </button>
         </div>
+
       </form>
     </div>
   );

@@ -145,26 +145,35 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
   return (
     <div className="space-y-6" id="reports-dashboard">
-      {/* Intro Header Section */}
-      <div className="bg-slate-50 border border-slate-150 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-2 max-w-2xl text-left">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] bg-slate-200 text-slate-800 font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">
-              Diagnóstico Psicossocial
-            </span>
-          </div>
-          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            Gestão de Diagnósticos e Relatórios de Riscos Psicossociais
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImportReport}
+        accept=".json"
+        className="hidden"
+      />
+
+      {/* Simplified Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2 border-b border-slate-100">
+        <div className="text-left">
+          <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
+            Gestão de Relatórios & Diagnósticos
           </h2>
-          <p className="text-slate-600 text-xs leading-relaxed">
-            Sistema profissional para elaborar e gerenciar relatórios e diagnósticos dos fatores de riscos psicossociais, utilizando a metodologia científica do <strong>COPSOQ II – BR</strong> em atendimento às diretrizes da <strong>NR-01 (GRO/PGR)</strong>.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Metodologia COPSOQ II – BR para NR-01 (GRO/PGR)
           </p>
         </div>
-
-        <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={handleTriggerImport}
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-lg transition cursor-pointer shadow-2xs"
+            title="Importar Relatório JSON"
+          >
+            Importar JSON
+          </button>
           <button
             onClick={handleCreateNewReport}
-            className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-6 py-3 rounded-xl transition cursor-pointer shadow-sm"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-5 py-2.5 rounded-lg transition cursor-pointer shadow-sm"
           >
             <Plus className="w-4 h-4" /> Novo Relatório
           </button>

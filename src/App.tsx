@@ -107,6 +107,18 @@ export default function App() {
     favicon?: string;
     siteName?: string;
     defaultCoverImage?: string;
+    email?: string;
+    website?: string;
+    technicalResponsible?: string;
+    technicalResponsibleReg?: string;
+    stateReg?: string;
+    municipalReg?: string;
+    cep?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    legalResponsible?: string;
+    legalResponsibleCpf?: string;
   }>({
     fantasyName: "Lima engenharia e assessoria em segurança do trabalho",
     socialName: "E. L. de Jesus – Segurança",
@@ -116,7 +128,19 @@ export default function App() {
     logo: "",
     favicon: "",
     siteName: "SST Psicossocial",
-    defaultCoverImage: ""
+    defaultCoverImage: "",
+    email: "contato@limasst.com.br",
+    website: "www.limasst.com.br",
+    technicalResponsible: "Eng. Edimilson Lima",
+    technicalResponsibleReg: "CREA-MT 123456",
+    stateReg: "",
+    municipalReg: "",
+    cep: "78300-000",
+    neighborhood: "Centro",
+    city: "Tangará da Serra",
+    state: "MT",
+    legalResponsible: "Edimilson Lima",
+    legalResponsibleCpf: "123.456.789-00"
   });
 
   // Dynamic Browser tab title and favicon sync
@@ -653,17 +677,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Botão de Sair - Posicionado abaixo do Logotipo */}
-          <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/40">
-            <button
-              onClick={() => signOut(auth)}
-              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-[10px] font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-100 hover:border-rose-600 rounded-lg transition duration-200 cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5 shrink-0" />
-              <span>Sair do Sistema</span>
-            </button>
-          </div>
-
           {/* ÁREA DE NAVEGAÇÃO INTERNA DO SIDEBAR */}
           <div className="p-4 space-y-6 overflow-y-auto">
             
@@ -847,8 +860,18 @@ export default function App() {
                       homeTab === "customization" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
-                    <Sliders className="w-4 h-4 shrink-0 text-slate-450" />
-                    Personalizar Empresa
+                    <Building className="w-4 h-4 shrink-0 text-slate-450" />
+                    Minha Empresa
+                  </button>
+
+                  <div className="h-px bg-slate-100 my-1" />
+
+                  <button
+                    onClick={() => signOut(auth)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer text-left"
+                  >
+                    <LogOut className="w-4 h-4 shrink-0" />
+                    Sair do Sistema
                   </button>
                 </div>
 
@@ -947,6 +970,7 @@ export default function App() {
                   professionalsCount={professionals.length}
                   assessor={assessor}
                   onUpdateAssessor={handleUpdateAssessor}
+                  onUpdateAllReports={handleUpdateAllReports}
                 />
               )}
               {homeTab === "reports" && (
