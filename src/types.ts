@@ -58,6 +58,13 @@ export interface RiskInventoryItem {
   efficacyIndicator: string; // Indicador de eficácia
 }
 
+export interface CustomChapter {
+  id: string;
+  title: string;
+  text: string;
+  order: number;
+}
+
 export interface ReportChapters {
   introducao: string;
   fundamentacao: string;
@@ -91,6 +98,8 @@ export interface Report {
   riskInventory: RiskInventoryItem[];
   chapters: ReportChapters;
   finalConsiderations: string;
+  customChapters?: CustomChapter[];
+  paragraphIndent?: "none" | "medium" | "large"; // paragraph indentation control
   risksRecognized?: boolean; // Whether the company recognizes the risks (influences chapter 6 & 7 rendering)
   hideChapter5?: boolean; // Whether to hide Chapter 5 in the final report
   hideChapter6?: boolean; // Whether to hide Chapter 6 in the final report

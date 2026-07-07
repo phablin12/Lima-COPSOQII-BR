@@ -1058,6 +1058,7 @@ export default function App() {
                   <ChaptersEditor
                     report={currentReport}
                     onChange={handleUpdateCurrentReport}
+                    assessor={assessor}
                   />
                 )}
                 {activeTab === "visualizar" && (
