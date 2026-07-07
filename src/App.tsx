@@ -4,8 +4,9 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { Report, CatalogRisk } from "./types";
+import { Report, CatalogRisk, ReportChapters } from "./types";
 import { DEFAULT_RISK_CATALOG } from "./defaultCatalog";
+import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS } from "./defaultChapters";
 import { ReportsDashboard } from "./components/ReportsDashboard";
 import { GeneralInfoForm } from "./components/GeneralInfoForm";
 import { CopsoqEvaluation } from "./components/CopsoqEvaluation";
@@ -119,6 +120,8 @@ export default function App() {
     state?: string;
     legalResponsible?: string;
     legalResponsibleCpf?: string;
+    defaultChapters?: ReportChapters;
+    defaultFinalConsiderations?: string;
   }>({
     fantasyName: "Lima engenharia e assessoria em segurança do trabalho",
     socialName: "E. L. de Jesus – Segurança",
@@ -140,7 +143,9 @@ export default function App() {
     city: "Tangará da Serra",
     state: "MT",
     legalResponsible: "Edimilson Lima",
-    legalResponsibleCpf: "123.456.789-00"
+    legalResponsibleCpf: "123.456.789-00",
+    defaultChapters: { ...DEFAULT_CHAPTERS },
+    defaultFinalConsiderations: DEFAULT_FINAL_CONSIDERATIONS
   });
 
   // Dynamic Browser tab title and favicon sync
@@ -981,6 +986,8 @@ export default function App() {
                   onDeleteReport={handleDeleteReport}
                   onUpdateAllReports={handleUpdateAllReports}
                   defaultCoverImage={assessor.defaultCoverImage}
+                  defaultChapters={assessor.defaultChapters}
+                  defaultFinalConsiderations={assessor.defaultFinalConsiderations}
                 />
               )}
               {homeTab === "companies" && (

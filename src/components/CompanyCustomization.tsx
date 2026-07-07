@@ -20,6 +20,8 @@ import {
   Sparkles
 } from "lucide-react";
 import { compressImage } from "../imageUtils";
+import { ReportChapters } from "../types";
+import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS } from "../defaultChapters";
 
 interface CompanyCustomizationProps {
   assessor: {
@@ -44,6 +46,8 @@ interface CompanyCustomizationProps {
     state?: string;
     legalResponsible?: string;
     legalResponsibleCpf?: string;
+    defaultChapters?: ReportChapters;
+    defaultFinalConsiderations?: string;
   };
   onUpdateAssessor: (newAssessor: any) => void;
 }
@@ -53,7 +57,7 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
   onUpdateAssessor,
 }) => {
   // Navigation tab inside Minha Empresa
-  const [activeSubTab, setActiveSubTab] = useState<"cadastro" | "sistema">("cadastro");
+  const [activeSubTab, setActiveSubTab] = useState<"cadastro" | "sistema" | "capitulos">("cadastro");
 
   // State bindings for all fields
   const [fantasyName, setFantasyName] = useState(assessor.fantasyName || "");
@@ -79,6 +83,11 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
   const [state, setState] = useState(assessor.state || "");
   const [legalResponsible, setLegalResponsible] = useState(assessor.legalResponsible || "");
   const [legalResponsibleCpf, setLegalResponsibleCpf] = useState(assessor.legalResponsibleCpf || "");
+
+  // Default chapters templates states
+  const [defaultChapters, setDefaultChapters] = useState<ReportChapters>(assessor.defaultChapters || { ...DEFAULT_CHAPTERS });
+  const [defaultFinalConsiderations, setDefaultFinalConsiderations] = useState<string>(assessor.defaultFinalConsiderations || DEFAULT_FINAL_CONSIDERATIONS);
+  const [activeChapter, setActiveChapter] = useState<"introducao" | "fundamentacao" | "metodologia" | "consideracoes" | "referencias">("introducao");
 
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success">("idle");
 
@@ -107,6 +116,10 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
     setState(assessor.state || "");
     setLegalResponsible(assessor.legalResponsible || "");
     setLegalResponsibleCpf(assessor.legalResponsibleCpf || "");
+
+    // Sync default chapters
+    setDefaultChapters(assessor.defaultChapters || { ...DEFAULT_CHAPTERS });
+    setDefaultFinalConsiderations(assessor.defaultFinalConsiderations || DEFAULT_FINAL_CONSIDERATIONS);
   }, [assessor]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,7 +183,9 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
       city: city.trim(),
       state: state.trim(),
       legalResponsible: legalResponsible.trim(),
-      legalResponsibleCpf: legalResponsibleCpf.trim()
+      legalResponsibleCpf: legalResponsibleCpf.trim(),
+      defaultChapters,
+      defaultFinalConsiderations
     };
 
     onUpdateAssessor(updated);
@@ -237,6 +252,16 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
           }`}
         >
           <Settings className="w-4 h-4" /> Identidade Visual & Sistema
+        </button>
+        <button
+          onClick={() => setActiveSubTab("capitulos")}
+          className={`px-5 py-3 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+            activeSubTab === "capitulos" 
+              ? "border-slate-800 text-slate-900 font-black" 
+              : "border-transparent text-slate-500 hover:text-slate-850 hover:border-slate-200"
+          }`}
+        >
+          <FileText className="w-4 h-4" /> Modelos de Capítulos (Textos Padrão)
         </button>
       </div>
 
@@ -639,6 +664,87 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                     Esta capa será aplicada automaticamente na abertura de todos os novos laudos gerados pela Lima SST, garantindo a uniformidade de design da sua marca.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeSubTab === "capitulos" && (
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs text-left space-y-6">
+            <div>
+              <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
+                <FileText className="w-4 h-4 text-slate-500" /> Modelos de Capítulos Ocupacionais (Padrão)
+              </h4>
+              <p className="text-xs text-slate-500 mt-2">
+                Os textos configurados aqui serão utilizados automaticamente como o padrão para todos os novos relatórios elaborados no sistema. Você ainda poderá personalizar o texto de cada capítulo individualmente dentro do próprio laudo.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              {/* Menu Lateral de Capítulos */}
+              <div className="md:col-span-3 bg-slate-50/50 p-3 rounded-xl border border-slate-100 space-y-1 h-fit">
+                {[
+                  { key: "introducao", label: "1. Introdução" },
+                  { key: "fundamentacao", label: "2. Fundamentação" },
+                  { key: "metodologia", label: "3. Metodologia" },
+                  { key: "consideracoes", label: "8. Considerações Finais" },
+                  { key: "referencias", label: "9. Referências" },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setActiveChapter(item.key as any)}
+                    className={`w-full text-left px-3 py-2.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                      activeChapter === item.key
+                        ? "bg-slate-800 text-white font-bold"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Editor de Texto do Capítulo Ativo */}
+              <div className="md:col-span-9 space-y-4">
+                <div>
+                  <h5 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+                    {activeChapter === "introducao" && "1. Introdução do Relatório"}
+                    {activeChapter === "fundamentacao" && "2. Fundamentação Teórica"}
+                    {activeChapter === "metodologia" && "3. Metodologia de Avaliação"}
+                    {activeChapter === "consideracoes" && "8. Considerações Finais"}
+                    {activeChapter === "referencias" && "9. Referências Bibliográficas"}
+                  </h5>
+                  <p className="text-[11px] text-slate-450 mt-1">
+                    {activeChapter === "introducao" && "Modelo padrão para introdução, embasando os fatores de risco e o contexto do PGR."}
+                    {activeChapter === "fundamentacao" && "Conceituação científica e legal dos riscos psicossociais (ex: Karasek, Siegrist e NR-01)."}
+                    {activeChapter === "metodologia" && "Detalhamento de aplicação do instrumento COPSOQ II, escalas, dimensões e pontuações de corte."}
+                    {activeChapter === "consideracoes" && "Conclusão técnica destacando engajamento da liderança, plano preventivo e periodicidade de reavaliação."}
+                    {activeChapter === "referencias" && "Leis federais, portarias do MTE e bibliografia científica sugerida para os laudos."}
+                  </p>
+                </div>
+
+                <textarea
+                  value={
+                    activeChapter === "consideracoes"
+                      ? defaultFinalConsiderations
+                      : defaultChapters[activeChapter as keyof ReportChapters] || ""
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (activeChapter === "consideracoes") {
+                      setDefaultFinalConsiderations(val);
+                    } else {
+                      setDefaultChapters((prev) => ({
+                        ...prev,
+                        [activeChapter]: val,
+                      }));
+                    }
+                  }}
+                  rows={15}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-700 font-sans leading-relaxed shadow-inner bg-slate-50/20"
+                  placeholder="Insira o texto modelo para este capítulo..."
+                />
               </div>
             </div>
           </div>

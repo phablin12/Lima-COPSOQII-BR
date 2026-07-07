@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useState } from "react";
-import { Report } from "../types";
+import { Report, ReportChapters } from "../types";
 import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS } from "../defaultChapters";
 import { FolderHeart, Plus, FileText, Trash2, Copy, Download, Upload, AlertTriangle, ShieldCheck, ChevronRight, Cloud } from "lucide-react";
 
@@ -15,6 +15,8 @@ interface ReportsDashboardProps {
   onDeleteReport: (id: string) => void;
   onUpdateAllReports: (reports: Report[]) => void;
   defaultCoverImage?: string;
+  defaultChapters?: ReportChapters;
+  defaultFinalConsiderations?: string;
 }
 
 export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
@@ -24,6 +26,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   onDeleteReport,
   onUpdateAllReports,
   defaultCoverImage,
+  defaultChapters,
+  defaultFinalConsiderations,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
@@ -42,8 +46,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       professionalReg: "",
       sectors: [],
       riskInventory: [],
-      chapters: { ...DEFAULT_CHAPTERS },
-      finalConsiderations: DEFAULT_FINAL_CONSIDERATIONS,
+      chapters: defaultChapters ? { ...defaultChapters } : { ...DEFAULT_CHAPTERS },
+      finalConsiderations: defaultFinalConsiderations || DEFAULT_FINAL_CONSIDERATIONS,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

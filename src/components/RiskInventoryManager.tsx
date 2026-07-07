@@ -352,7 +352,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setSourcesField(e.target.value)}
                   placeholder="Ex: Introdução de novo sistema informatizado de faturamento sem treinamento prévio da equipe."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
                 />
               </div>
 
@@ -363,7 +363,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setPossibleInjuries(e.target.value)}
                   placeholder="Ex: Estresse ocupacional crônico, dores cefálicas tensionais, crises episódicas de ansiedade no setor."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
                 />
               </div>
             </div>
@@ -376,7 +376,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setDiseaseHistory(e.target.value)}
                   placeholder="Ex: Houve 1 afastamento médico de 5 dias nos últimos 12 meses por queixas correlacionadas a estresse."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
                 />
               </div>
 
@@ -387,7 +387,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setExistingControls(e.target.value)}
                   placeholder="Ex: Canais de comunicação abertos com o supervisor direto para reportar conflitos."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
                 />
               </div>
             </div>
@@ -483,7 +483,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   }}
                   placeholder="Ex: Realizar rodadas de feedback individual com a nova equipe de faturamento e treinamento instrucional do novo CRM de forma urgente."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
                 />
               </div>
             </div>
