@@ -1343,41 +1343,45 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                     {/* Lado Direito: Atributos de Gestão/Cronograma */}
                                     <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
-                                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <User className="w-3 h-3 text-slate-400" /> Responsável
-                                          </span>
-                                          <span className="font-bold text-slate-800 block">
-                                            {item.responsible || "Liderança e Gestão de Pessoas"}
-                                          </span>
+                                      <div className="grid grid-cols-1 sm:grid-cols-12 print:grid-cols-12 gap-y-4 sm:gap-y-0 print:gap-y-0 gap-x-4">
+                                        <div className="col-span-12 sm:col-span-5 print:col-span-5 space-y-3.5 sm:border-r sm:border-slate-150 print:border-r print:border-slate-150 sm:pr-4 print:pr-4">
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                              <User className="w-3 h-3 text-slate-400" /> Responsável
+                                            </span>
+                                            <span className="font-bold text-slate-800 block">
+                                              {item.responsible || "Liderança e Gestão de Pessoas"}
+                                            </span>
+                                          </div>
+
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                              <Clock className="w-3 h-3 text-slate-400" /> Prazo
+                                            </span>
+                                            <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
+                                              {item.deadline || "Mês Corrente + 3"}
+                                            </span>
+                                          </div>
                                         </div>
 
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
-                                          </span>
-                                          <span className="font-semibold text-slate-700 block">
-                                            {item.periodicity || "Mensal"}
-                                          </span>
-                                        </div>
+                                        <div className="col-span-12 sm:col-span-7 print:col-span-7 space-y-3.5">
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                              <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
+                                            </span>
+                                            <span className="font-semibold text-slate-700 block">
+                                              {item.periodicity || "Mensal"}
+                                            </span>
+                                          </div>
 
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <CheckSquare className="w-3 h-3 text-slate-400" /> Indicador de Eficácia
-                                          </span>
-                                          <span className="font-medium text-slate-600 block">
-                                            {item.efficacyIndicator || "Reavaliação anual"}
-                                          </span>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <Clock className="w-3 h-3 text-slate-400" /> Prazo Limite
-                                          </span>
-                                          <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
-                                            {item.deadline || "Mês Corrente + 3"}
-                                          </span>
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                              <CheckSquare className="w-3 h-3 text-slate-400" /> Indicador de Eficácia
+                                            </span>
+                                            <span className="font-medium text-slate-600 block leading-relaxed">
+                                              {item.efficacyIndicator || "Reavaliação anual"}
+                                            </span>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -1459,41 +1463,45 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                     {/* Lado Direito: Atributos de Gestão/Cronograma */}
                                     <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
-                                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <User className="w-3 h-3 text-slate-400" /> Responsável
-                                          </span>
-                                          <span className="font-bold text-slate-800 block">
-                                            {item.responsible || "Liderança e Gestão de Pessoas"}
-                                          </span>
+                                      <div className="grid grid-cols-1 sm:grid-cols-12 print:grid-cols-12 gap-y-4 sm:gap-y-0 print:gap-y-0 gap-x-4">
+                                        <div className="col-span-12 sm:col-span-5 print:col-span-5 space-y-3.5 sm:border-r sm:border-slate-150 print:border-r print:border-slate-150 sm:pr-4 print:pr-4">
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                              <User className="w-3 h-3 text-slate-400" /> Responsável
+                                            </span>
+                                            <span className="font-bold text-slate-800 block">
+                                              {item.responsible || "Liderança e Gestão de Pessoas"}
+                                            </span>
+                                          </div>
+
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                              <Clock className="w-3 h-3 text-slate-400" /> Prazo
+                                            </span>
+                                            <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
+                                              {item.deadline || "Mês Corrente + 3"}
+                                            </span>
+                                          </div>
                                         </div>
 
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
-                                          </span>
-                                          <span className="font-semibold text-slate-700 block">
-                                            {item.periodicity || "Mensal"}
-                                          </span>
-                                        </div>
+                                        <div className="col-span-12 sm:col-span-7 print:col-span-7 space-y-3.5">
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                              <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
+                                            </span>
+                                            <span className="font-semibold text-slate-700 block">
+                                              {item.periodicity || "Mensal"}
+                                            </span>
+                                          </div>
 
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <CheckSquare className="w-3 h-3 text-slate-400" /> Indicador de Eficácia
-                                          </span>
-                                          <span className="font-medium text-slate-600 block">
-                                            {item.efficacyIndicator || "Reavaliação anual"}
-                                          </span>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <Clock className="w-3 h-3 text-slate-400" /> Prazo Limite
-                                          </span>
-                                          <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
-                                            {item.deadline || "Mês Corrente + 3"}
-                                          </span>
+                                          <div className="space-y-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                              <CheckSquare className="w-3 h-3 text-slate-400" /> Indicador de Eficácia
+                                            </span>
+                                            <span className="font-medium text-slate-600 block leading-relaxed">
+                                              {item.efficacyIndicator || "Reavaliação anual"}
+                                            </span>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
