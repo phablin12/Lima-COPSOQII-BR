@@ -4,8 +4,8 @@
  */
 
 import React, { useState } from "react";
-import { Report, Sector } from "../types";
-import { Building, Calendar, User, ShieldAlert, Plus, Trash2, Edit2, Users, FileCheck2, ToggleLeft, CheckCircle2 } from "lucide-react";
+import { Report, Sector, Assessor } from "../types";
+import { Building, Calendar, User, ShieldAlert, Plus, Trash2, Edit2, Users, FileCheck2, ToggleLeft, CheckCircle2, Shield, ShieldCheck } from "lucide-react";
 import { compressImage } from "../imageUtils";
 
 const ESTADOS_BRASILEIROS = [
@@ -34,6 +34,8 @@ interface GeneralInfoFormProps {
     logo?: string;
   }[];
   professionals?: { id: string; name: string; role: string; reg: string }[];
+  evaluators?: Assessor[];
+  defaultAssessor?: Assessor;
 }
 
 export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
@@ -41,6 +43,8 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
   onChange,
   companies = [],
   professionals = [],
+  evaluators = [],
+  defaultAssessor,
 }) => {
   const [newSectorName, setNewSectorName] = useState("");
   const [newSectorEmployees, setNewSectorEmployees] = useState<string>("");
@@ -167,6 +171,20 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
     setEditingSectorId(null);
   };
 
+  // Find current active evaluator details to display in the UI
+  const currentEvaluator = report.evaluator || defaultAssessor;
+
+  const handleSelectEvaluator = (evaluatorId: string) => {
+    if (evaluatorId === "matriz" || !evaluatorId) {
+      onChange({ evaluator: undefined });
+    } else {
+      const chosen = evaluators.find((e) => e.id === evaluatorId);
+      if (chosen) {
+        onChange({ evaluator: chosen });
+      }
+    }
+  };
+
   // Helper to calculate participation percentage
   const getPercentageStr = (respondents: number | undefined, employees: number) => {
     if (!respondents || employees <= 0) return "0%";
@@ -176,6 +194,59 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
 
   return (
     <div className="space-y-8" id="general-info-container">
+      {/* Empresa Avaliadora Responsável */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
+          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-slate-600" />
+            Empresa Avaliadora (Responsável Técnica)
+          </h3>
+
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-500 font-bold">Alterar Responsável:</span>
+            <select
+              onChange={(e) => handleSelectEvaluator(e.target.value)}
+              value={report.evaluator?.id || "matriz"}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white outline-none focus:ring-1 focus:ring-slate-400"
+            >
+              <option value="matriz">Empresa Matriz / Principal (Padrão)</option>
+              {evaluators.map((ev) => (
+                <option key={ev.id} value={ev.id}>{ev.fantasyName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {currentEvaluator && (
+          <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex items-start gap-4">
+            <div className="w-12 h-12 border border-slate-200 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0">
+              {currentEvaluator.logo ? (
+                <img src={currentEvaluator.logo} alt="Logo" className="max-w-full max-h-full object-contain p-0.5" />
+              ) : (
+                <Building className="w-6 h-6 text-slate-350" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-slate-800 text-sm leading-tight">
+                  {currentEvaluator.fantasyName}
+                </span>
+                {(!report.evaluator || report.evaluator.id === "matriz") && (
+                  <span className="text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-150 font-black px-1.5 py-0.5 rounded uppercase">
+                    Matriz / Configuração Geral
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                <span className="font-bold text-slate-650">{currentEvaluator.socialName}</span> • CNPJ: {currentEvaluator.cnpj} <br />
+                {currentEvaluator.address && <span>{currentEvaluator.address}, {currentEvaluator.city} - {currentEvaluator.state} • </span>}
+                {currentEvaluator.phone && <span>Contato: {currentEvaluator.phone}</span>}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Dados da Empresa */}
       <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">

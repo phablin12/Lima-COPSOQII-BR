@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { Report, CatalogRisk, ReportChapters } from "./types";
+import { Report, CatalogRisk, ReportChapters, Assessor } from "./types";
 import { DEFAULT_RISK_CATALOG } from "./defaultCatalog";
 import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS } from "./defaultChapters";
 import { ReportsDashboard } from "./components/ReportsDashboard";
@@ -20,6 +20,7 @@ import { CompaniesRegistry } from "./components/CompaniesRegistry";
 import { ProfessionalsRegistry } from "./components/ProfessionalsRegistry";
 import { ManagementDashboard } from "./components/ManagementDashboard";
 import { CompanyCustomization } from "./components/CompanyCustomization";
+import { EvaluatorsRegistry } from "./components/EvaluatorsRegistry";
 import { 
   Shield, 
   ArrowLeft, 
@@ -40,7 +41,8 @@ import {
   LogOut,
   FolderHeart,
   Cloud,
-  CloudOff
+  CloudOff,
+  ShieldCheck
 } from "lucide-react";
 import { 
   onAuthStateChanged,
@@ -59,6 +61,7 @@ import {
   PROFESSIONALS_COLLECTION,
   CATALOG_COLLECTION,
   SETTINGS_COLLECTION,
+  EVALUATORS_COLLECTION,
   saveReportToFirestore, 
   deleteReportFromFirestore, 
   loadReportsFromFirestore,
@@ -71,7 +74,10 @@ import {
   saveCatalogToFirestore, 
   loadCatalogFromFirestore,
   saveAssessorToFirestore, 
-  loadAssessorFromFirestore
+  loadAssessorFromFirestore,
+  saveEvaluatorToFirestore,
+  deleteEvaluatorFromFirestore,
+  loadEvaluatorsFromFirestore
 } from "./firebase";
 import { Login } from "./components/Login";
 
@@ -88,12 +94,14 @@ export default function App() {
   const hasCheckedReportsSeedingRef = useRef(false);
   const hasCheckedCompaniesSeedingRef = useRef(false);
   const hasCheckedProfessionalsSeedingRef = useRef(false);
+  const hasCheckedEvaluatorsSeedingRef = useRef(false);
 
   const [globalCatalog, setGlobalCatalog] = useState<CatalogRisk[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<{ id: string; name: string; role: string; reg: string }[]>([]);
+  const [evaluators, setEvaluators] = useState<Assessor[]>([]);
   const [activeTab, setActiveTab] = useState<string>("cadastro");
-  const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization">("dashboard");
+  const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization" | "evaluators">("dashboard");
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">("synced");
   
@@ -206,6 +214,11 @@ export default function App() {
       const storedProfessionals = localStorage.getItem("sst_psicossocial_professionals");
       if (storedProfessionals) {
         setProfessionals(JSON.parse(storedProfessionals));
+      }
+
+      const storedEvaluators = localStorage.getItem("sst_psicossocial_evaluators");
+      if (storedEvaluators) {
+        setEvaluators(JSON.parse(storedEvaluators));
       }
 
       const storedAssessor = localStorage.getItem("sst_psicossocial_assessor");
@@ -362,6 +375,44 @@ export default function App() {
       }
     );
 
+    // Real-time Evaluators Listener
+    const unsubEvaluators = onSnapshot(
+      collection(db, EVALUATORS_COLLECTION),
+      async (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) return;
+
+        const list: Assessor[] = [];
+        snapshot.forEach((d) => {
+          list.push({ ...d.data(), id: d.id } as Assessor);
+        });
+
+        if (list.length > 0) {
+          hasCheckedEvaluatorsSeedingRef.current = true;
+          list.sort((a, b) => (a.fantasyName || "").localeCompare(b.fantasyName || ""));
+          setEvaluators(list);
+          localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify(list));
+        } else {
+          // Firestore is empty - seed from local
+          if (!hasCheckedEvaluatorsSeedingRef.current) {
+            hasCheckedEvaluatorsSeedingRef.current = true;
+            const stored = localStorage.getItem("sst_psicossocial_evaluators");
+            if (stored) {
+              const parsed = JSON.parse(stored) as Assessor[];
+              uploadLocalIfCollectionIsEmpty(EVALUATORS_COLLECTION, parsed, saveEvaluatorToFirestore);
+            }
+          } else {
+            setEvaluators([]);
+            localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify([]));
+          }
+        }
+        setSyncState("synced");
+      },
+      (error) => {
+        console.error("Erro no onSnapshot de avaliadores:", error);
+        setSyncState("error");
+      }
+    );
+
     // 4. Real-time Catalog Listener
     const unsubCatalog = onSnapshot(
       collection(db, CATALOG_COLLECTION),
@@ -417,6 +468,7 @@ export default function App() {
       unsubReports();
       unsubCompanies();
       unsubProfessionals();
+      unsubEvaluators();
       unsubCatalog();
       unsubAssessor();
     };
@@ -468,6 +520,31 @@ export default function App() {
       setSyncState("synced");
     } catch (err) {
       console.error("Erro ao sincronizar profissionais no Firestore:", err);
+      setSyncState("error");
+    }
+  };
+
+  // 1c-2. Helper to persist evaluators
+  const handleUpdateEvaluators = async (newEvaluators: Assessor[]) => {
+    setEvaluators(newEvaluators);
+    try {
+      localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify(newEvaluators));
+    } catch (err) {
+      console.error("Erro ao salvar avaliadores no localStorage:", err);
+    }
+
+    setSyncState("syncing");
+    try {
+      const deleted = evaluators.filter((ev) => !newEvaluators.some((nv) => nv.id === ev.id));
+      for (const dev of deleted) {
+        await deleteEvaluatorFromFirestore(dev.id);
+      }
+      for (const nev of newEvaluators) {
+        await saveEvaluatorToFirestore(nev);
+      }
+      setSyncState("synced");
+    } catch (err) {
+      console.error("Erro ao sincronizar avaliadores no Firestore:", err);
       setSyncState("error");
     }
   };
@@ -860,6 +937,16 @@ export default function App() {
                   </button>
 
                   <button
+                    onClick={() => handleNavClick(() => setHomeTab("evaluators"))}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
+                      homeTab === "evaluators" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-slate-450" />
+                    Empresas Avaliadoras
+                  </button>
+
+                  <button
                     onClick={() => handleNavClick(() => setHomeTab("customization"))}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
                       homeTab === "customization" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
@@ -1008,6 +1095,12 @@ export default function App() {
                   onUpdateCatalog={handleUpdateCatalog}
                 />
               )}
+              {homeTab === "evaluators" && (
+                <EvaluatorsRegistry
+                  evaluators={evaluators}
+                  onUpdateEvaluators={handleUpdateEvaluators}
+                />
+              )}
               {homeTab === "customization" && (
                 <CompanyCustomization
                   assessor={assessor}
@@ -1027,6 +1120,8 @@ export default function App() {
                     onChange={handleUpdateCurrentReport}
                     companies={companies}
                     professionals={professionals}
+                    evaluators={evaluators}
+                    defaultAssessor={assessor}
                   />
                 )}
                 {activeTab === "copsoq" && (

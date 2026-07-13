@@ -72,6 +72,33 @@ export interface ReportChapters {
   referencias: string;
 }
 
+export interface Assessor {
+  id: string;
+  fantasyName: string;
+  socialName: string;
+  cnpj: string;
+  address: string;
+  phone: string;
+  logo: string;
+  favicon?: string;
+  siteName?: string;
+  defaultCoverImage?: string;
+  email?: string;
+  website?: string;
+  technicalResponsible?: string;
+  technicalResponsibleReg?: string;
+  stateReg?: string;
+  municipalReg?: string;
+  cep?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  legalResponsible?: string;
+  legalResponsibleCpf?: string;
+  defaultChapters?: ReportChapters;
+  defaultFinalConsiderations?: string;
+}
+
 export interface Report {
   id: string;
   companyName: string;
@@ -93,6 +120,7 @@ export interface Report {
   professionalName: string;
   professionalRole: "Técnico de Segurança do Trabalho" | "Engenheiro de Segurança do Trabalho" | "Psicólogo Organizacional" | "Outro";
   professionalReg: string; // CREA, MTE, CRP, etc.
+  evaluator?: Assessor; // Optional selected Evaluating Company
   
   sectors: Sector[];
   riskInventory: RiskInventoryItem[];

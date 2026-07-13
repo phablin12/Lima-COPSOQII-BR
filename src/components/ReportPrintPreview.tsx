@@ -119,6 +119,8 @@ interface ReportPrintPreviewProps {
 }
 
 export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, assessor }) => {
+  const activeAssessor = report.evaluator || assessor;
+
   const getEmissionDateFormatted = () => {
     const months = [
       "janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -155,7 +157,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
   const renderIndentedText = (text: string) => {
     if (!text) return null;
-    const resolvedText = replaceTemplateVariables(text, report, assessor);
+    const resolvedText = replaceTemplateVariables(text, report, activeAssessor);
     const paras = resolvedText.split(/\n+/);
     
     // Determine the indent class or inline style
@@ -192,21 +194,21 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     <div className="border-b border-slate-200 pb-3 mb-6 flex items-center justify-between gap-4 print:flex print-avoid-break-after">
       <div className="flex items-center gap-3">
         {/* Assessora Logo */}
-        {assessor.logo ? (
+        {activeAssessor.logo ? (
           <img 
-            src={assessor.logo} 
+            src={activeAssessor.logo} 
             alt="Logo Assessora" 
             className="h-14 max-w-[180px] object-contain" 
             referrerPolicy="no-referrer"
           />
         ) : (
           <div className="h-10 px-3 bg-slate-100 flex items-center justify-center rounded text-[9px] font-black text-slate-500 uppercase tracking-wider border border-slate-200">
-            {assessor.fantasyName || "Lima SST"}
+            {activeAssessor.fantasyName || "Lima SST"}
           </div>
         )}
         
         {/* Divider if both exist */}
-        {assessor.logo && report.companyLogo && (
+        {activeAssessor.logo && report.companyLogo && (
           <div className="h-12 w-[1px] bg-slate-300" />
         )}
 
@@ -391,13 +393,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               <div className="text-xs pt-3 border-t border-slate-200 space-y-1">
                 <span className="text-slate-400 block font-medium uppercase tracking-wider text-[9px]">Empresa Avaliadora:</span>
                 <div className="flex items-start gap-3">
-                  {assessor.logo && (
-                    <img src={assessor.logo} alt="Logo Assessora" className="h-8 max-w-[80px] object-contain border border-slate-200 rounded p-0.5 bg-white shrink-0" referrerPolicy="no-referrer" />
+                  {activeAssessor.logo && (
+                    <img src={activeAssessor.logo} alt="Logo Assessora" className="h-8 max-w-[80px] object-contain border border-slate-200 rounded p-0.5 bg-white shrink-0" referrerPolicy="no-referrer" />
                   )}
                   <div>
-                    <span className="font-extrabold text-slate-800 block">{assessor.fantasyName || "Lima engenharia e assessoria em segurança do trabalho"}</span>
-                    <span className="text-slate-500 block leading-tight text-[11px]">{assessor.socialName || "E. L. de Jesus – Segurança"} • CNPJ: {assessor.cnpj || "18.195.986/0001-68"}</span>
-                    <span className="text-slate-500 block leading-tight text-[11px]">{assessor.address || "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT"} • {assessor.phone || "65 99998-0418"}</span>
+                    <span className="font-extrabold text-slate-800 block">{activeAssessor.fantasyName || "Lima engenharia e assessoria em segurança do trabalho"}</span>
+                    <span className="text-slate-500 block leading-tight text-[11px]">{activeAssessor.socialName || "E. L. de Jesus – Segurança"} • CNPJ: {activeAssessor.cnpj || "18.195.986/0001-68"}</span>
+                    <span className="text-slate-500 block leading-tight text-[11px]">{activeAssessor.address || "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT"} • {activeAssessor.phone || "65 99998-0418"}</span>
                   </div>
                 </div>
               </div>
@@ -531,29 +533,29 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 </div>
               </div>
 
-              {/* Dados da Empresa Avaliadora no Rodapé */}
+              {/* Dados da Empresa Empresa Avaliadora no Rodapé */}
               <div className="border-t border-slate-200 pt-6 mt-auto">
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-3 text-center sm:text-left">
                   ASSESSORIA EM SAÚDE E SEGURANÇA DO TRABALHO RESPONSÁVEL
                 </span>
                 <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 text-xs">
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
-                    {assessor.logo ? (
+                    {activeAssessor.logo ? (
                       <img
-                        src={assessor.logo}
+                        src={activeAssessor.logo}
                         alt="Logo Assessora"
                         className="h-12 max-w-[140px] object-contain border border-slate-150 rounded-lg p-1 bg-white shrink-0"
                         referrerPolicy="no-referrer"
                       />
                     ) : (
                       <div className="h-10 px-3 bg-slate-100 flex items-center justify-center rounded-lg text-[9px] font-black text-slate-500 uppercase tracking-wider border border-slate-200 shrink-0">
-                        {assessor.fantasyName || "LIMA SST"}
+                        {activeAssessor.fantasyName || "LIMA SST"}
                       </div>
                     )}
                     <div className="space-y-0.5">
-                      <span className="font-black text-slate-800 block text-sm leading-snug">{assessor.fantasyName || "Lima Engenharia e Assessoria"}</span>
-                      <span className="text-slate-500 block text-[11px] leading-tight">{assessor.socialName || "E. L. de Jesus – Segurança"} • CNPJ: {assessor.cnpj || "18.195.986/0001-68"}</span>
-                      <span className="text-slate-500 block text-[11px] leading-tight">{assessor.address || "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT"} • Contato: {assessor.phone || "65 99998-0418"}</span>
+                      <span className="font-black text-slate-800 block text-sm leading-snug">{activeAssessor.fantasyName || "Lima Engenharia e Assessoria"}</span>
+                      <span className="text-slate-500 block text-[11px] leading-tight">{activeAssessor.socialName || "E. L. de Jesus – Segurança"} • CNPJ: {activeAssessor.cnpj || "18.195.986/0001-68"}</span>
+                      <span className="text-slate-500 block text-[11px] leading-tight">{activeAssessor.address || "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT"} • Contato: {activeAssessor.phone || "65 99998-0418"}</span>
                     </div>
                   </div>
                   <div className="text-center sm:text-right shrink-0">

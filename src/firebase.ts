@@ -38,6 +38,7 @@ export const COMPANIES_COLLECTION = "companies";
 export const PROFESSIONALS_COLLECTION = "professionals";
 export const CATALOG_COLLECTION = "catalog";
 export const SETTINGS_COLLECTION = "settings";
+export const EVALUATORS_COLLECTION = "evaluators";
 
 // --- HELPERS FOR SYNCHRONIZATION ---
 
@@ -239,5 +240,38 @@ export async function loadAssessorFromFirestore() {
   } catch (error) {
     handleFirestoreError(error, "get", `${SETTINGS_COLLECTION}/assessor`);
     return null;
+  }
+}
+
+// 6. Evaluators Sync Helpers
+export async function saveEvaluatorToFirestore(evaluator: any) {
+  try {
+    const docRef = doc(db, EVALUATORS_COLLECTION, evaluator.id);
+    await setDoc(docRef, evaluator);
+  } catch (error) {
+    handleFirestoreError(error, "write", `${EVALUATORS_COLLECTION}/${evaluator.id}`);
+  }
+}
+
+export async function deleteEvaluatorFromFirestore(evaluatorId: string) {
+  try {
+    const docRef = doc(db, EVALUATORS_COLLECTION, evaluatorId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, "delete", `${EVALUATORS_COLLECTION}/${evaluatorId}`);
+  }
+}
+
+export async function loadEvaluatorsFromFirestore() {
+  try {
+    const snapshot = await getDocs(collection(db, EVALUATORS_COLLECTION));
+    const evaluators: any[] = [];
+    snapshot.forEach((docSnap) => {
+      evaluators.push({ ...docSnap.data(), id: docSnap.id });
+    });
+    return evaluators;
+  } catch (error) {
+    handleFirestoreError(error, "list", EVALUATORS_COLLECTION);
+    return [];
   }
 }

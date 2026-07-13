@@ -45,6 +45,8 @@ export const replaceTemplateVariables = (
   if (!text) return "";
   let result = text;
   
+  const activeAssessor = report.evaluator || assessor;
+  
   const formatDateStr = (dateStr: string) => {
     if (!dateStr) return "";
     const parts = dateStr.split("-");
@@ -65,10 +67,10 @@ export const replaceTemplateVariables = (
     "{profissional_nome}": report.professionalName || "",
     "{profissional_cargo}": report.professionalRole || "",
     "{profissional_registro}": report.professionalReg || "",
-    "{empresa_assessora}": assessor?.fantasyName || "",
-    "{cnpj_assessora}": assessor?.cnpj || "",
-    "{responsavel_legal}": assessor?.legalResponsible || "",
-    "{responsavel_tecnico}": assessor?.technicalResponsible || "",
+    "{empresa_assessora}": activeAssessor?.fantasyName || "",
+    "{cnpj_assessora}": activeAssessor?.cnpj || "",
+    "{responsavel_legal}": activeAssessor?.legalResponsible || "",
+    "{responsavel_tecnico}": activeAssessor?.technicalResponsible || "",
   };
 
   Object.entries(variables).forEach(([key, val]) => {
