@@ -120,6 +120,7 @@ interface ReportPrintPreviewProps {
 
 export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, assessor }) => {
   const activeAssessor = report.evaluator || assessor;
+  const isQualitative = report.methodology === "qualitative";
 
   const getEmissionDateFormatted = () => {
     const months = [
@@ -729,69 +730,133 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
         {/* --- CAPÍTULO 4: APRESENTAÇÃO DOS RESULTADOS --- */}
         <div className="space-y-6 print:pt-12 page-break-before">
-          {renderHeader("4. Resultados Tabulados")}
+          {renderHeader(isQualitative ? "4. Resultados do Diagnóstico" : "4. Resultados Tabulados")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             4. Apresentação dos Resultados
           </h3>
-          <p className="text-sm text-slate-700">
-            Abaixo estão detalhados os resultados numéricos médios tabulados por setor avaliado. Para cada setor, apresenta-se a pontuação obtida na escala COPSOQ II de 0,00 a 4,00 pontos.
-          </p>
 
-          {report.sectors.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">Nenhum dado setorial cadastrado no relatório.</p>
-          ) : (
-            <div className="space-y-8">
-              {report.sectors.map((sector) => (
-                <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none">
-                  <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
-                    <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
-                    <div className="flex gap-4 text-xs font-semibold text-slate-600">
-                      <span>Expostos: {sector.employeeCount} func.</span>
-                      <span>Respondentes: {sector.respondentsCount ?? 0} ({sector.employeeCount > 0 ? (((sector.respondentsCount ?? 0) / sector.employeeCount) * 100).toFixed(1) : 0}%)</span>
+          {isQualitative ? (
+            <>
+              <p className="text-sm text-slate-700">
+                Abaixo estão detalhados os resultados descritivos obtidos através da avaliação qualitativa por setor. O diagnóstico baseou-se na observação de rotinas, no levantamento de campo e em entrevistas estruturadas coletivas e individuais com os colaboradores.
+              </p>
+
+              {report.sectors.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Nenhum setor cadastrado no relatório.</p>
+              ) : (
+                <div className="space-y-8">
+                  {report.sectors.map((sector) => (
+                    <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6">
+                      <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
+                        <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
+                        <div className="flex gap-4 text-xs font-semibold text-slate-600">
+                          <span>Trabalhadores Expostos: {sector.employeeCount}</span>
+                        </div>
+                      </div>
+
+                      {/* Bloco 1: O que foi avaliado */}
+                      <div className="space-y-1.5 text-left">
+                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">1. O que foi Avaliado / Escopo da Observação:</h4>
+                        <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                          {sector.qualitativeEvaluatedText ? (
+                            sector.qualitativeEvaluatedText
+                          ) : (
+                            <span className="text-slate-400 italic">Não preenchido.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bloco 2: Percepção do colaborador */}
+                      <div className="space-y-1.5 text-left">
+                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">2. Percepção dos Colaboradores (Diálogos/Entrevistas):</h4>
+                        <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                          {sector.qualitativePerceptionText ? (
+                            sector.qualitativePerceptionText
+                          ) : (
+                            <span className="text-slate-400 italic">Não preenchido.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bloco 3: Conclusão do setor */}
+                      <div className="space-y-1.5 text-left">
+                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">3. Conclusão e Parecer do Avaliador:</h4>
+                        <div className="p-3.5 bg-amber-50/20 rounded-lg border border-amber-100/50 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                          {sector.qualitativeConclusionText ? (
+                            sector.qualitativeConclusionText
+                          ) : (
+                            <span className="text-slate-400 italic">Não preenchido.</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-
-                  <table className="w-full border-collapse border border-slate-200 text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
-                        <th className="p-2 border border-slate-200 text-left">Dimensão do COPSOQ II</th>
-                        <th className="p-2 border border-slate-200 text-center w-24">Tipo</th>
-                        <th className="p-2 border border-slate-200 text-center w-28">Pontuação</th>
-                        <th className="p-2 border border-slate-200 text-center w-36">Classificação Técnica</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {COPSOQ_DIMENSIONS.map((dim) => {
-                        const score = sector.scores[dim.key] ?? 0;
-                        const ratingInfo = getDimensionRating(score, dim.type);
-
-                        return (
-                          <tr key={dim.key} className="hover:bg-slate-50/50 print:hover:bg-transparent">
-                            <td className="p-2 border border-slate-200 font-medium">{dim.name}</td>
-                            <td className="p-2 border border-slate-200 text-center uppercase text-[9px] font-bold text-slate-400">
-                              {dim.type === "positive" ? "Positiva" : "Negativa"}
-                            </td>
-                            <td className="p-2 border border-slate-200 text-center font-bold text-slate-800 font-mono">
-                              {score === 0 ? "N/A" : score.toFixed(2)}
-                            </td>
-                            <td className={`p-2 border border-slate-200 text-center font-bold text-[10px] uppercase ${ratingInfo.bgClass}`}>
-                              {ratingInfo.rating}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-
-                  {sector.generalAnalysis && (
-                    <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-justify leading-relaxed print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
-                      <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">Análise Geral da Percepção dos Colaboradores:</strong>
-                      <span className="text-slate-700 italic">{sector.generalAnalysis}</span>
-                    </div>
-                  )}
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-700">
+                Abaixo estão detalhados os resultados numéricos médios tabulados por setor avaliado. Para cada setor, apresenta-se a pontuação obtida na escala COPSOQ II de 0,00 a 4,00 pontos.
+              </p>
+
+              {report.sectors.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Nenhum dado setorial cadastrado no relatório.</p>
+              ) : (
+                <div className="space-y-8">
+                  {report.sectors.map((sector) => (
+                    <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none">
+                      <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
+                        <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
+                        <div className="flex gap-4 text-xs font-semibold text-slate-600">
+                          <span>Expostos: {sector.employeeCount} func.</span>
+                          <span>Respondentes: {sector.respondentsCount ?? 0} ({sector.employeeCount > 0 ? (((sector.respondentsCount ?? 0) / sector.employeeCount) * 100).toFixed(1) : 0}%)</span>
+                        </div>
+                      </div>
+
+                      <table className="w-full border-collapse border border-slate-200 text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+                            <th className="p-2 border border-slate-200 text-left">Dimensão do COPSOQ II</th>
+                            <th className="p-2 border border-slate-200 text-center w-24">Tipo</th>
+                            <th className="p-2 border border-slate-200 text-center w-28">Pontuação</th>
+                            <th className="p-2 border border-slate-200 text-center w-36">Classificação Técnica</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {COPSOQ_DIMENSIONS.map((dim) => {
+                            const score = sector.scores?.[dim.key] ?? 0;
+                            const ratingInfo = getDimensionRating(score, dim.type);
+
+                            return (
+                              <tr key={dim.key} className="hover:bg-slate-50/50 print:hover:bg-transparent">
+                                <td className="p-2 border border-slate-200 font-medium">{dim.name}</td>
+                                <td className="p-2 border border-slate-200 text-center uppercase text-[9px] font-bold text-slate-400">
+                                  {dim.type === "positive" ? "Positiva" : "Negativa"}
+                                </td>
+                                <td className="p-2 border border-slate-200 text-center font-bold text-slate-800 font-mono">
+                                  {score === 0 ? "N/A" : score.toFixed(2)}
+                                </td>
+                                <td className={`p-2 border border-slate-200 text-center font-bold text-[10px] uppercase ${ratingInfo.bgClass}`}>
+                                  {ratingInfo.rating}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+
+                      {sector.generalAnalysis && (
+                        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-justify leading-relaxed print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                          <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">Análise Geral da Percepção dos Colaboradores:</strong>
+                          <span className="text-slate-700 italic">{sector.generalAnalysis}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -812,7 +877,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               {report.sectors.map((sector) => {
                 // Get critical dimensions for this sector
                 const critical = COPSOQ_DIMENSIONS.map((d) => {
-                  const score = sector.scores[d.key] ?? 0.0;
+                  const score = sector.scores?.[d.key] ?? 0.0;
                   const rat = getDimensionRating(score, d.type);
                   return { name: d.name, score, rating: rat.rating };
                 }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score > 0);
@@ -824,19 +889,30 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     </h4>
 
                     <div className="flex flex-wrap gap-2 text-[10px] items-center">
-                      <strong className="text-slate-500 uppercase tracking-wider">Fatores Investigados:</strong>
-                      {critical.length === 0 ? (
-                        <span className="text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-                          Nenhum desvio detectado
-                        </span>
-                      ) : (
-                        critical.map((c, i) => (
-                          <span key={i} className={`px-2 py-0.5 rounded border font-semibold ${
-                            c.rating === "Desfavorável" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-amber-50 text-amber-800 border-amber-200"
-                          }`}>
-                            {c.name} ({c.score.toFixed(2)})
+                      {isQualitative ? (
+                        <>
+                          <strong className="text-slate-500 uppercase tracking-wider">Metodologia:</strong>
+                          <span className="text-amber-800 font-semibold bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+                            Avaliação de Fatores de Riscos Psicossociais Qualitativos (MPE)
                           </span>
-                        ))
+                        </>
+                      ) : (
+                        <>
+                          <strong className="text-slate-500 uppercase tracking-wider">Fatores Investigados:</strong>
+                          {critical.length === 0 ? (
+                            <span className="text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                              Nenhum desvio detectado
+                            </span>
+                          ) : (
+                            critical.map((c, i) => (
+                              <span key={i} className={`px-2 py-0.5 rounded border font-semibold ${
+                                c.rating === "Desfavorável" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-amber-50 text-amber-800 border-amber-200"
+                              }`}>
+                                {c.name} ({c.score.toFixed(2)})
+                              </span>
+                            ))
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -844,9 +920,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                       {sector.devolvedSynthesis ? (
                         sector.devolvedSynthesis
                       ) : (
-                        <span className="text-slate-400 italic">
-                          Ainda não foi preenchido o relatório técnico de devolutiva com os líderes para este setor.
-                        </span>
+                        sector.qualitativeConclusionText ? (
+                          sector.qualitativeConclusionText
+                        ) : (
+                          <span className="text-slate-400 italic">
+                            Ainda não foi preenchido o relatório técnico de devolutiva ou conclusão para este setor.
+                          </span>
+                        )
                       )}
                     </div>
                   </div>

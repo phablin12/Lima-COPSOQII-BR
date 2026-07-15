@@ -11,6 +11,10 @@ export interface Sector {
   risksRecognized?: boolean; // Whether the company/sector recognizes risks in the devolution
   scores: Record<string, number>; // dimensionKey -> score (0 to 4)
   devolvedSynthesis: string; // Synth for moderate/unfavorable risks during devolution with leaders
+  generalAnalysis?: string; // Optional general analysis text
+  qualitativeEvaluatedText?: string; // O que foi avaliado no ambiente
+  qualitativePerceptionText?: string; // Percepção do colaborador
+  qualitativeConclusionText?: string; // Conclusão técnica do setor
 }
 
 export interface CatalogRisk {
@@ -121,6 +125,7 @@ export interface Report {
   professionalRole: "Técnico de Segurança do Trabalho" | "Engenheiro de Segurança do Trabalho" | "Psicólogo Organizacional" | "Outro";
   professionalReg: string; // CREA, MTE, CRP, etc.
   evaluator?: Assessor; // Optional selected Evaluating Company
+  methodology?: "copsoq" | "qualitative";
   
   sectors: Sector[];
   riskInventory: RiskInventoryItem[];

@@ -5,8 +5,8 @@
 
 import React, { useRef, useState } from "react";
 import { Report, ReportChapters } from "../types";
-import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS } from "../defaultChapters";
-import { FolderHeart, Plus, FileText, Trash2, Copy, Download, Upload, AlertTriangle, ShieldCheck, ChevronRight, Cloud } from "lucide-react";
+import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS, DEFAULT_QUALITATIVE_METODOLOGIA } from "../defaultChapters";
+import { FolderHeart, Plus, FileText, Trash2, Copy, Download, Upload, AlertTriangle, ShieldCheck, ChevronRight, Cloud, Sliders, X } from "lucide-react";
 
 interface ReportsDashboardProps {
   reports: Report[];
@@ -33,10 +33,29 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [reportSearchQuery, setReportSearchQuery] = useState("");
 
-  const handleCreateNewReport = () => {
+  // Modal creation states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newReportName, setNewReportName] = useState("");
+  const [newReportMethodology, setNewReportMethodology] = useState<"copsoq" | "qualitative">("copsoq");
+
+  const handleOpenCreateModal = () => {
+    setNewReportName("");
+    setNewReportMethodology("copsoq");
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCreateNewReportSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalName = newReportName.trim() || "Nova Empresa S/A";
+    
+    const newChapters = defaultChapters ? { ...defaultChapters } : { ...DEFAULT_CHAPTERS };
+    if (newReportMethodology === "qualitative") {
+      newChapters.metodologia = DEFAULT_QUALITATIVE_METODOLOGIA;
+    }
+
     const newReport: Report = {
       id: "rep-" + Date.now(),
-      companyName: "Nova Empresa S/A",
+      companyName: finalName,
       cnpj: "",
       coverImage: defaultCoverImage || "",
       dateStart: new Date().toISOString().split("T")[0],
@@ -46,13 +65,15 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       professionalReg: "",
       sectors: [],
       riskInventory: [],
-      chapters: defaultChapters ? { ...defaultChapters } : { ...DEFAULT_CHAPTERS },
+      chapters: newChapters,
       finalConsiderations: defaultFinalConsiderations || DEFAULT_FINAL_CONSIDERATIONS,
+      methodology: newReportMethodology,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     onCreateReport(newReport);
+    setIsCreateModalOpen(false);
   };
 
   const handleDuplicateReport = (reportToCopy: Report, e: React.MouseEvent) => {
@@ -176,7 +197,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             Importar JSON
           </button>
           <button
-            onClick={handleCreateNewReport}
+            onClick={handleOpenCreateModal}
             className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-5 py-2.5 rounded-lg transition cursor-pointer shadow-sm"
           >
             <Plus className="w-4 h-4" /> Novo Relatório
@@ -247,6 +268,15 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                       {report.cnpj && (
                         <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
                           CNPJ: {report.cnpj}
+                        </span>
+                      )}
+                      {report.methodology === "qualitative" ? (
+                        <span className="text-[9px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200/50 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                          Qualitativo (MPE)
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200/50 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                          COPSOQ II-BR
                         </span>
                       )}
                     </div>
@@ -352,6 +382,106 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Custom Creation Modal with Methodology Selection */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <form
+            onSubmit={handleCreateNewReportSubmit}
+            className="bg-white rounded-2xl border border-slate-150 p-6 max-w-md w-full shadow-xl space-y-5 animate-in fade-in duration-200 text-left"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                <Plus className="w-5 h-5 text-slate-600" />
+                Cadastrar Novo Relatório
+              </h4>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">Razão Social / Nome da Empresa</label>
+              <input
+                type="text"
+                required
+                value={newReportName}
+                onChange={(e) => setNewReportName(e.target.value)}
+                placeholder="Ex: Indústrias Metalúrgicas Alfa S/A"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-250 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-sm text-slate-800 bg-white placeholder:text-slate-350"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Metodologia de Diagnóstico</label>
+              
+              <div className="space-y-2.5">
+                <label className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+                  newReportMethodology === "copsoq" 
+                    ? "border-slate-800 bg-slate-50/50" 
+                    : "border-slate-200 hover:border-slate-300"
+                }`}>
+                  <input
+                    type="radio"
+                    name="newReportMethodology"
+                    value="copsoq"
+                    checked={newReportMethodology === "copsoq"}
+                    onChange={() => setNewReportMethodology("copsoq")}
+                    className="mt-1 text-slate-800 focus:ring-slate-800 focus:border-slate-800 cursor-pointer"
+                  />
+                  <div className="-mt-0.5">
+                    <span className="text-xs font-extrabold text-slate-800 block">Metodologia COPSOQ II-BR</span>
+                    <span className="text-[11px] text-slate-400 font-medium block leading-normal mt-0.5">
+                      Método clássico quantitativo com escala de 0 a 4 pontos em 10 dimensões psicossociais.
+                    </span>
+                  </div>
+                </label>
+
+                <label className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+                  newReportMethodology === "qualitative" 
+                    ? "border-slate-800 bg-slate-50/50" 
+                    : "border-slate-200 hover:border-slate-300"
+                }`}>
+                  <input
+                    type="radio"
+                    name="newReportMethodology"
+                    value="qualitative"
+                    checked={newReportMethodology === "qualitative"}
+                    onChange={() => setNewReportMethodology("qualitative")}
+                    className="mt-1 text-slate-800 focus:ring-slate-800 focus:border-slate-800 cursor-pointer"
+                  />
+                  <div className="-mt-0.5">
+                    <span className="text-xs font-extrabold text-slate-800 block">Avaliação Qualitativa (Micro e Pequenas)</span>
+                    <span className="text-[11px] text-slate-400 font-medium block leading-normal mt-0.5">
+                      Focada em micro e pequenas empresas. Substitui notas numéricas por relatórios de entrevista, observações de ambiente e conclusões descritivas.
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 justify-end pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-950 rounded-lg shadow-sm transition cursor-pointer"
+              >
+                Criar Relatório
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

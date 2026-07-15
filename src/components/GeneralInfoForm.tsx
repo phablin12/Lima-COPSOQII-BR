@@ -5,7 +5,8 @@
 
 import React, { useState } from "react";
 import { Report, Sector, Assessor } from "../types";
-import { Building, Calendar, User, ShieldAlert, Plus, Trash2, Edit2, Users, FileCheck2, ToggleLeft, CheckCircle2, Shield, ShieldCheck } from "lucide-react";
+import { DEFAULT_CHAPTERS, DEFAULT_QUALITATIVE_METODOLOGIA } from "../defaultChapters";
+import { Building, Calendar, User, ShieldAlert, Plus, Trash2, Edit2, Users, FileCheck2, ToggleLeft, CheckCircle2, Shield, ShieldCheck, Sliders } from "lucide-react";
 import { compressImage } from "../imageUtils";
 
 const ESTADOS_BRASILEIROS = [
@@ -245,6 +246,68 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Seleção de Metodologia */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
+          <Sliders className="w-5 h-5 text-slate-600" />
+          Metodologia do Laudo Psicossocial
+        </h3>
+        <p className="text-xs text-slate-500">
+          Selecione o método de análise psicossocial para este relatório. A alteração de metodologia preencherá automaticamente os textos predefinidos das etapas correspondentes.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+            (report.methodology === "copsoq" || !report.methodology)
+              ? "border-slate-800 bg-slate-50/50"
+              : "border-slate-200 hover:border-slate-350 bg-white"
+          }`}>
+            <input
+              type="radio"
+              name="methodology_edit"
+              value="copsoq"
+              checked={report.methodology === "copsoq" || !report.methodology}
+              onChange={() => {
+                const updatedChapters = { ...report.chapters };
+                updatedChapters.metodologia = DEFAULT_CHAPTERS.metodologia;
+                onChange({ methodology: "copsoq", chapters: updatedChapters });
+              }}
+              className="sr-only"
+            />
+            <div>
+              <span className="font-extrabold text-slate-800 text-sm block">Metodologia COPSOQ II-BR</span>
+              <span className="text-[11px] text-slate-500 leading-normal block mt-1">
+                Método clássico quantitativo com escala de 0 a 4 pontos em 10 dimensões psicossociais. Recomendado para médias e grandes empresas.
+              </span>
+            </div>
+          </label>
+
+          <label className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
+            report.methodology === "qualitative"
+              ? "border-slate-800 bg-slate-50/50"
+              : "border-slate-200 hover:border-slate-350 bg-white"
+          }`}>
+            <input
+              type="radio"
+              name="methodology_edit"
+              value="qualitative"
+              checked={report.methodology === "qualitative"}
+              onChange={() => {
+                const updatedChapters = { ...report.chapters };
+                updatedChapters.metodologia = DEFAULT_QUALITATIVE_METODOLOGIA;
+                onChange({ methodology: "qualitative", chapters: updatedChapters });
+              }}
+              className="sr-only"
+            />
+            <div>
+              <span className="font-extrabold text-slate-800 text-sm block">Avaliação Qualitativa (Micro e Pequenas)</span>
+              <span className="text-[11px] text-slate-500 leading-normal block mt-1">
+                Método descritivo-qualitativo via entrevistas estruturadas por setor. Perfeito para micro, pequenas e médias empresas que buscam um laudo simplificado e humano.
+              </span>
+            </div>
+          </label>
+        </div>
       </div>
 
       {/* Dados da Empresa */}

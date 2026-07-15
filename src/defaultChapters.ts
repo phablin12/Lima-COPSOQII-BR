@@ -40,6 +40,17 @@ Após o processamento estatístico preliminar das avaliações dos funcionários
 5. COSTA, C. O. et al. Copenhagen Psychosocial Questionnaire (COPSOQ II) na realidade brasileira: validade de constructo e confiabilidade. Revista de Saúde Pública, 2020.`
 };
 
+export const DEFAULT_QUALITATIVE_METODOLOGIA = `Para o mapeamento dos fatores de risco psicossocial, utilizou-se a Metodologia de Avaliação Qualitativa de Fatores Psicossociais, focada nas particularidades de micro e pequenas empresas (MPE). O objetivo é identificar e descrever a percepção do trabalhador em relação ao seu ambiente laboral de forma direta e descritiva.
+
+A coleta de dados foi realizada através de entrevistas individuais semiestruturadas com os colaboradores do setor, observação ativa em campo das rotinas laborais e reuniões de diagnóstico. A investigação considerou aspectos centrais do trabalho, tais como:
+1. Demandas e ritmo de trabalho (sobrecarga de tarefas, cobranças);
+2. Autonomia e possibilidades de desenvolvimento (margem de decisão, uso de habilidades);
+3. Relações interpessoais e suporte social (apoio de colegas e chefia imediata);
+4. Interface trabalho-família (equilíbrio entre demandas profissionais e vida pessoal);
+5. Reconhecimento, recompensas e clareza de papéis organizacionais.
+
+Os achados foram compilados e sintetizados em termos do que foi avaliado no ambiente de trabalho, as percepções subjetivas manifestadas pelos colaboradores e as conclusões técnicas para fins de subsidiar o Programa de Gerenciamento de Riscos (PGR) sob os termos da Norma Regulamentadora nº 01 (NR-01).`;
+
 export const DEFAULT_FINAL_CONSIDERATIONS = `A partir do diagnóstico psicossocial delineado neste relatório, conclui-se que o gerenciamento adequado dos riscos psicossociais na empresa representa não apenas uma exigência de conformidade legal com o GRO/PGR (NR-01), mas um pilar estratégico para a sustentabilidade organizacional.
 
 Os resultados setoriais demonstram a urgência de agir sobre os fatores classificados como "Desfavoráveis" e "Moderados", direcionando recursos e engajamento da liderança para mitigar as fontes de estresse e sobrecarga identificadas. As ações propostas no Plano de Ação devem ser integradas ao cronograma anual do PGR e acompanhadas de forma sistêmica.
