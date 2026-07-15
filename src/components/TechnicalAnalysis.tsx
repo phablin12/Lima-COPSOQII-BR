@@ -54,6 +54,24 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
     onChange({ sectors: updatedSectors });
   };
 
+  const handleQualitativeFieldChange = (
+    field: "qualitativeEvaluatedText" | "qualitativePerceptionText" | "qualitativeConclusionText",
+    text: string
+  ) => {
+    const updatedSectors = report.sectors.map((s) => {
+      if (s.id === currentSector.id) {
+        return {
+          ...s,
+          [field]: text,
+          // Fallback devolvedSynthesis to qualitativeConclusionText for printing consistency
+          ...(field === "qualitativeConclusionText" ? { devolvedSynthesis: text } : {}),
+        };
+      }
+      return s;
+    });
+    onChange({ sectors: updatedSectors });
+  };
+
   // Get moderate and unfavorable dimensions for the current sector
   const getCriticalDimensions = (sector: Sector) => {
     return COPSOQ_DIMENSIONS.map((dim) => {
@@ -78,10 +96,13 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
         <div className="space-y-1">
           <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
             <Users className="w-4 h-4 text-slate-600" />
-            Análise de Devolutiva Técnica com Líderes
+            {report.methodology === "qualitative" ? "Investigação Qualitativa do Trabalho" : "Análise de Devolutiva Técnica com Líderes"}
           </h3>
           <p className="text-xs text-slate-500">
-            Selecione o setor para visualizar as dimensões que necessitam de investigação qualitativa e digite a síntese de campo.
+            {report.methodology === "qualitative" 
+              ? "Selecione o setor para registrar os relatos de entrevista, escopo de avaliação e conclusões técnicas do ambiente."
+              : "Selecione o setor para visualizar as dimensões que necessitam de investigação qualitativa e digite a síntese de campo."
+            }
           </p>
         </div>
 
@@ -98,90 +119,187 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
         </select>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Dimensões Percebidas / Alertas */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-5 space-y-6">
-          <div className="border-b border-slate-100 pb-3">
-            <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-              Riscos Identificados na Avaliação COPSOQ II
-            </h4>
-            <p className="text-xs text-slate-500 mt-1">
-              Fatores com classificação <strong>Moderada</strong> ou <strong>Desfavorável</strong> que foram sinalizados pelos colaboradores deste setor:
-            </p>
-          </div>
+      {report.methodology === "qualitative" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Guia de Entrevista / Orientações */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-4 space-y-5 h-fit text-left">
+            <div className="border-b border-slate-100 pb-3 flex items-center gap-2">
+              <ClipboardCheck className="w-5 h-5 text-indigo-650" />
+              <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">
+                Orientações de Avaliação
+              </h4>
+            </div>
 
-          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-            {criticalDimensions.length === 0 ? (
-              <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-center space-y-2">
-                <p className="text-xs font-bold text-emerald-800">TUDO SOB CONTROLE</p>
-                <p className="text-xs text-emerald-600">
-                  Todas as dimensões deste setor estão na zona <strong>Favorável</strong>. Nenhuma investigação técnica de desvios é explicitamente obrigatória.
+            <div className="space-y-4 text-xs text-slate-600 leading-relaxed">
+              <p>
+                A <strong>Avaliação Qualitativa</strong> é ideal para Micro e Pequenas Empresas (MPE), onde a amostragem estatística clássica pode não ter significância matemática ideal.
+              </p>
+              
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-150 space-y-2">
+                <p className="font-bold text-slate-800">💡 Como proceder:</p>
+                <ul className="list-disc list-inside space-y-1 text-slate-500">
+                  <li>Observe a rotina real de trabalho no ambiente;</li>
+                  <li>Realize entrevistas coletivas ou individuais;</li>
+                  <li>Incentive relatos espontâneos e seguros;</li>
+                  <li>Trate as respostas de forma consolidada e confidencial.</li>
+                </ul>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100/50 p-3.5 rounded-xl space-y-2 text-amber-900">
+                <p className="font-bold">⚠️ Confidencialidade:</p>
+                <p className="text-amber-800">
+                  Preserve a identidade individual dos colaboradores nas redações. Use expressões genéricas como "a equipe relata", "há relatos na equipe" ou "observou-se no grupo".
                 </p>
               </div>
-            ) : (
-              criticalDimensions.map((dim) => (
-                <div key={dim.key} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800 text-xs">{dim.name}</span>
-                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${dim.bgClass}`}>
-                      {dim.rating} ({dim.score.toFixed(2)})
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    {dim.description}
-                  </p>
-                  <span className={`inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                    dim.type === "positive" ? "bg-sky-50 text-sky-700 border border-sky-200" : "bg-purple-50 text-purple-700 border border-purple-200"
-                  }`}>
-                    Dimensão {dim.type === "positive" ? "Protetiva" : "Saturadora"}
-                  </span>
-                </div>
-              ))
-            )}
+            </div>
           </div>
-        </div>
 
-        {/* Síntese Diagnóstica / Devolutiva */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-7 space-y-6">
-          <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-            <div>
-              <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+          {/* Painel de Edição de Textos */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-8 space-y-6 text-left">
+            <div className="border-b border-slate-100 pb-3">
+              <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-slate-600" />
-                Síntese da Investigação Qualitativa (Devolutiva)
+                Elaboração Qualitativa: <span className="text-indigo-600 font-black">{currentSector.name}</span>
               </h4>
               <p className="text-xs text-slate-500 mt-1">
-                Com base na reunião com os líderes do setor <strong>{currentSector.name}</strong>, registre abaixo quais foram as causas/percepções reais que justificam as notas do COPSOQ II.
+                Utilize os campos abaixo para descrever o cenário real identificado durante as observações de campo e diálogos com o setor.
               </p>
             </div>
-          </div>
 
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Relato da Devolutiva e Diagnóstico de Campo
-              </label>
-              <textarea
-                value={currentSector.devolvedSynthesis}
-                onChange={(e) => handleSynthesisChange(e.target.value)}
-                placeholder="Ex: Em reunião de devolutiva realizada no dia XX/XX com a liderança do setor, constatou-se que as notas desfavoráveis em 'Liderança' e 'Conflito de Papéis' se correlacionam à recente fusão de duas equipes de vendas. Os supervisores relatam ambiguidade sobre quem aprova os descontos, e que há ruídos na distribuição de metas. Em relação a 'Demandas', foi apontado um aumento no tempo de atendimento por falta de treinamento na nova plataforma CRM..."
-                rows={10}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-sm text-slate-800 font-sans leading-relaxed"
-              />
-            </div>
+            <div className="space-y-5">
+              {/* Campo 1: O que foi avaliado */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                  1. O que foi Avaliado / Escopo da Observação
+                </label>
+                <textarea
+                  value={currentSector.qualitativeEvaluatedText || ""}
+                  onChange={(e) => handleQualitativeFieldChange("qualitativeEvaluatedText", e.target.value)}
+                  placeholder="Ex: Foram avaliadas as condições físicas e ambientais do setor de atendimento, as interações interpessoais entre a equipe e a chefia imediata, o fluxo e ritmo de trabalho, a carga mental envolvida na resolução de conflitos com clientes e o grau de autonomia concedido aos funcionários na tomada de decisões."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                />
+              </div>
 
-            <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex gap-3">
-              <ClipboardCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <h5 className="text-xs font-bold text-blue-900 uppercase">Utilidade deste texto:</h5>
-                <p className="text-[11px] text-blue-700 leading-relaxed">
-                  Este texto preenche o Capítulo de <strong>Análise Técnica dos Riscos</strong> no relatório final. Ele correlaciona os dados brutos numéricos à realidade fática do ambiente de trabalho coletada diretamente com a chefia.
-                </p>
+              {/* Campo 2: Percepção do colaborador */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                  2. Percepção dos Colaboradores (Diálogos e Entrevistas)
+                </label>
+                <textarea
+                  value={currentSector.qualitativePerceptionText || ""}
+                  onChange={(e) => handleQualitativeFieldChange("qualitativePerceptionText", e.target.value)}
+                  placeholder="Ex: Os colaboradores relataram satisfação com o ambiente de trabalho e com o suporte fornecido pelos colegas de equipe. Contudo, apontaram que o ritmo de trabalho é elevado nos horários de pico, gerando desgaste físico pontual. Referiram também que gostariam de receber mais feedbacks estruturados da gerência sobre o desempenho e resultados alcançados."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                />
+              </div>
+
+              {/* Campo 3: Conclusão do setor */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                  3. Conclusão Técnica e Parecer do Avaliador
+                </label>
+                <textarea
+                  value={currentSector.qualitativeConclusionText || ""}
+                  onChange={(e) => handleQualitativeFieldChange("qualitativeConclusionText", e.target.value)}
+                  placeholder="Ex: Conclui-se que o setor apresenta riscos psicossociais sob controle, com destaque para a alta sinergia e cooperação mútua entre a equipe (fator protetivo). Recomenda-se a adoção de canais formais de comunicação e reuniões rápidas de feedback para mitigar a sensação de distanciamento gerencial, além de um rodízio leve de tarefas nos picos de demanda."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                />
               </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Dimensões Percebidas / Alertas */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-5 space-y-6">
+            <div className="border-b border-slate-100 pb-3">
+              <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                Riscos Identificados na Avaliação COPSOQ II
+              </h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Fatores com classificação <strong>Moderada</strong> ou <strong>Desfavorável</strong> que foram sinalizados pelos colaboradores deste setor:
+              </p>
+            </div>
+
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+              {criticalDimensions.length === 0 ? (
+                <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-center space-y-2">
+                  <p className="text-xs font-bold text-emerald-800">TUDO SOB CONTROLE</p>
+                  <p className="text-xs text-emerald-600">
+                    Todas as dimensões deste setor estão na zona <strong>Favorável</strong>. Nenhuma investigação técnica de desvios é explicitamente obrigatória.
+                  </p>
+                </div>
+              ) : (
+                criticalDimensions.map((dim) => (
+                  <div key={dim.key} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 text-xs">{dim.name}</span>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${dim.bgClass}`}>
+                        {dim.rating} ({dim.score.toFixed(2)})
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      {dim.description}
+                    </p>
+                    <span className={`inline-block text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                      dim.type === "positive" ? "bg-sky-50 text-sky-700 border border-sky-200" : "bg-purple-50 text-purple-700 border border-purple-200"
+                    }`}>
+                      Dimensão {dim.type === "positive" ? "Protetiva" : "Saturadora"}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Síntese Diagnóstica / Devolutiva */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-7 space-y-6">
+            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-slate-600" />
+                  Síntese da Investigação Qualitativa (Devolutiva)
+                </h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Com base na reunião com os líderes do setor <strong>{currentSector.name}</strong>, registre abaixo quais foram as causas/percepções reais que justificam as notas do COPSOQ II.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Relato da Devolutiva e Diagnóstico de Campo
+                </label>
+                <textarea
+                  value={currentSector.devolvedSynthesis}
+                  onChange={(e) => handleSynthesisChange(e.target.value)}
+                  placeholder="Ex: Em reunião de devolutiva realizada no dia XX/XX com a liderança do setor, constatou-se que as notas desfavoráveis em 'Liderança' e 'Conflito de Papéis' se correlacionam à recente fusão de duas equipes de vendas. Os supervisores relatam ambiguidade sobre quem aprova os descontos, e que há ruídos na distribuição de metas. Em relação a 'Demandas', foi apontado um aumento no tempo de atendimento por falta de treinamento na nova plataforma CRM..."
+                  rows={10}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-sm text-slate-800 font-sans leading-relaxed"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex gap-3">
+                <ClipboardCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h5 className="text-xs font-bold text-blue-900 uppercase">Utilidade deste texto:</h5>
+                  <p className="text-[11px] text-blue-700 leading-relaxed">
+                    Este texto preenche o Capítulo de <strong>Análise Técnica dos Riscos</strong> no relatório final. Ele correlaciona os dados brutos numéricos à realidade fática do ambiente de trabalho coletada diretamente com a chefia.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

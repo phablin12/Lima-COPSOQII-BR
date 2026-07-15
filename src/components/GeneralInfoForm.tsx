@@ -310,6 +310,42 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
         </div>
       </div>
 
+      {/* Reconhecimento de Riscos */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
+        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
+          <ShieldAlert className="w-5 h-5 text-slate-600" />
+          Reconhecimento de Riscos Psicossociais
+        </h3>
+        <p className="text-xs text-slate-500">
+          Indique se a organização reconhece a existência de fatores de riscos psicossociais no ambiente de trabalho. Caso declare que <strong>não reconhece</strong>, os capítulos de Inventário de Riscos (GRO) e Plano de Ação (Cronograma) serão omitidos do laudo final.
+        </p>
+        <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-150">
+          <button
+            type="button"
+            onClick={() => {
+              const newValue = report.risksRecognized === false ? true : false;
+              onChange({ risksRecognized: newValue });
+            }}
+            className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 focus:outline-none shrink-0 ${
+              report.risksRecognized !== false ? "bg-slate-800 justify-end" : "bg-slate-200 justify-start"
+            }`}
+          >
+            <span className="bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-300" />
+          </button>
+          <div className="text-xs text-left">
+            <span className="font-extrabold text-slate-800 block">
+              {report.risksRecognized !== false ? "Sim, existem riscos a serem mitigados (Recomendado)" : "Não foram reconhecidos riscos psicossociais organizacionais"}
+            </span>
+            <span className="text-[11px] text-slate-500 block mt-0.5">
+              {report.risksRecognized !== false 
+                ? "O laudo incluirá as fases de Inventário de Riscos e Plano de Ação Integrado."
+                : "Os capítulos de Inventário e Plano de Ação serão ocultados para foco exclusivo nas diretrizes gerais e cultura organizativa."
+              }
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Dados da Empresa */}
       <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
@@ -328,7 +364,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
               >
                 <option value="" disabled>Selecione uma empresa salva...</option>
                 {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>{c.fantasyName || c.name}</option>
                 ))}
               </select>
             </div>

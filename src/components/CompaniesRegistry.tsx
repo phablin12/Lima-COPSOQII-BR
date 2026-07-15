@@ -659,12 +659,14 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                       )}
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
+                          <h5 className="font-bold text-slate-850 text-sm truncate">
+                            {company.fantasyName || company.name}
+                          </h5>
                           {company.fantasyName && (
-                            <span className="text-[10px] font-extrabold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
-                              {company.fantasyName}
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              ({company.name})
                             </span>
                           )}
-                          <h5 className="font-bold text-slate-800 text-sm truncate">{company.name}</h5>
                           <span className="text-[10px] font-extrabold text-slate-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase shrink-0">
                             GR {company.riskDegree || 1}
                           </span>

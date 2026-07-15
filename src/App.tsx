@@ -796,15 +796,18 @@ export default function App() {
                     1. Cadastro Geral
                   </button>
 
-                  <button
-                    onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      activeTab === "copsoq" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <Sliders className="w-4 h-4 shrink-0 text-slate-450" />
-                    2. Notas COPSOQ II
-                  </button>
+                  {/* Apenas mostra Notas COPSOQ se não for metodologia qualitativa */}
+                  {currentReport.methodology !== "qualitative" && (
+                    <button
+                      onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
+                        activeTab === "copsoq" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <Sliders className="w-4 h-4 shrink-0 text-slate-450" />
+                      2. Notas COPSOQ II
+                    </button>
+                  )}
 
                   <button
                     onClick={() => handleNavClick(() => setActiveTab("devolutivas"))}
@@ -813,7 +816,7 @@ export default function App() {
                     }`}
                   >
                     <MessageSquare className="w-4 h-4 shrink-0 text-slate-450" />
-                    3. Devolutivas
+                    {currentReport.methodology === "qualitative" ? "2. Investigação Qualitativa" : "3. Devolutivas"}
                   </button>
 
                   {/* Se a empresa declarar que NÃO reconhece os riscos (risksRecognized === false), ocultamos essas duas abas do editor */}
@@ -826,7 +829,7 @@ export default function App() {
                         }`}
                       >
                         <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-450" />
-                        4. Inventário (GRO)
+                        {currentReport.methodology === "qualitative" ? "3. Inventário (GRO)" : "4. Inventário (GRO)"}
                       </button>
 
                       <button
@@ -836,7 +839,7 @@ export default function App() {
                         }`}
                       >
                         <ClipboardList className="w-4 h-4 shrink-0 text-slate-450" />
-                        5. Plano de Ação
+                        {currentReport.methodology === "qualitative" ? "4. Plano de Ação" : "5. Plano de Ação"}
                       </button>
                     </>
                   )}
@@ -848,7 +851,10 @@ export default function App() {
                     }`}
                   >
                     <BookOpenCheck className="w-4 h-4 shrink-0 text-slate-450" />
-                    {currentReport.risksRecognized !== false ? "6. Texto Capítulos" : "4. Texto Capítulos"}
+                    {currentReport.methodology === "qualitative"
+                      ? (currentReport.risksRecognized !== false ? "5. Texto Capítulos" : "3. Texto Capítulos")
+                      : (currentReport.risksRecognized !== false ? "6. Texto Capítulos" : "4. Texto Capítulos")
+                    }
                   </button>
 
                   <button
@@ -858,7 +864,10 @@ export default function App() {
                     }`}
                   >
                     <FileText className="w-4 h-4 shrink-0 text-slate-450" />
-                    {currentReport.risksRecognized !== false ? "7. Visualizar Laudo" : "5. Visualizar Laudo"}
+                    {currentReport.methodology === "qualitative"
+                      ? (currentReport.risksRecognized !== false ? "6. Visualizar Laudo" : "4. Visualizar Laudo")
+                      : (currentReport.risksRecognized !== false ? "7. Visualizar Laudo" : "5. Visualizar Laudo")
+                    }
                   </button>
                 </div>
               </div>
