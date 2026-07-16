@@ -60,65 +60,17 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
 
   const handleOpenCreateModal = () => {
     setSelectedCompanyId(companies.length > 0 ? companies[0].id : "");
-    setCreationMode(companies.length > 0 ? "select" : "register");
     setNewReportMethodology("copsoq");
-    
-    // Reset register states
-    setNewCompanyFantasyName("");
-    setNewCompanyName("");
-    setNewCompanyCnpj("");
-    setNewCompanyCnae("");
-    setNewCompanyRiskDegree("1");
-    setNewCompanyAddress("");
-    setNewCompanyNumber("");
-    setNewCompanyCep("");
-    setNewCompanyBairro("");
-    setNewCompanyCity("Tangará da Serra");
-    setNewCompanyState("MT");
-    setNewCompanyLogo("");
-    setNewCompanySector("");
-    
     setIsCreateModalOpen(true);
   };
 
   const handleCreateNewReportSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    let chosenCompany: any = null;
-
-    if (creationMode === "select") {
-      chosenCompany = companies.find((c) => c.id === selectedCompanyId);
-      if (!chosenCompany) {
-        alert("Por favor, selecione uma empresa válida.");
-        return;
-      }
-    } else {
-      // Register new company
-      if (!newCompanyFantasyName.trim()) {
-        alert("O Nome Fantasia é obrigatório para cadastrar uma nova empresa.");
-        return;
-      }
-      
-      const newCompId = "comp-" + Date.now();
-      chosenCompany = {
-        id: newCompId,
-        fantasyName: newCompanyFantasyName.trim(),
-        name: newCompanyName.trim() || newCompanyFantasyName.trim(),
-        cnpj: newCompanyCnpj.trim(),
-        cnae: newCompanyCnae.trim(),
-        riskDegree: parseInt(newCompanyRiskDegree) || 1,
-        address: newCompanyAddress.trim(),
-        number: newCompanyNumber.trim(),
-        cep: newCompanyCep.trim(),
-        bairro: newCompanyBairro.trim(),
-        city: newCompanyCity.trim(),
-        state: newCompanyState,
-        logo: newCompanyLogo || undefined,
-        sector: newCompanySector.trim()
-      };
-
-      // Update companies list (triggers DB persist)
-      onUpdateCompanies([...companies, chosenCompany]);
+    const chosenCompany = companies.find((c) => c.id === selectedCompanyId);
+    if (!chosenCompany) {
+      alert("Por favor, selecione uma empresa cadastrada no sistema.");
+      return;
     }
     
     const newChapters = defaultChapters ? { ...defaultChapters } : { ...DEFAULT_CHAPTERS };
@@ -479,9 +431,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <form
             onSubmit={handleCreateNewReportSubmit}
-            className="bg-white rounded-2xl border border-slate-150 p-6 max-w-md w-full shadow-xl space-y-4 animate-in fade-in duration-200 text-left"
+            className="bg-white rounded-2xl border border-slate-150 p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in duration-200 text-left flex flex-col max-h-[90vh]"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
               <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
                 <Plus className="w-5 h-5 text-slate-600" />
                 Cadastrar Novo Relatório
@@ -489,260 +442,98 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer transition"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Segmented Control for Selection vs Registration */}
-            <div className="flex border border-slate-200 rounded-xl p-1 bg-slate-50">
-              <button
-                type="button"
-                onClick={() => setCreationMode("select")}
-                className={`flex-1 py-1.5 text-center text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  creationMode === "select"
-                    ? "bg-white text-slate-800 shadow-xs border border-slate-200/40"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-                disabled={companies.length === 0}
-              >
-                Empresa Cadastrada ({companies.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreationMode("register")}
-                className={`flex-1 py-1.5 text-center text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  creationMode === "register"
-                    ? "bg-white text-slate-800 shadow-xs border border-slate-200/40"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Nova Empresa
-              </button>
-            </div>
-
-            {creationMode === "select" && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">Selecionar Empresa</label>
-                <select
-                  value={selectedCompanyId}
-                  required
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                >
-                  <option value="" disabled>Selecione uma empresa salva...</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.fantasyName || c.name} (CNPJ: {c.cnpj || "Sem CNPJ"})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {creationMode === "register" && (
-              <div className="max-h-[300px] overflow-y-auto pr-1.5 space-y-3.5">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nome Fantasia (Obrigatório)</label>
-                  <input
-                    type="text"
-                    required
-                    value={newCompanyFantasyName}
-                    onChange={(e) => setNewCompanyFantasyName(e.target.value)}
-                    placeholder="Ex: Auto Posto Tangará"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Razão Social (Opcional, copia Fantasia se vazio)</label>
-                  <input
-                    type="text"
-                    value={newCompanyName}
-                    onChange={(e) => setNewCompanyName(e.target.value)}
-                    placeholder="Ex: Tangará Combustíveis Ltda"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">CNPJ / CAEPF</label>
-                    <input
-                      type="text"
-                      value={newCompanyCnpj}
-                      onChange={(e) => setNewCompanyCnpj(e.target.value)}
-                      placeholder="Somente números"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">CNAE Principal</label>
-                    <input
-                      type="text"
-                      value={newCompanyCnae}
-                      onChange={(e) => setNewCompanyCnae(e.target.value)}
-                      placeholder="Ex: 4731-8/00"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Grau de Risco (1 a 4)</label>
-                    <select
-                      value={newCompanyRiskDegree}
-                      onChange={(e) => setNewCompanyRiskDegree(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    >
-                      <option value="1">Grau 1</option>
-                      <option value="2">Grau 2</option>
-                      <option value="3">Grau 3</option>
-                      <option value="4">Grau 4</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Setor / Atividade Principal</label>
-                    <input
-                      type="text"
-                      value={newCompanySector}
-                      onChange={(e) => setNewCompanySector(e.target.value)}
-                      placeholder="Ex: Posto de Combustível"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Endereço / Logradouro</label>
-                  <input
-                    type="text"
-                    value={newCompanyAddress}
-                    onChange={(e) => setNewCompanyAddress(e.target.value)}
-                    placeholder="Ex: Av. Brasil, Centro"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Número</label>
-                    <input
-                      type="text"
-                      value={newCompanyNumber}
-                      onChange={(e) => setNewCompanyNumber(e.target.value)}
-                      placeholder="Ex: 1250-W"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bairro</label>
-                    <input
-                      type="text"
-                      value={newCompanyBairro}
-                      onChange={(e) => setNewCompanyBairro(e.target.value)}
-                      placeholder="Ex: Centro"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">CEP</label>
-                    <input
-                      type="text"
-                      value={newCompanyCep}
-                      onChange={(e) => setNewCompanyCep(e.target.value)}
-                      placeholder="78300-000"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Cidade</label>
-                    <input
-                      type="text"
-                      value={newCompanyCity}
-                      onChange={(e) => setNewCompanyCity(e.target.value)}
-                      placeholder="Tangará da Serra"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">UF</label>
-                    <input
-                      type="text"
-                      value={newCompanyState}
-                      onChange={(e) => setNewCompanyState(e.target.value.toUpperCase().slice(0, 2))}
-                      placeholder="MT"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-800 bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Metodologia de Diagnóstico</label>
+            {/* Form Body */}
+            <div className="space-y-4 flex-1 py-1">
               
-              <div className="space-y-2">
-                <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
-                  newReportMethodology === "copsoq" 
-                    ? "border-slate-800 bg-slate-50/50" 
-                    : "border-slate-200 hover:border-slate-300"
-                }`}>
-                  <input
-                    type="radio"
-                    name="newReportMethodology"
-                    value="copsoq"
-                    checked={newReportMethodology === "copsoq"}
-                    onChange={() => setNewReportMethodology("copsoq")}
-                    className="mt-1 text-slate-800 focus:ring-slate-800 focus:border-slate-800 cursor-pointer text-xs"
-                  />
-                  <div className="-mt-0.5">
-                    <span className="text-xs font-extrabold text-slate-800 block">Metodologia COPSOQ II-BR</span>
-                    <span className="text-[10px] text-slate-400 font-medium block leading-normal mt-0.5">
-                      Método clássico quantitativo com escala de 0 a 4 pontos em 10 dimensões psicossociais.
-                    </span>
-                  </div>
+              {/* Company Selection Dropdown */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">
+                  Empresa do Relatório
                 </label>
-
-                <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
-                  newReportMethodology === "qualitative" 
-                    ? "border-slate-800 bg-slate-50/50" 
-                    : "border-slate-200 hover:border-slate-300"
-                }`}>
-                  <input
-                    type="radio"
-                    name="newReportMethodology"
-                    value="qualitative"
-                    checked={newReportMethodology === "qualitative"}
-                    onChange={() => setNewReportMethodology("qualitative")}
-                    className="mt-1 text-slate-800 focus:ring-slate-800 focus:border-slate-800 cursor-pointer text-xs"
-                  />
-                  <div className="-mt-0.5">
-                    <span className="text-xs font-extrabold text-slate-800 block">Avaliação Qualitativa (MPE)</span>
-                    <span className="text-[10px] text-slate-400 font-medium block leading-normal mt-0.5">
-                      Focada em micro e pequenas empresas. Substitui notas numéricas por relatórios de entrevista, observações de ambiente e conclusões descritivas.
-                    </span>
+                {companies.length > 0 ? (
+                  <select
+                    value={selectedCompanyId}
+                    required
+                    onChange={(e) => setSelectedCompanyId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-850 font-semibold bg-white shadow-xs cursor-pointer"
+                  >
+                    <option value="" disabled>Selecione uma empresa salva...</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fantasyName || c.name} {c.cnpj ? `(CNPJ: ${c.cnpj})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-3.5 text-[11px] text-amber-800 leading-normal flex items-start gap-2.5 shadow-xs">
+                    <Building className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block text-amber-900 mb-0.5">Nenhuma Empresa Cadastrada</span>
+                      Você precisa cadastrar uma empresa na aba <strong>"Empresas"</strong> antes de iniciar um relatório psicossocial.
+                    </div>
                   </div>
-                </label>
+                )}
               </div>
+
+              {/* Methodology Selector (Dropdown style) */}
+              <div className="space-y-1.5 pt-1">
+                <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">
+                  Metodologia de Diagnóstico
+                </label>
+                <select
+                  value={newReportMethodology}
+                  onChange={(e) => setNewReportMethodology(e.target.value as "copsoq" | "qualitative")}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-850 font-semibold bg-white shadow-xs cursor-pointer"
+                >
+                  <option value="copsoq">Metodologia COPSOQ II-BR (Clássica / Quantitativa)</option>
+                  <option value="qualitative">Avaliação Qualitativa MPE (Micro e Pequena Empresa)</option>
+                </select>
+
+                {/* Compact description box */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-150 text-[11px] text-slate-600 leading-relaxed space-y-1 shadow-xs">
+                  {newReportMethodology === "copsoq" ? (
+                    <div>
+                      <span className="font-extrabold text-slate-800 block text-xs">📈 COPSOQ II-BR</span>
+                      <p className="text-slate-500 text-[10.5px]">
+                        Método clássico quantitativo com escala de 0 a 4 pontos em 10 dimensões psicossociais. Ideal para empresas com mais de 20 funcionários.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="font-extrabold text-slate-800 block text-xs">💬 Avaliação Qualitativa</span>
+                      <p className="text-slate-500 text-[10.5px]">
+                        Especial para micro/pequenas empresas. Substitui as estatísticas quantitativas por análises de entrevistas individuais/coletivas e de observação de campo.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
             </div>
 
-            <div className="flex items-center gap-2.5 justify-end pt-3 border-t border-slate-100">
+            {/* Modal Footer Action Buttons */}
+            <div className="flex items-center gap-2.5 justify-end pt-3 border-t border-slate-100 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition cursor-pointer"
+                className="px-4 py-2 text-xs font-bold text-slate-650 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 text-xs font-bold text-white bg-slate-800 hover:bg-slate-950 rounded-lg shadow-sm transition cursor-pointer"
+                disabled={companies.length === 0}
+                className={`px-5 py-2 text-xs font-bold text-white rounded-lg shadow-sm transition cursor-pointer ${
+                  companies.length === 0
+                    ? "bg-slate-300 border border-slate-300 cursor-not-allowed text-slate-500 shadow-none"
+                    : "bg-slate-800 hover:bg-slate-950 hover:shadow-md"
+                }`}
               >
                 Criar Relatório
               </button>

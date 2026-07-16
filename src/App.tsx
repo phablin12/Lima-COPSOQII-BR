@@ -1077,6 +1077,8 @@ export default function App() {
               {homeTab === "reports" && (
                 <ReportsDashboard
                   reports={reports}
+                  companies={companies}
+                  onUpdateCompanies={handleUpdateCompanies}
                   onSelectReport={setCurrentReportId}
                   onCreateReport={handleCreateReport}
                   onDeleteReport={handleDeleteReport}
