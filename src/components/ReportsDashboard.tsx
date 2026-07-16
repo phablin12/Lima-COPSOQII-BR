@@ -7,6 +7,7 @@ import React, { useRef, useState } from "react";
 import { Report, ReportChapters } from "../types";
 import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS, DEFAULT_QUALITATIVE_METODOLOGIA } from "../defaultChapters";
 import { FolderHeart, Plus, FileText, Trash2, Copy, Download, Upload, AlertTriangle, ShieldCheck, ChevronRight, Cloud, Sliders, X, Building, Check } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface ReportsDashboardProps {
   reports: Report[];
@@ -457,19 +458,18 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                   Empresa do Relatório
                 </label>
                 {companies.length > 0 ? (
-                  <select
+                  <SearchableSelect
                     value={selectedCompanyId}
+                    onChange={(val) => setSelectedCompanyId(val)}
+                    options={companies.map((c) => ({
+                      value: c.id,
+                      label: c.fantasyName || c.name,
+                      subLabel: c.cnpj ? `CNPJ: ${c.cnpj}` : undefined,
+                    }))}
+                    placeholder="Selecione uma empresa salva..."
+                    searchPlaceholder="Buscar empresa por nome ou CNPJ..."
                     required
-                    onChange={(e) => setSelectedCompanyId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-850 font-semibold bg-white shadow-xs cursor-pointer"
-                  >
-                    <option value="" disabled>Selecione uma empresa salva...</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fantasyName || c.name} {c.cnpj ? `(CNPJ: ${c.cnpj})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 ) : (
                   <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-3.5 text-[11px] text-amber-800 leading-normal flex items-start gap-2.5 shadow-xs">
                     <Building className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -486,14 +486,16 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                 <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block">
                   Metodologia de Diagnóstico
                 </label>
-                <select
+                <SearchableSelect
                   value={newReportMethodology}
-                  onChange={(e) => setNewReportMethodology(e.target.value as "copsoq" | "qualitative")}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-xs text-slate-850 font-semibold bg-white shadow-xs cursor-pointer"
-                >
-                  <option value="copsoq">Metodologia COPSOQ II-BR (Clássica / Quantitativa)</option>
-                  <option value="qualitative">Avaliação Qualitativa MPE (Micro e Pequena Empresa)</option>
-                </select>
+                  onChange={(val) => setNewReportMethodology(val as "copsoq" | "qualitative")}
+                  options={[
+                    { value: "copsoq", label: "Metodologia COPSOQ II-BR", subLabel: "Clássica / Quantitativa" },
+                    { value: "qualitative", label: "Avaliação Qualitativa MPE", subLabel: "Micro e Pequena Empresa" },
+                  ]}
+                  placeholder="Selecione a metodologia..."
+                  required
+                />
 
                 {/* Compact description box */}
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-150 text-[11px] text-slate-600 leading-relaxed space-y-1 shadow-xs">

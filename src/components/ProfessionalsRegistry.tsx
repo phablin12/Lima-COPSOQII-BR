@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { User, Plus, Trash2, Edit2, Check, X } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface Professional {
   id: string;
@@ -103,16 +104,18 @@ export const ProfessionalsRegistry: React.FC<ProfessionalsRegistryProps> = ({
 
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Função / Cargo Técnico</label>
-            <select
+            <SearchableSelect
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
-            >
-              <option value="Técnico de Segurança do Trabalho">Técnico de Segurança do Trabalho</option>
-              <option value="Engenheiro de Segurança do Trabalho">Engenheiro de Segurança do Trabalho</option>
-              <option value="Psicólogo Organizacional">Psicólogo Organizacional</option>
-              <option value="Outro">Outro Profissional de SST</option>
-            </select>
+              onChange={(val) => setRole(val)}
+              options={[
+                { value: "Técnico de Segurança do Trabalho", label: "Técnico de Segurança do Trabalho" },
+                { value: "Engenheiro de Segurança do Trabalho", label: "Engenheiro de Segurança do Trabalho" },
+                { value: "Psicólogo Organizacional", label: "Psicólogo Organizacional" },
+                { value: "Outro", label: "Outro Profissional de SST" }
+              ]}
+              placeholder="Selecione a função..."
+              required
+            />
           </div>
 
           <div className="space-y-1">
@@ -157,16 +160,18 @@ export const ProfessionalsRegistry: React.FC<ProfessionalsRegistryProps> = ({
                           onChange={(e) => setEditName(e.target.value)}
                           className="px-3 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-slate-400 outline-none"
                         />
-                        <select
+                        <SearchableSelect
                           value={editRole}
-                          onChange={(e) => setEditRole(e.target.value)}
-                          className="px-3 py-1 text-sm border border-slate-300 rounded bg-white outline-none"
-                        >
-                          <option value="Técnico de Segurança do Trabalho">Técnico de Segurança do Trabalho</option>
-                          <option value="Engenheiro de Segurança do Trabalho">Engenheiro de Segurança do Trabalho</option>
-                          <option value="Psicólogo Organizacional">Psicólogo Organizacional</option>
-                          <option value="Outro">Outro Profissional de SST</option>
-                        </select>
+                          onChange={(val) => setEditRole(val)}
+                          options={[
+                            { value: "Técnico de Segurança do Trabalho", label: "Técnico de Segurança do Trabalho" },
+                            { value: "Engenheiro de Segurança do Trabalho", label: "Engenheiro de Segurança do Trabalho" },
+                            { value: "Psicólogo Organizacional", label: "Psicólogo Organizacional" },
+                            { value: "Outro", label: "Outro Profissional de SST" }
+                          ]}
+                          placeholder="Selecione a função..."
+                          required
+                        />
                       </div>
                       <div className="flex gap-2">
                         <input

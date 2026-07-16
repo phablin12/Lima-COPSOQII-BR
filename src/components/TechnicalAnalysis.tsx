@@ -6,6 +6,7 @@
 import React, { useState } from "react";
 import { Report, Sector, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { AlertTriangle, MessageSquare, ClipboardCheck, Users, HelpCircle } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface TechnicalAnalysisProps {
   report: Report;
@@ -106,17 +107,19 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
           </p>
         </div>
 
-        <select
+        <SearchableSelect
           value={selectedSectorId}
-          onChange={(e) => setSelectedSectorId(e.target.value)}
-          className="w-full md:w-80 px-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-800 bg-white focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none"
-        >
-          {report.sectors.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} ({s.employeeCount} funcionários)
-            </option>
-          ))}
-        </select>
+          onChange={(val) => setSelectedSectorId(val)}
+          options={report.sectors.map((s) => ({
+            value: s.id,
+            label: s.name,
+            subLabel: `${s.employeeCount} funcionários`
+          }))}
+          placeholder="Selecione o setor..."
+          searchPlaceholder="Buscar setor..."
+          className="w-full md:w-80"
+          required
+        />
       </div>
 
       {report.methodology === "qualitative" ? (

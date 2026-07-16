@@ -6,6 +6,7 @@
 import React, { useState } from "react";
 import { Report, RiskInventoryItem } from "../types";
 import { ClipboardList, Edit2, Check, X, Trash2, Target, HelpCircle, User, Calendar, Shield, Bookmark, CheckSquare, Clock } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface ActionPlanManagerProps {
   report: Report;
@@ -146,27 +147,33 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">Prioridade:</label>
-                          <select
+                          <SearchableSelect
                             value={priority}
-                            onChange={(e) => setPriority(e.target.value as any)}
-                            className="text-xs px-2 py-1 rounded border border-slate-300 bg-white"
-                          >
-                            <option value="Baixa">Baixa</option>
-                            <option value="Média">Média</option>
-                            <option value="Alta">Alta</option>
-                          </select>
+                            onChange={(val) => setPriority(val as any)}
+                            options={[
+                              { value: "Baixa", label: "Baixa" },
+                              { value: "Média", label: "Média" },
+                              { value: "Alta", label: "Alta" }
+                            ]}
+                            placeholder="Prioridade"
+                            className="w-28"
+                            required
+                          />
                         </div>
                         <div className="flex items-center gap-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">Status:</label>
-                          <select
+                          <SearchableSelect
                             value={status}
-                            onChange={(e) => setStatus(e.target.value as any)}
-                            className="text-xs px-2 py-1 rounded border border-slate-300 bg-white"
-                          >
-                            <option value="Pendente">Pendente</option>
-                            <option value="Em Andamento">Em Andamento</option>
-                            <option value="Concluído">Concluído</option>
-                          </select>
+                            onChange={(val) => setStatus(val as any)}
+                            options={[
+                              { value: "Pendente", label: "Pendente" },
+                              { value: "Em Andamento", label: "Em Andamento" },
+                              { value: "Concluído", label: "Concluído" }
+                            ]}
+                            placeholder="Status"
+                            className="w-36"
+                            required
+                          />
                         </div>
                       </div>
                     ) : (

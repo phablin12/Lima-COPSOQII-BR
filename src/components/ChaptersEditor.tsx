@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Info
 } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface ChaptersEditorProps {
   report: Report;
@@ -314,15 +315,18 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
         {/* Configuração de Recuo do Parágrafo */}
         <div className="bg-slate-50 px-4 py-2.5 rounded-lg border border-slate-200 flex items-center gap-3 shrink-0">
           <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Recuo dos Parágrafos:</span>
-          <select
+          <SearchableSelect
             value={report.paragraphIndent || "medium"}
-            onChange={(e) => onChange({ paragraphIndent: e.target.value as "none" | "medium" | "large" })}
-            className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-slate-850 outline-none focus:border-slate-500"
-          >
-            <option value="none">Sem Recuo (0 cm)</option>
-            <option value="medium">Recuo Padrão (1.5 cm)</option>
-            <option value="large">Recuo Grande (2.5 cm)</option>
-          </select>
+            onChange={(val) => onChange({ paragraphIndent: val as "none" | "medium" | "large" })}
+            options={[
+              { value: "none", label: "Sem Recuo", subLabel: "0 cm" },
+              { value: "medium", label: "Recuo Padrão", subLabel: "1.5 cm" },
+              { value: "large", label: "Recuo Grande", subLabel: "2.5 cm" }
+            ]}
+            placeholder="Recuo"
+            className="w-48"
+            required
+          />
         </div>
       </div>
 

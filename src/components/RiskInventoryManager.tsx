@@ -7,6 +7,7 @@ import React, { useState, useEffect } from "react";
 import { Report, Sector, CatalogRisk, RiskInventoryItem } from "../types";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
 import { AlertCircle, Plus, Trash2, Edit2, ShieldAlert, FileSpreadsheet, Eye, HelpCircle } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface RiskInventoryManagerProps {
   report: Report;
@@ -287,29 +288,37 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-4 space-y-1">
                 <label className="text-xs font-semibold text-slate-600">Setor/GHE Afetado</label>
-                <select
+                <SearchableSelect
                   value={selectedSectorId}
-                  onChange={(e) => setSelectedSectorId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 bg-white"
-                >
-                  {report.sectors.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedSectorId(val)}
+                  options={report.sectors.map((s) => ({
+                    value: s.id,
+                    label: s.name,
+                    subLabel: s.description || undefined
+                  }))}
+                  placeholder="Selecione o setor..."
+                  searchPlaceholder="Buscar setor..."
+                  required
+                />
               </div>
 
               <div className="md:col-span-5 space-y-1">
                 <label className="text-xs font-semibold text-slate-600">Puxar do Catálogo ou Personalizar</label>
-                <select
+                <SearchableSelect
                   value={selectedCatalogRiskId}
-                  onChange={(e) => setSelectedCatalogRiskId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 bg-white"
-                >
-                  {catalog.map((risk) => (
-                    <option key={risk.id} value={risk.id}>{risk.name}</option>
-                  ))}
-                  <option value="custom">[Risco Personalizado / Não listado]</option>
-                </select>
+                  onChange={(val) => setSelectedCatalogRiskId(val)}
+                  options={[
+                    ...catalog.map((risk) => ({
+                      value: risk.id,
+                      label: risk.name,
+                      subLabel: `Categoria: ${risk.category}`
+                    })),
+                    { value: "custom", label: "[Risco Personalizado / Não listado]", subLabel: "Crie um risco personalizado abaixo" }
+                  ]}
+                  placeholder="Selecione o risco do catálogo..."
+                  searchPlaceholder="Buscar risco no catálogo..."
+                  required
+                />
               </div>
 
               <div className="md:col-span-3 space-y-1">
@@ -454,15 +463,17 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Estimativa da Medida (Incerteza)</label>
-                  <select
+                  <SearchableSelect
                     value={uncertainty}
-                    onChange={(e) => setUncertainty(e.target.value as any)}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white"
-                  >
-                    <option value="Certa">Estimativa Certa (Evidências robustas)</option>
-                    <option value="Incerta">Estimativa Incerta (Fatores dinâmicos)</option>
-                    <option value="Altamente Incerta">Altamente Incerta (Falta de dados fáticos)</option>
-                  </select>
+                    onChange={(val) => setUncertainty(val as any)}
+                    options={[
+                      { value: "Certa", label: "Estimativa Certa", subLabel: "Evidências robustas" },
+                      { value: "Incerta", label: "Estimativa Incerta", subLabel: "Fatores dinâmicos" },
+                      { value: "Altamente Incerta", label: "Altamente Incerta", subLabel: "Falta de dados fáticos" }
+                    ]}
+                    placeholder="Selecione a incerteza..."
+                    required
+                  />
                 </div>
               </div>
             </div>
@@ -491,15 +502,17 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-600">Prioridade da Medida</label>
-                <select
+                <SearchableSelect
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 bg-white"
-                >
-                  <option value="Baixa">Baixa</option>
-                  <option value="Média">Média</option>
-                  <option value="Alta">Alta</option>
-                </select>
+                  onChange={(val) => setPriority(val as any)}
+                  options={[
+                    { value: "Baixa", label: "Baixa", subLabel: "Medida preventiva de rotina" },
+                    { value: "Média", label: "Média", subLabel: "Medida importante preventiva" },
+                    { value: "Alta", label: "Alta", subLabel: "Ação corretiva prioritária urgente" }
+                  ]}
+                  placeholder="Selecione a prioridade..."
+                  required
+                />
               </div>
 
               <div className="space-y-1">
@@ -526,15 +539,17 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-600">Status Inicial</label>
-                <select
+                <SearchableSelect
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 bg-white"
-                >
-                  <option value="Pendente">Pendente</option>
-                  <option value="Em Andamento">Em Andamento</option>
-                  <option value="Concluído">Concluído</option>
-                </select>
+                  onChange={(val) => setStatus(val as any)}
+                  options={[
+                    { value: "Pendente", label: "Pendente", subLabel: "Aguardando início" },
+                    { value: "Em Andamento", label: "Em Andamento", subLabel: "Sendo implementada" },
+                    { value: "Concluído", label: "Concluído", subLabel: "Ação finalizada" }
+                  ]}
+                  placeholder="Selecione o status..."
+                  required
+                />
               </div>
             </div>
 

@@ -7,6 +7,7 @@ import React, { useState } from "react";
 import { CatalogRisk } from "../types";
 import { BookOpen, Plus, Trash2, Edit2, Check, X, Shield, RefreshCw } from "lucide-react";
 import { DEFAULT_RISK_CATALOG } from "../defaultCatalog";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface RiskCatalogEditorProps {
   catalog: CatalogRisk[];
@@ -174,17 +175,19 @@ export const RiskCatalogEditor: React.FC<RiskCatalogEditorProps> = ({ catalog, o
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Grau Estimado do Risco</label>
-              <select
+              <SearchableSelect
                 value={newRisk.defaultLevel}
-                onChange={(e) => setNewRisk({ ...newRisk, defaultLevel: e.target.value as any })}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
-              >
-                <option value="Insignificante">Insignificante</option>
-                <option value="Baixo">Baixo</option>
-                <option value="Moderado">Moderado</option>
-                <option value="Alto">Alto</option>
-                <option value="Grave">Grave</option>
-              </select>
+                onChange={(val) => setNewRisk({ ...newRisk, defaultLevel: val as any })}
+                options={[
+                  { value: "Insignificante", label: "Insignificante", subLabel: "Nível irrelevante" },
+                  { value: "Baixo", label: "Baixo", subLabel: "Nível leve" },
+                  { value: "Moderado", label: "Moderado", subLabel: "Nível intermediário" },
+                  { value: "Alto", label: "Alto", subLabel: "Nível acentuado" },
+                  { value: "Grave", label: "Grave", subLabel: "Nível severo crítico" }
+                ]}
+                placeholder="Selecione o grau de risco..."
+                required
+              />
             </div>
 
             <button
@@ -223,17 +226,19 @@ export const RiskCatalogEditor: React.FC<RiskCatalogEditorProps> = ({ catalog, o
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Grau do Risco</label>
-                        <select
+                        <SearchableSelect
                           value={editingRisk.defaultLevel}
-                          onChange={(e) => setEditingRisk({ ...editingRisk, defaultLevel: e.target.value as any })}
-                          className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs text-slate-800 bg-white outline-none"
-                        >
-                          <option value="Insignificante">Insignificante</option>
-                          <option value="Baixo">Baixo</option>
-                          <option value="Moderado">Moderado</option>
-                          <option value="Alto">Alto</option>
-                          <option value="Grave">Grave</option>
-                        </select>
+                          onChange={(val) => setEditingRisk({ ...editingRisk, defaultLevel: val as any })}
+                          options={[
+                            { value: "Insignificante", label: "Insignificante" },
+                            { value: "Baixo", label: "Baixo" },
+                            { value: "Moderado", label: "Moderado" },
+                            { value: "Alto", label: "Alto" },
+                            { value: "Grave", label: "Grave" }
+                          ]}
+                          placeholder="Grau"
+                          required
+                        />
                       </div>
                     </div>
 

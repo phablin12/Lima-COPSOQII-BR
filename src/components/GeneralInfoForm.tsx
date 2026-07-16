@@ -8,6 +8,7 @@ import { Report, Sector, Assessor } from "../types";
 import { DEFAULT_CHAPTERS, DEFAULT_QUALITATIVE_METODOLOGIA } from "../defaultChapters";
 import { Building, Calendar, User, ShieldAlert, Plus, Trash2, Edit2, Users, FileCheck2, ToggleLeft, CheckCircle2, Shield, ShieldCheck, Sliders } from "lucide-react";
 import { compressImage } from "../imageUtils";
+import { SearchableSelect } from "./SearchableSelect";
 
 const ESTADOS_BRASILEIROS = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", 
@@ -204,17 +205,22 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
           </h3>
 
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-500 font-bold">Alterar Responsável:</span>
-            <select
-              onChange={(e) => handleSelectEvaluator(e.target.value)}
+            <span className="text-slate-500 font-bold shrink-0">Alterar Responsável:</span>
+            <SearchableSelect
               value={report.evaluator?.id || "matriz"}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white outline-none focus:ring-1 focus:ring-slate-400"
-            >
-              <option value="matriz">Empresa Matriz / Principal (Padrão)</option>
-              {evaluators.map((ev) => (
-                <option key={ev.id} value={ev.id}>{ev.fantasyName}</option>
-              ))}
-            </select>
+              onChange={(val) => handleSelectEvaluator(val)}
+              options={[
+                { value: "matriz", label: "Empresa Matriz / Principal (Padrão)", subLabel: "Configuração geral do sistema" },
+                ...evaluators.map((ev) => ({
+                  value: ev.id,
+                  label: ev.fantasyName || ev.socialName,
+                  subLabel: ev.cnpj ? `CNPJ: ${ev.cnpj}` : undefined
+                }))
+              ]}
+              placeholder="Selecione um avaliador..."
+              className="w-64"
+              required
+            />
           </div>
         </div>
 
@@ -356,17 +362,19 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
 
           {companies.length > 0 && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500 font-medium">Auto-preencher:</span>
-              <select
-                onChange={(e) => handleSelectCompany(e.target.value)}
+              <span className="text-slate-500 font-bold shrink-0">Auto-preencher:</span>
+              <SearchableSelect
                 value={companies.find((c) => c.name === report.companyName)?.id || ""}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white outline-none focus:ring-1 focus:ring-slate-400"
-              >
-                <option value="" disabled>Selecione uma empresa salva...</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.fantasyName || c.name}</option>
-                ))}
-              </select>
+                onChange={(val) => handleSelectCompany(val)}
+                options={companies.map((c) => ({
+                  value: c.id,
+                  label: c.fantasyName || c.name,
+                  subLabel: c.cnpj ? `CNPJ: ${c.cnpj}` : undefined
+                }))}
+                placeholder="Selecione uma empresa salva..."
+                searchPlaceholder="Buscar empresa..."
+                className="w-64"
+              />
             </div>
           )}
         </div>
@@ -622,17 +630,19 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
 
           {professionals.length > 0 && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500 font-medium">Auto-preencher:</span>
-              <select
-                onChange={(e) => handleSelectProfessional(e.target.value)}
+              <span className="text-slate-500 font-bold shrink-0">Auto-preencher:</span>
+              <SearchableSelect
                 value={professionals.find((p) => p.name === report.professionalName)?.id || ""}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 bg-white outline-none focus:ring-1 focus:ring-slate-400"
-              >
-                <option value="" disabled>Selecione um profissional salvo...</option>
-                {professionals.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                onChange={(val) => handleSelectProfessional(val)}
+                options={professionals.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  subLabel: `${p.role} • Reg: ${p.reg}`
+                }))}
+                placeholder="Selecione um profissional salvo..."
+                searchPlaceholder="Buscar profissional..."
+                className="w-64"
+              />
             </div>
           )}
         </div>
@@ -651,16 +661,18 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
 
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-600">Cargo / Função Técnica</label>
-            <select
+            <SearchableSelect
               value={report.professionalRole}
-              onChange={(e) => onChange({ professionalRole: e.target.value as any })}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            >
-              <option value="Técnico de Segurança do Trabalho">Técnico de Segurança do Trabalho</option>
-              <option value="Engenheiro de Segurança do Trabalho">Engenheiro de Segurança do Trabalho</option>
-              <option value="Psicólogo Organizacional">Psicólogo Organizacional</option>
-              <option value="Outro">Outro Profissional de SST</option>
-            </select>
+              onChange={(val) => onChange({ professionalRole: val as any })}
+              options={[
+                { value: "Técnico de Segurança do Trabalho", label: "Técnico de Segurança do Trabalho" },
+                { value: "Engenheiro de Segurança do Trabalho", label: "Engenheiro de Segurança do Trabalho" },
+                { value: "Psicólogo Organizacional", label: "Psicólogo Organizacional" },
+                { value: "Outro", label: "Outro Profissional de SST" }
+              ]}
+              placeholder="Selecione o cargo/função..."
+              required
+            />
           </div>
 
           <div className="space-y-1">

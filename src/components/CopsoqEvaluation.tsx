@@ -6,6 +6,7 @@
 import React, { useState } from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { AlertCircle, HelpCircle, Save, Sliders, Activity, BookOpen, ClipboardList, UserCheck, CheckCircle2 } from "lucide-react";
+import { SearchableSelect } from "./SearchableSelect";
 
 interface CopsoqEvaluationProps {
   report: Report;
@@ -105,17 +106,19 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
       <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex items-center gap-3 w-full md:w-auto">
           <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">Setor sob Análise:</label>
-          <select
+          <SearchableSelect
             value={selectedSectorId}
-            onChange={(e) => setSelectedSectorId(e.target.value)}
-            className="w-full md:w-80 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-800 bg-white focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none"
-          >
-            {report.sectors.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.employeeCount} funcionários)
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setSelectedSectorId(val)}
+            options={report.sectors.map((s) => ({
+              value: s.id,
+              label: s.name,
+              subLabel: `${s.employeeCount} funcionários`
+            }))}
+            placeholder="Selecione o setor..."
+            searchPlaceholder="Buscar setor..."
+            className="w-full md:w-80"
+            required
+          />
         </div>
         <div className="text-xs text-slate-400">
           Método Ativo: <strong className="text-slate-700 uppercase tracking-wider">{isQualitative ? "Avaliação Qualitativa" : "COPSOQ II-BR"}</strong>
