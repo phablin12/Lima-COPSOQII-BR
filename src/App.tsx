@@ -283,11 +283,24 @@ export default function App() {
             const stored = localStorage.getItem("sst_psicossocial_reports");
             if (stored) {
               const parsed = JSON.parse(stored) as Report[];
-              uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, parsed, saveReportToFirestore);
+              if (parsed && parsed.length > 0) {
+                setReports(parsed);
+                uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, parsed, saveReportToFirestore);
+              } else {
+                setReports([]);
+              }
+            } else {
+              setReports([]);
             }
           } else {
-            setReports([]);
-            localStorage.setItem("sst_psicossocial_reports", JSON.stringify([]));
+            // Only clear state if there are indeed no reports in active memory
+            setReports((prev) => {
+              if (prev && prev.length > 0) {
+                return prev;
+              }
+              localStorage.setItem("sst_psicossocial_reports", JSON.stringify([]));
+              return [];
+            });
           }
         }
         setSyncState("synced");
@@ -322,11 +335,24 @@ export default function App() {
             const stored = localStorage.getItem("sst_psicossocial_companies");
             if (stored) {
               const parsed = JSON.parse(stored);
-              uploadLocalIfCollectionIsEmpty(COMPANIES_COLLECTION, parsed, saveCompanyToFirestore);
+              if (parsed && parsed.length > 0) {
+                setCompanies(parsed);
+                uploadLocalIfCollectionIsEmpty(COMPANIES_COLLECTION, parsed, saveCompanyToFirestore);
+              } else {
+                setCompanies([]);
+              }
+            } else {
+              setCompanies([]);
             }
           } else {
-            setCompanies([]);
-            localStorage.setItem("sst_psicossocial_companies", JSON.stringify([]));
+            // Only clear state if there are indeed no companies in active memory
+            setCompanies((prev) => {
+              if (prev && prev.length > 0) {
+                return prev;
+              }
+              localStorage.setItem("sst_psicossocial_companies", JSON.stringify([]));
+              return [];
+            });
           }
         }
         setSyncState("synced");
@@ -360,11 +386,24 @@ export default function App() {
             const stored = localStorage.getItem("sst_psicossocial_professionals");
             if (stored) {
               const parsed = JSON.parse(stored);
-              uploadLocalIfCollectionIsEmpty(PROFESSIONALS_COLLECTION, parsed, saveProfessionalToFirestore);
+              if (parsed && parsed.length > 0) {
+                setProfessionals(parsed);
+                uploadLocalIfCollectionIsEmpty(PROFESSIONALS_COLLECTION, parsed, saveProfessionalToFirestore);
+              } else {
+                setProfessionals([]);
+              }
+            } else {
+              setProfessionals([]);
             }
           } else {
-            setProfessionals([]);
-            localStorage.setItem("sst_psicossocial_professionals", JSON.stringify([]));
+            // Only clear state if there are indeed no professionals in active memory
+            setProfessionals((prev) => {
+              if (prev && prev.length > 0) {
+                return prev;
+              }
+              localStorage.setItem("sst_psicossocial_professionals", JSON.stringify([]));
+              return [];
+            });
           }
         }
         setSyncState("synced");
@@ -398,11 +437,24 @@ export default function App() {
             const stored = localStorage.getItem("sst_psicossocial_evaluators");
             if (stored) {
               const parsed = JSON.parse(stored) as Assessor[];
-              uploadLocalIfCollectionIsEmpty(EVALUATORS_COLLECTION, parsed, saveEvaluatorToFirestore);
+              if (parsed && parsed.length > 0) {
+                setEvaluators(parsed);
+                uploadLocalIfCollectionIsEmpty(EVALUATORS_COLLECTION, parsed, saveEvaluatorToFirestore);
+              } else {
+                setEvaluators([]);
+              }
+            } else {
+              setEvaluators([]);
             }
           } else {
-            setEvaluators([]);
-            localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify([]));
+            // Only clear state if there are indeed no evaluators in active memory
+            setEvaluators((prev) => {
+              if (prev && prev.length > 0) {
+                return prev;
+              }
+              localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify([]));
+              return [];
+            });
           }
         }
         setSyncState("synced");
