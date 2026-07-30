@@ -11,26 +11,16 @@ import {
   Users, 
   Layers, 
   Printer, 
-  Sparkles, 
   Calendar, 
   Search, 
   Filter, 
-  Activity, 
-  ClipboardCheck, 
   X, 
   ShieldAlert, 
   CheckCircle2, 
   FileCheck, 
-  RefreshCw, 
-  Award, 
-  Download, 
   Eye, 
-  MapPin, 
-  Phone, 
-  FileSpreadsheet, 
-  ChevronRight,
-  TrendingUp,
-  BarChart2
+  Award,
+  ChevronRight
 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
 
@@ -302,35 +292,74 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* CSS PRINT STYLES FOR PERFECT PDF EXPORT */}
+      {/* CSS PRINT STYLES FOR EXCELLENT PDF EXPORT & PAGE BREAKS */}
       <style>{`
         @media print {
-          body {
+          @page {
+            size: A4 portrait;
+            margin: 12mm 12mm 15mm 12mm;
+          }
+
+          html, body {
             background-color: #ffffff !important;
             color: #0f172a !important;
-            font-size: 11px !important;
+            font-size: 9.5pt !important;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
             margin: 0 !important;
             padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          .print\\:hidden, nav, header, button, .no-print {
+
+          .print\\:hidden, nav, header, button, .no-print, input, select {
             display: none !important;
           }
+
           .print-container {
             padding: 0 !important;
             margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
             width: 100% !important;
+            max-width: 100% !important;
+            background: transparent !important;
           }
-          .page-break {
-            page-break-after: always;
-            break-after: page;
+
+          /* Ensure table headers repeat gracefully across pages */
+          thead {
+            display: table-header-group !important;
           }
+
+          /* Avoid cutting individual rows or month blocks across page boundaries */
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
           .avoid-break {
-            page-break-inside: avoid;
-            break-inside: avoid;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          .page-break-before {
+            page-break-before: always !important;
+            break-before: page !important;
+          }
+
+          /* Ensure high-contrast clean borders and zero heavy black fills */
+          .print-border-slate {
+            border-color: #cbd5e1 !important;
+          }
+
+          .print-card-bg {
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
+          }
+
+          .print-header-bg {
+            background-color: #0f172a !important;
+            color: #ffffff !important;
           }
         }
       `}</style>
@@ -489,37 +518,37 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
       </div>
 
       {/* -------------------------------------------------------------------------------- */}
-      {/* EXCLUSIVE PDF EXPORT DOCUMENT LAYOUT (CANVAS THAT IS PRINTED CLEANLY)            */}
+      {/* EXCLUSIVE PDF EXPORT DOCUMENT LAYOUT (PRECISELY FORMATTED FOR A4 PAPER)          */}
       {/* -------------------------------------------------------------------------------- */}
       <div 
         id="pdf-export-document"
-        className={`bg-white rounded-2xl border border-slate-200 p-8 text-left space-y-8 print-container ${
-          pdfPreviewMode ? "ring-2 ring-indigo-500 shadow-2xl" : "shadow-sm"
+        className={`bg-white rounded-2xl border border-slate-200 p-6 md:p-8 text-left space-y-6 print-container ${
+          pdfPreviewMode ? "ring-2 ring-indigo-500 shadow-2xl max-w-4xl mx-auto" : "shadow-sm"
         }`}
       >
-        {/* PDF HEADER SECTION */}
-        <div className="border-b-2 border-slate-900 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        {/* PDF HEADER SECTION (ELEGANT CORPORATE HEADER) */}
+        <div className="border-b-2 border-slate-900 pb-5 flex flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {assessor.logo ? (
               <img 
                 src={assessor.logo} 
                 alt="Logo da Assessoria" 
-                className="w-20 h-20 object-contain rounded-xl border border-slate-200 p-1 shrink-0"
+                className="w-16 h-16 object-contain rounded-lg border border-slate-200 p-1 shrink-0"
               />
             ) : (
-              <div className="w-16 h-16 bg-slate-900 text-amber-300 rounded-xl flex items-center justify-center font-black text-xl shrink-0">
+              <div className="w-14 h-14 bg-slate-900 text-amber-300 rounded-lg flex items-center justify-center font-black text-lg shrink-0">
                 SST
               </div>
             )}
 
-            <div className="space-y-1">
-              <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase leading-none">
+            <div className="space-y-0.5">
+              <h1 className="text-base font-black text-slate-900 tracking-tight uppercase leading-snug">
                 {assessor.fantasyName || "ASSESSORIA DE SAÚDE E SEGURANÇA NO TRABALHO"}
               </h1>
               {assessor.socialName && (
-                <p className="text-xs text-slate-600 font-bold">{assessor.socialName}</p>
+                <p className="text-[11px] text-slate-600 font-bold">{assessor.socialName}</p>
               )}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 font-medium">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500 font-medium">
                 {assessor.cnpj && <span>CNPJ: <strong>{assessor.cnpj}</strong></span>}
                 {assessor.phone && <span>Tel: <strong>{assessor.phone}</strong></span>}
                 {assessor.address && <span>{assessor.address}</span>}
@@ -527,107 +556,107 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
             </div>
           </div>
 
-          <div className="text-right border-l-2 border-slate-200 md:pl-6 space-y-1 shrink-0">
-            <span className="text-[10px] font-black uppercase text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md tracking-wider inline-block">
-              RELATÓRIO MENSAL - EXPORTAÇÃO PDF
+          <div className="text-right border-l-2 border-slate-200 pl-4 space-y-0.5 shrink-0">
+            <span className="text-[9px] font-black uppercase text-indigo-900 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded tracking-wider inline-block">
+              RELATÓRIO DE DESEMPENHO MENSAL
             </span>
-            <div className="text-xs font-bold text-slate-800">
-              Emissão: {new Date().toLocaleDateString("pt-BR")}
+            <div className="text-[11px] font-bold text-slate-800">
+              Data de Emissão: {new Date().toLocaleDateString("pt-BR")}
             </div>
-            <div className="text-[11px] text-slate-500">
-              Período: {selectedPeriod === "all" ? "Visão Consolidada" : selectedPeriod}
+            <div className="text-[10px] text-slate-500 font-medium">
+              Filtro: {selectedPeriod === "all" ? "Consolidado Geral" : selectedPeriod}
             </div>
           </div>
         </div>
 
-        {/* DOCUMENT TITLE & EXECUTIVE SUMMARY */}
-        <div className="bg-slate-900 text-white p-6 rounded-xl space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+        {/* DOCUMENT BANNER & EXECUTIVE METRICS SUMMARY */}
+        <div className="bg-slate-900 text-white p-5 rounded-xl space-y-3 print-header-bg">
+          <div className="flex flex-row items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
             <div>
-              <h2 className="text-lg font-black uppercase text-amber-300 tracking-tight">
-                RELATÓRIO DE DESEMPENHO E RESULTADOS MENSAL POR EMPRESA
+              <h2 className="text-sm font-black uppercase text-amber-300 tracking-wider">
+                BALANÇO MENSAL DE LAUDOS E RESULTADOS POR EMPRESA
               </h2>
-              <p className="text-xs text-slate-300 mt-0.5">
-                Consolidado de laudos psicossociais, vidas monitoradas e mapeamento de riscos operacionais.
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Mapeamento consolidado de riscos psicossociais, cobertura de vidas e setores operacionais.
               </p>
             </div>
-            <span className="text-xs font-mono bg-slate-800 text-slate-200 font-bold px-3 py-1 rounded-lg border border-slate-700 shrink-0">
-              A4 DOCUMENT FORMAT
+            <span className="text-[10px] font-mono bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded border border-slate-700 shrink-0">
+              DOCUMENTO A4 / AUDITÁVEL
             </span>
           </div>
 
-          {/* KEY PERFORMANCE METRICS GRID (COMPACT FOR PDF) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
-            <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80">
-              <span className="text-[9px] uppercase font-bold text-slate-400 block">Total de Laudos</span>
-              <span className="text-xl font-black font-mono text-white">{overallMetrics.reportsCount}</span>
-              <span className="text-[9px] text-slate-400 block mt-0.5">Emitidos no período</span>
+          {/* EXECUTIVE METRICS GRID (CLEAN & BALANCED) */}
+          <div className="grid grid-cols-4 gap-3 pt-1">
+            <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-left">
+              <span className="text-[8.5px] uppercase font-bold text-slate-400 block">Laudos Emitidos</span>
+              <span className="text-lg font-black font-mono text-white">{overallMetrics.reportsCount}</span>
+              <span className="text-[8px] text-slate-400 block">no período selecionado</span>
             </div>
 
-            <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80">
-              <span className="text-[9px] uppercase font-bold text-slate-400 block">Empresas Atendidas</span>
-              <span className="text-xl font-black font-mono text-amber-300">{overallMetrics.companiesCount}</span>
-              <span className="text-[9px] text-slate-400 block mt-0.5">Clientes no balanço</span>
+            <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-left">
+              <span className="text-[8.5px] uppercase font-bold text-slate-400 block">Empresas Clientes</span>
+              <span className="text-lg font-black font-mono text-amber-300">{overallMetrics.companiesCount}</span>
+              <span className="text-[8px] text-slate-400 block">atendidas no balanço</span>
             </div>
 
-            <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80">
-              <span className="text-[9px] uppercase font-bold text-slate-400 block">Vidas Impactadas</span>
-              <span className="text-xl font-black font-mono text-emerald-400">{overallMetrics.totalLives}</span>
-              <span className="text-[9px] text-slate-400 block mt-0.5">Colaboradores</span>
+            <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-left">
+              <span className="text-[8.5px] uppercase font-bold text-slate-400 block">Vidas Impactadas</span>
+              <span className="text-lg font-black font-mono text-emerald-400">{overallMetrics.totalLives}</span>
+              <span className="text-[8px] text-slate-400 block">colaboradores diretos</span>
             </div>
 
-            <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80">
-              <span className="text-[9px] uppercase font-bold text-slate-400 block">GHEs / Setores</span>
-              <span className="text-xl font-black font-mono text-indigo-300">{overallMetrics.totalSectors}</span>
-              <span className="text-[9px] text-slate-400 block mt-0.5">Mapeados</span>
+            <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-left">
+              <span className="text-[8.5px] uppercase font-bold text-slate-400 block">GHEs Mapeados</span>
+              <span className="text-lg font-black font-mono text-indigo-300">{overallMetrics.totalSectors}</span>
+              <span className="text-[8px] text-slate-400 block">setores operacionais</span>
             </div>
           </div>
         </div>
 
         {/* -------------------------------------------------------------------------------- */}
-        {/* DETAILED MONTHLY BREAKDOWN TABLE (ORGANIZED MONTH BY MONTH FOR EASY IDENTIFICATION) */}
+        {/* DETAILED MONTHLY BREAKDOWN TABLES (ORGANIZED BY MONTH WITH CLEAN PAGE BREAKS)    */}
         {/* -------------------------------------------------------------------------------- */}
         {reportsGroupedByMonth.length === 0 ? (
           <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200">
-            <p className="text-xs font-bold text-slate-600">Nenhum registro encontrado para a configuração atual do filtro.</p>
+            <p className="text-xs font-bold text-slate-600">Nenhum laudo encontrado para o filtro aplicado.</p>
           </div>
         ) : (
-          <div className="space-y-8">
-            {reportsGroupedByMonth.map((group) => (
-              <div key={group.monthKey} className="space-y-3 avoid-break">
-                {/* MONTH HEADER */}
-                <div className="bg-slate-100 border-l-4 border-indigo-600 px-4 py-2.5 rounded-r-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-6">
+            {reportsGroupedByMonth.map((group, groupIdx) => (
+              <div key={group.monthKey} className="space-y-2.5 avoid-break">
+                {/* MONTH HEADER BAR */}
+                <div className="bg-slate-100 border-l-4 border-indigo-700 px-3.5 py-2 rounded-r-lg flex flex-row items-center justify-between gap-2 border-y border-r border-slate-200">
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-indigo-700" />
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wide">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
                       Mês de Referência: {group.monthLabel}
                     </h3>
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs font-bold text-slate-700 font-mono">
+                  <div className="flex items-center gap-2.5 text-[10.5px] font-bold text-slate-700 font-mono">
                     <span>{group.reports.length} {group.reports.length === 1 ? "Laudo" : "Laudos"}</span>
                     <span>•</span>
                     <span>{group.companiesSet.size} {group.companiesSet.size === 1 ? "Empresa" : "Empresas"}</span>
                     <span>•</span>
-                    <span className="text-indigo-800">{group.totalLives} Vidas Cobertas</span>
+                    <span className="text-indigo-900 font-black">{group.totalLives} Vidas</span>
                   </div>
                 </div>
 
                 {/* MONTHLY COMPANY MATRIX TABLE */}
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left border-collapse text-xs">
+                <div className="overflow-hidden border border-slate-300 rounded-lg">
+                  <table className="w-full text-left border-collapse text-[10px]">
                     <thead>
-                      <tr className="bg-slate-800 text-white uppercase text-[9px] font-black tracking-wider">
-                        <th className="p-2.5 border-b border-slate-700">Empresa Cliente / CNPJ</th>
-                        <th className="p-2.5 border-b border-slate-700">Emissão / Período</th>
-                        <th className="p-2.5 border-b border-slate-700">Metodologia</th>
-                        <th className="p-2.5 border-b border-slate-700 text-center">GHEs</th>
-                        <th className="p-2.5 border-b border-slate-700 text-center">Vidas</th>
-                        <th className="p-2.5 border-b border-slate-700">Responsável Técnico</th>
-                        <th className="p-2.5 border-b border-slate-700 text-center">Riscos Críticos</th>
+                      <tr className="bg-slate-800 text-white uppercase text-[8.5px] font-black tracking-wider">
+                        <th className="p-2 border-b border-slate-700 w-[28%]">Empresa Cliente / CNPJ</th>
+                        <th className="p-2 border-b border-slate-700 w-[18%]">Emissão / Período</th>
+                        <th className="p-2 border-b border-slate-700 w-[14%]">Metodologia</th>
+                        <th className="p-2 border-b border-slate-700 text-center w-[8%]">GHEs</th>
+                        <th className="p-2 border-b border-slate-700 text-center w-[8%]">Vidas</th>
+                        <th className="p-2 border-b border-slate-700 w-[14%]">Responsável Técnico</th>
+                        <th className="p-2 border-b border-slate-700 text-center w-[10%]">Riscos</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200">
+                    <tbody className="divide-y divide-slate-200 bg-white">
                       {group.reports.map((report) => {
                         const totalLives = (report.sectors || []).reduce((acc, s) => acc + (s.employeeCount || 0), 0);
                         const totalSectors = (report.sectors || []).length;
@@ -636,66 +665,66 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                         const isQualitative = report.methodology === "qualitative";
 
                         return (
-                          <tr key={report.id} className="hover:bg-slate-50/80 transition-colors">
-                            {/* Company Name */}
-                            <td className="p-2.5 font-bold text-slate-900">
-                              <div className="text-xs font-black text-slate-900">{report.companyName}</div>
+                          <tr key={report.id} className="hover:bg-slate-50 transition-colors">
+                            {/* Company Name & CNPJ */}
+                            <td className="p-2 font-bold text-slate-900">
+                              <div className="text-[11px] font-black text-slate-900 leading-tight">{report.companyName}</div>
                               {report.companyFantasyName && report.companyFantasyName !== report.companyName && (
-                                <div className="text-[10px] font-medium text-slate-500">{report.companyFantasyName}</div>
+                                <div className="text-[9.5px] font-medium text-slate-600">{report.companyFantasyName}</div>
                               )}
-                              <div className="text-[9px] font-mono text-slate-400">CNPJ: {report.cnpj || "N/I"}</div>
+                              <div className="text-[8.5px] font-mono text-slate-500 mt-0.5">CNPJ: {report.cnpj || "N/I"}</div>
                             </td>
 
-                            {/* Date */}
-                            <td className="p-2.5 font-medium text-slate-700">
-                              <div className="font-bold text-slate-800">{formatDate(report.createdAt)}</div>
-                              <div className="text-[9px] text-slate-500">
-                                Campo: {formatDate(report.dateStart)} - {formatDate(report.dateEnd)}
+                            {/* Dates */}
+                            <td className="p-2 font-medium text-slate-700">
+                              <div className="font-bold text-slate-800 text-[10.5px]">{formatDate(report.createdAt)}</div>
+                              <div className="text-[8.5px] text-slate-500">
+                                Campo: {formatDate(report.dateStart)} a {formatDate(report.dateEnd)}
                               </div>
                             </td>
 
                             {/* Methodology */}
-                            <td className="p-2.5 font-bold">
+                            <td className="p-2 font-bold">
                               {isQualitative ? (
-                                <span className="text-[10px] font-extrabold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 inline-block">
+                                <span className="text-[9px] font-extrabold text-teal-900 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-300 inline-block">
                                   Qualitativo
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-extrabold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 inline-block">
+                                <span className="text-[9px] font-extrabold text-indigo-900 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-300 inline-block">
                                   COPSOQ II-BR
                                 </span>
                               )}
                             </td>
 
                             {/* GHEs Count */}
-                            <td className="p-2.5 text-center font-mono font-black text-slate-800">
+                            <td className="p-2 text-center font-mono font-black text-slate-800 text-[11px]">
                               {totalSectors}
                             </td>
 
                             {/* Lives Count */}
-                            <td className="p-2.5 text-center font-mono font-black text-indigo-900 bg-indigo-50/50">
+                            <td className="p-2 text-center font-mono font-black text-indigo-950 bg-indigo-50/60 text-[11px]">
                               {totalLives}
                             </td>
 
                             {/* Technical Professional */}
-                            <td className="p-2.5 font-medium text-slate-700">
-                              <div className="font-bold text-slate-800">{report.professionalName || "N/I"}</div>
-                              <div className="text-[9px] text-slate-400 font-mono">{report.professionalCouncil || ""}</div>
+                            <td className="p-2 font-medium text-slate-700">
+                              <div className="font-bold text-slate-800 leading-tight">{report.professionalName || "N/I"}</div>
+                              <div className="text-[8.5px] text-slate-500 font-mono">{report.professionalCouncil || ""}</div>
                             </td>
 
-                            {/* Critical Risks Badge */}
-                            <td className="p-2.5 text-center font-bold">
+                            {/* Risk Status Badge */}
+                            <td className="p-2 text-center font-bold">
                               {highRisks > 0 ? (
-                                <span className="text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded inline-flex items-center gap-1">
-                                  <ShieldAlert className="w-3 h-3 text-rose-600" /> {highRisks} Alto/Grave
+                                <span className="text-[8.5px] font-black text-rose-800 bg-rose-50 border border-rose-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+                                  <ShieldAlert className="w-2.5 h-2.5 text-rose-600" /> {highRisks} Alto/Grave
                                 </span>
                               ) : medRisks > 0 ? (
-                                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded inline-block">
-                                  {medRisks} Risco Médio
+                                <span className="text-[8.5px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.5 rounded inline-block">
+                                  {medRisks} Médio
                                 </span>
                               ) : (
-                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded inline-flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Controlado
+                                <span className="text-[8.5px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Controlado
                                 </span>
                               )}
                             </td>
@@ -710,28 +739,28 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
           </div>
         )}
 
-        {/* PDF FOOTER & SIGNATURE SECTION */}
-        <div className="pt-8 border-t border-slate-300 mt-8 space-y-6 avoid-break">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
+        {/* PDF FOOTER & SIGNATURE SECTION (AVOIDS UNWANTED PAGE BREAKS) */}
+        <div className="pt-6 border-t-2 border-slate-300 mt-6 space-y-5 avoid-break">
+          <div className="grid grid-cols-2 gap-8 text-center pt-2">
             <div className="space-y-1">
-              <div className="border-b border-slate-400 w-3/4 mx-auto pb-1"></div>
-              <p className="text-xs font-extrabold text-slate-800">
+              <div className="border-b border-slate-400 w-4/5 mx-auto pb-1"></div>
+              <p className="text-[11px] font-extrabold text-slate-900 uppercase">
                 {assessor.fantasyName || "Assessoria Técnica de SST"}
               </p>
-              <p className="text-[10px] text-slate-500 font-medium">Departamento de Gestão de Laudos Psicossociais</p>
+              <p className="text-[9.5px] text-slate-600 font-medium">Departamento de Gestão de Laudos Psicossociais</p>
             </div>
 
             <div className="space-y-1">
-              <div className="border-b border-slate-400 w-3/4 mx-auto pb-1"></div>
-              <p className="text-xs font-extrabold text-slate-800">
+              <div className="border-b border-slate-400 w-4/5 mx-auto pb-1"></div>
+              <p className="text-[11px] font-extrabold text-slate-900 uppercase">
                 Aprovação Executiva / Coordenação Médica
               </p>
-              <p className="text-[10px] text-slate-500 font-medium">Documento Gerado para Fins de Auditoria e Arquivo PDF</p>
+              <p className="text-[9.5px] text-slate-600 font-medium">Documento Consolidado para Controle e Auditoria em SST</p>
             </div>
           </div>
 
-          <div className="text-center text-[10px] text-slate-400 font-medium pt-2">
-            Relatório emitido via Sistema de Laudos de Riscos Psicossociais (SST) • Página 1 de 1
+          <div className="text-center text-[9px] text-slate-500 font-medium pt-1">
+            Relatório gerado via Sistema de Laudos de Riscos Psicossociais (SST) • Balanço Executivo Mensal por Empresa
           </div>
         </div>
       </div>
