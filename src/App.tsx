@@ -81,6 +81,103 @@ import {
 } from "./firebase";
 import { Login } from "./components/Login";
 
+// Utility to prune large base64 image strings from objects stored in localStorage cache
+function pruneLargeStrings(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "string") {
+    if (obj.length > 5000 || obj.startsWith("data:image/") || obj.includes(";base64,")) {
+      return "[OMITTED_IMAGE_FOR_CACHE]";
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(pruneLargeStrings);
+  }
+  if (typeof obj === "object") {
+    const pruned: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        pruned[key] = pruneLargeStrings(obj[key]);
+      }
+    }
+    return pruned;
+  }
+  return obj;
+}
+
+// Proactive storage cleanup on startup to shrink any bloated legacy data in localStorage
+function proactiveStorageCleanup() {
+  try {
+    const keysToClean: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("sst_psicossocial_")) {
+        keysToClean.push(key);
+      }
+    }
+    
+    keysToClean.forEach((key) => {
+      const val = localStorage.getItem(key);
+      if (val && (val.startsWith("{") || val.startsWith("["))) {
+        try {
+          const parsed = JSON.parse(val);
+          const pruned = pruneLargeStrings(parsed);
+          const prunedStr = JSON.stringify(pruned);
+          if (prunedStr.length < val.length) {
+            localStorage.setItem(key, prunedStr);
+            console.log(`[Proactive Storage Cleanup] Shrunk key "${key}" from ${val.length} to ${prunedStr.length} characters.`);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    });
+  } catch (e) {
+    console.error("Erro durante limpeza proativa do localStorage:", e);
+  }
+}
+
+// Run the proactive storage cleanup to free up quota space immediately before patching setItem
+try {
+  proactiveStorageCleanup();
+} catch (e) {
+  console.error("Falha ao executar proactiveStorageCleanup:", e);
+}
+
+// Safe localStorage wrapper to prevent QuotaExceededError crashes
+try {
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function (key: string, value: string) {
+    try {
+      let prunedValue = value;
+      // Prune large images for local storage fallback if the value is JSON
+      if (value && (value.startsWith("{") || value.startsWith("["))) {
+        try {
+          const parsed = JSON.parse(value);
+          const pruned = pruneLargeStrings(parsed);
+          prunedValue = JSON.stringify(pruned);
+        } catch (e) {
+          // Fallback to original value if parsing fails
+        }
+      }
+      originalSetItem.call(localStorage, key, prunedValue);
+    } catch (error: any) {
+      console.warn(`localStorage.setItem falhou para a chave "${key}":`, error);
+      if (error.name === "QuotaExceededError" || error.code === 22 || error.code === 1014) {
+        try {
+          // Remove non-critical items to try to recover
+          localStorage.removeItem("sst_psicossocial_catalog");
+          originalSetItem.call(localStorage, key, value);
+        } catch (retryError) {
+          console.warn("Quota do localStorage totalmente excedida. Operação de escrita ignorada para a chave:", key);
+        }
+      }
+    }
+  };
+} catch (e) {
+  console.error("Falha ao aplicar patch no localStorage.setItem:", e);
+}
+
 export default function App() {
   // Central State
   const [reports, setReports] = useState<Report[]>([]);

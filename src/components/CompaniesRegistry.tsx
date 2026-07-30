@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { Building, Plus, Trash2, Edit2, Check, X, ShieldCheck, Copy } from "lucide-react";
+import { compressImage } from "../imageUtils";
 
 interface Company {
   id: string;
@@ -83,18 +84,19 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
     onUpdateCompanies([...companies, duplicatedCompany]);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
+      try {
+        const compressed = await compressImage(file, 300, 300, 0.75);
         if (isEdit) {
-          setEditLogo(reader.result as string);
+          setEditLogo(compressed);
         } else {
-          setLogo(reader.result as string);
+          setLogo(compressed);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.error("Erro ao processar imagem de logo:", err);
+      }
     }
   };
 
