@@ -82,22 +82,27 @@ import {
 import { Login } from "./components/Login";
 
 // Utility to prune large base64 image strings from objects stored in localStorage cache
-function pruneLargeStrings(obj: any): any {
+function pruneLargeStrings(obj: any, keyName?: string): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === "string") {
-    if (obj.length > 5000 || obj.startsWith("data:image/") || obj.includes(";base64,")) {
+    // Preserve logos, favicons, cover images, signatures, and small images up to 500KB
+    const isBrandKey = keyName === "logo" || keyName === "favicon" || keyName === "defaultCoverImage" || keyName === "signatureUrl";
+    if (isBrandKey && obj.length < 700000) {
+      return obj;
+    }
+    if (obj.length > 50000 || (obj.startsWith("data:image/") && !isBrandKey) || (obj.includes(";base64,") && !isBrandKey)) {
       return "[OMITTED_IMAGE_FOR_CACHE]";
     }
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map(pruneLargeStrings);
+    return obj.map((item) => pruneLargeStrings(item, keyName));
   }
   if (typeof obj === "object") {
     const pruned: any = {};
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        pruned[key] = pruneLargeStrings(obj[key]);
+        pruned[key] = pruneLargeStrings(obj[key], key);
       }
     }
     return pruned;

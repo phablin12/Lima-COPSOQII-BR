@@ -55,6 +55,20 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [pdfPreviewMode, setPdfPreviewMode] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  // Check valid logo string
+  const hasValidLogo = useMemo(() => {
+    if (!assessor.logo) return false;
+    if (logoError) return false;
+    if (assessor.logo === "[OMITTED_IMAGE_FOR_CACHE]") return false;
+    return (
+      assessor.logo.startsWith("data:image/") || 
+      assessor.logo.startsWith("http://") || 
+      assessor.logo.startsWith("https://") ||
+      assessor.logo.startsWith("blob:")
+    );
+  }, [assessor.logo, logoError]);
 
   // --- MONTH NAMES HELPER ---
   const monthNames = useMemo(() => [
@@ -297,13 +311,13 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
         @media print {
           @page {
             size: A4 portrait;
-            margin: 12mm 12mm 15mm 12mm;
+            margin: 8mm 10mm 10mm 10mm;
           }
 
           html, body {
             background-color: #ffffff !important;
             color: #0f172a !important;
-            font-size: 9.5pt !important;
+            font-size: 9pt !important;
             font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -330,7 +344,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
             display: table-header-group !important;
           }
 
-          /* Avoid cutting individual rows or month blocks across page boundaries */
+          /* Avoid cutting individual rows across page boundaries */
           tr {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -527,17 +541,18 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
         }`}
       >
         {/* PDF HEADER SECTION (ELEGANT CORPORATE HEADER) */}
-        <div className="border-b-2 border-slate-900 pb-5 flex flex-row items-center justify-between gap-4">
+        <div className="border-b-2 border-slate-900 pb-4 flex flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            {assessor.logo ? (
+            {hasValidLogo ? (
               <img 
                 src={assessor.logo} 
                 alt="Logo da Assessoria" 
-                className="w-16 h-16 object-contain rounded-lg border border-slate-200 p-1 shrink-0"
+                onError={() => setLogoError(true)}
+                className="w-16 h-16 object-contain rounded-lg border border-slate-200 p-1 shrink-0 bg-white"
               />
             ) : (
-              <div className="w-14 h-14 bg-slate-900 text-amber-300 rounded-lg flex items-center justify-center font-black text-lg shrink-0">
-                SST
+              <div className="w-14 h-14 bg-slate-900 text-amber-300 rounded-lg flex items-center justify-center font-black text-lg shrink-0 border border-slate-700 shadow-xs">
+                {assessor.fantasyName ? assessor.fantasyName.substring(0, 3).toUpperCase() : "SST"}
               </div>
             )}
 
@@ -570,62 +585,62 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
         </div>
 
         {/* DOCUMENT BANNER & EXECUTIVE METRICS SUMMARY */}
-        <div className="bg-slate-900 text-white p-5 rounded-xl space-y-3 print-header-bg">
-          <div className="flex flex-row items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+        <div className="bg-slate-900 text-white p-4 rounded-xl space-y-2.5 print-header-bg">
+          <div className="flex flex-row items-center justify-between gap-2 border-b border-slate-800 pb-2">
             <div>
-              <h2 className="text-sm font-black uppercase text-amber-300 tracking-wider">
+              <h2 className="text-xs font-black uppercase text-amber-300 tracking-wider">
                 BALANÇO MENSAL DE LAUDOS E RESULTADOS POR EMPRESA
               </h2>
-              <p className="text-[11px] text-slate-300 mt-0.5">
+              <p className="text-[10px] text-slate-300 mt-0.5">
                 Mapeamento consolidado de riscos psicossociais, cobertura de vidas e setores operacionais.
               </p>
             </div>
-            <span className="text-[10px] font-mono bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded border border-slate-700 shrink-0">
+            <span className="text-[9px] font-mono bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded border border-slate-700 shrink-0">
               DOCUMENTO A4 / AUDITÁVEL
             </span>
           </div>
 
           {/* EXECUTIVE METRICS GRID (CLEAN & BALANCED) */}
-          <div className="grid grid-cols-4 gap-3 pt-1">
-            <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-left">
-              <span className="text-[8.5px] uppercase font-bold text-slate-400 block">Laudos Emitidos</span>
-              <span className="text-lg font-black font-mono text-white">{overallMetrics.reportsCount}</span>
-              <span className="text-[8px] text-slate-400 block">no período selecionado</span>
+          <div className="grid grid-cols-4 gap-2.5 pt-0.5">
+            <div className="bg-slate-800/90 p-2 rounded-lg border border-slate-700 text-left">
+              <span className="text-[8px] uppercase font-bold text-slate-400 block">Laudos Emitidos</span>
+              <span className="text-base font-black font-mono text-white">{overallMetrics.reportsCount}</span>
+              <span className="text-[7.5px] text-slate-400 block">no período selecionado</span>
             </div>
 
-            <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-left">
-              <span className="text-[8.5px] uppercase font-bold text-slate-400 block">Empresas Clientes</span>
-              <span className="text-lg font-black font-mono text-amber-300">{overallMetrics.companiesCount}</span>
-              <span className="text-[8px] text-slate-400 block">atendidas no balanço</span>
+            <div className="bg-slate-800/90 p-2 rounded-lg border border-slate-700 text-left">
+              <span className="text-[8px] uppercase font-bold text-slate-400 block">Empresas Clientes</span>
+              <span className="text-base font-black font-mono text-amber-300">{overallMetrics.companiesCount}</span>
+              <span className="text-[7.5px] text-slate-400 block">atendidas no balanço</span>
             </div>
 
-            <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-left">
-              <span className="text-[8.5px] uppercase font-bold text-slate-400 block">Vidas Impactadas</span>
-              <span className="text-lg font-black font-mono text-emerald-400">{overallMetrics.totalLives}</span>
-              <span className="text-[8px] text-slate-400 block">colaboradores diretos</span>
+            <div className="bg-slate-800/90 p-2 rounded-lg border border-slate-700 text-left">
+              <span className="text-[8px] uppercase font-bold text-slate-400 block">Vidas Impactadas</span>
+              <span className="text-base font-black font-mono text-emerald-400">{overallMetrics.totalLives}</span>
+              <span className="text-[7.5px] text-slate-400 block">colaboradores diretos</span>
             </div>
 
-            <div className="bg-slate-800/90 p-2.5 rounded-lg border border-slate-700 text-left">
-              <span className="text-[8.5px] uppercase font-bold text-slate-400 block">GHEs Mapeados</span>
-              <span className="text-lg font-black font-mono text-indigo-300">{overallMetrics.totalSectors}</span>
-              <span className="text-[8px] text-slate-400 block">setores operacionais</span>
+            <div className="bg-slate-800/90 p-2 rounded-lg border border-slate-700 text-left">
+              <span className="text-[8px] uppercase font-bold text-slate-400 block">GHEs Mapeados</span>
+              <span className="text-base font-black font-mono text-indigo-300">{overallMetrics.totalSectors}</span>
+              <span className="text-[7.5px] text-slate-400 block">setores operacionais</span>
             </div>
           </div>
         </div>
 
         {/* -------------------------------------------------------------------------------- */}
-        {/* DETAILED MONTHLY BREAKDOWN TABLES (ORGANIZED BY MONTH WITH CLEAN PAGE BREAKS)    */}
+        {/* DETAILED MONTHLY BREAKDOWN TABLES (ORGANIZED BY MONTH WITH CONTINUOUS PAGE FLOW) */}
         {/* -------------------------------------------------------------------------------- */}
         {reportsGroupedByMonth.length === 0 ? (
-          <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200">
+          <div className="p-6 text-center bg-slate-50 rounded-xl border border-slate-200">
             <p className="text-xs font-bold text-slate-600">Nenhum laudo encontrado para o filtro aplicado.</p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {reportsGroupedByMonth.map((group, groupIdx) => (
-              <div key={group.monthKey} className="space-y-2.5 avoid-break">
+          <div className="space-y-4">
+            {reportsGroupedByMonth.map((group) => (
+              <div key={group.monthKey} className="space-y-2">
                 {/* MONTH HEADER BAR */}
-                <div className="bg-slate-100 border-l-4 border-indigo-700 px-3.5 py-2 rounded-r-lg flex flex-row items-center justify-between gap-2 border-y border-r border-slate-200">
+                <div className="bg-slate-100 border-l-4 border-indigo-700 px-3 py-1.5 rounded-r-lg flex flex-row items-center justify-between gap-2 border-y border-r border-slate-200 avoid-break">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
                     <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
@@ -633,7 +648,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                     </h3>
                   </div>
 
-                  <div className="flex items-center gap-2.5 text-[10.5px] font-bold text-slate-700 font-mono">
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-700 font-mono">
                     <span>{group.reports.length} {group.reports.length === 1 ? "Laudo" : "Laudos"}</span>
                     <span>•</span>
                     <span>{group.companiesSet.size} {group.companiesSet.size === 1 ? "Empresa" : "Empresas"}</span>
@@ -644,16 +659,16 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
 
                 {/* MONTHLY COMPANY MATRIX TABLE */}
                 <div className="overflow-hidden border border-slate-300 rounded-lg">
-                  <table className="w-full text-left border-collapse text-[10px]">
+                  <table className="w-full text-left border-collapse text-[9.5px]">
                     <thead>
-                      <tr className="bg-slate-800 text-white uppercase text-[8.5px] font-black tracking-wider">
-                        <th className="p-2 border-b border-slate-700 w-[28%]">Empresa Cliente / CNPJ</th>
-                        <th className="p-2 border-b border-slate-700 w-[18%]">Emissão / Período</th>
-                        <th className="p-2 border-b border-slate-700 w-[14%]">Metodologia</th>
-                        <th className="p-2 border-b border-slate-700 text-center w-[8%]">GHEs</th>
-                        <th className="p-2 border-b border-slate-700 text-center w-[8%]">Vidas</th>
-                        <th className="p-2 border-b border-slate-700 w-[14%]">Responsável Técnico</th>
-                        <th className="p-2 border-b border-slate-700 text-center w-[10%]">Riscos</th>
+                      <tr className="bg-slate-800 text-white uppercase text-[8px] font-black tracking-wider">
+                        <th className="p-1.5 border-b border-slate-700 w-[28%]">Empresa Cliente / CNPJ</th>
+                        <th className="p-1.5 border-b border-slate-700 w-[18%]">Emissão / Período</th>
+                        <th className="p-1.5 border-b border-slate-700 w-[14%]">Metodologia</th>
+                        <th className="p-1.5 border-b border-slate-700 text-center w-[8%]">GHEs</th>
+                        <th className="p-1.5 border-b border-slate-700 text-center w-[8%]">Vidas</th>
+                        <th className="p-1.5 border-b border-slate-700 w-[14%]">Responsável Técnico</th>
+                        <th className="p-1.5 border-b border-slate-700 text-center w-[10%]">Riscos</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 bg-white">
@@ -667,63 +682,63 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                         return (
                           <tr key={report.id} className="hover:bg-slate-50 transition-colors">
                             {/* Company Name & CNPJ */}
-                            <td className="p-2 font-bold text-slate-900">
-                              <div className="text-[11px] font-black text-slate-900 leading-tight">{report.companyName}</div>
+                            <td className="p-1.5 font-bold text-slate-900">
+                              <div className="text-[10px] font-black text-slate-900 leading-tight">{report.companyName}</div>
                               {report.companyFantasyName && report.companyFantasyName !== report.companyName && (
-                                <div className="text-[9.5px] font-medium text-slate-600">{report.companyFantasyName}</div>
+                                <div className="text-[9px] font-medium text-slate-600">{report.companyFantasyName}</div>
                               )}
-                              <div className="text-[8.5px] font-mono text-slate-500 mt-0.5">CNPJ: {report.cnpj || "N/I"}</div>
+                              <div className="text-[8px] font-mono text-slate-500 mt-0.5">CNPJ: {report.cnpj || "N/I"}</div>
                             </td>
 
                             {/* Dates */}
-                            <td className="p-2 font-medium text-slate-700">
-                              <div className="font-bold text-slate-800 text-[10.5px]">{formatDate(report.createdAt)}</div>
-                              <div className="text-[8.5px] text-slate-500">
+                            <td className="p-1.5 font-medium text-slate-700">
+                              <div className="font-bold text-slate-800 text-[10px]">{formatDate(report.createdAt)}</div>
+                              <div className="text-[8px] text-slate-500">
                                 Campo: {formatDate(report.dateStart)} a {formatDate(report.dateEnd)}
                               </div>
                             </td>
 
                             {/* Methodology */}
-                            <td className="p-2 font-bold">
+                            <td className="p-1.5 font-bold">
                               {isQualitative ? (
-                                <span className="text-[9px] font-extrabold text-teal-900 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-300 inline-block">
+                                <span className="text-[8.5px] font-extrabold text-teal-900 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-300 inline-block">
                                   Qualitativo
                                 </span>
                               ) : (
-                                <span className="text-[9px] font-extrabold text-indigo-900 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-300 inline-block">
+                                <span className="text-[8.5px] font-extrabold text-indigo-900 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-300 inline-block">
                                   COPSOQ II-BR
                                 </span>
                               )}
                             </td>
 
                             {/* GHEs Count */}
-                            <td className="p-2 text-center font-mono font-black text-slate-800 text-[11px]">
+                            <td className="p-1.5 text-center font-mono font-black text-slate-800 text-[10px]">
                               {totalSectors}
                             </td>
 
                             {/* Lives Count */}
-                            <td className="p-2 text-center font-mono font-black text-indigo-950 bg-indigo-50/60 text-[11px]">
+                            <td className="p-1.5 text-center font-mono font-black text-indigo-950 bg-indigo-50/60 text-[10px]">
                               {totalLives}
                             </td>
 
                             {/* Technical Professional */}
-                            <td className="p-2 font-medium text-slate-700">
+                            <td className="p-1.5 font-medium text-slate-700">
                               <div className="font-bold text-slate-800 leading-tight">{report.professionalName || "N/I"}</div>
-                              <div className="text-[8.5px] text-slate-500 font-mono">{report.professionalCouncil || ""}</div>
+                              <div className="text-[8px] text-slate-500 font-mono">{report.professionalCouncil || ""}</div>
                             </td>
 
                             {/* Risk Status Badge */}
-                            <td className="p-2 text-center font-bold">
+                            <td className="p-1.5 text-center font-bold">
                               {highRisks > 0 ? (
-                                <span className="text-[8.5px] font-black text-rose-800 bg-rose-50 border border-rose-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+                                <span className="text-[8px] font-black text-rose-800 bg-rose-50 border border-rose-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
                                   <ShieldAlert className="w-2.5 h-2.5 text-rose-600" /> {highRisks} Alto/Grave
                                 </span>
                               ) : medRisks > 0 ? (
-                                <span className="text-[8.5px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.5 rounded inline-block">
+                                <span className="text-[8px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.5 rounded inline-block">
                                   {medRisks} Médio
                                 </span>
                               ) : (
-                                <span className="text-[8.5px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+                                <span className="text-[8px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
                                   <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Controlado
                                 </span>
                               )}
