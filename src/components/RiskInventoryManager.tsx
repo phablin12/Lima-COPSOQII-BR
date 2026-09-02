@@ -38,7 +38,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
   // Recommendations and action plan integration
   const [recommendation, setRecommendation] = useState("");
   const [priority, setPriority] = useState<RiskInventoryItem["priority"]>("Média");
-  const [responsible, setResponsible] = useState("");
+  const [responsible, setResponsible] = useState("Liderança e Gestores");
   const [status, setStatus] = useState<RiskInventoryItem["status"]>("Pendente");
   const [deadline, setDeadline] = useState("");
   const [monitoring, setMonitoring] = useState("");
@@ -47,7 +47,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
   // Action plan specific fields
   const [actionObjective, setActionObjective] = useState("");
   const [actionProposed, setActionProposed] = useState("");
-  const [periodicity, setPeriodicity] = useState("Mensal");
+  const [periodicity, setPeriodicity] = useState("A definir pela empresa");
   const [efficacyIndicator, setEfficacyIndicator] = useState("");
 
   const [isAdding, setIsAdding] = useState(false);
@@ -58,26 +58,32 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
   const handleStartEdit = (item: RiskInventoryItem) => {
     setEditingItemId(item.id);
     setSelectedSectorId(item.sectorId);
-    setSelectedCatalogRiskId("custom");
+    
+    // Find matching catalog risk by name or id if available
+    const matchingRisk = catalog.find(
+      (r) => r.id === item.riskName || r.name.toLowerCase() === item.riskName.toLowerCase()
+    );
+    setSelectedCatalogRiskId(matchingRisk ? matchingRisk.id : "custom");
+
     setCustomRiskName(item.riskName);
     setExposedCount(item.exposedCount);
     setSourcesField(item.sourcesField);
     setPossibleInjuries(item.possibleInjuries);
-    setDiseaseHistory(item.diseaseHistory || "");
+    setDiseaseHistory(item.diseaseHistory || "Nenhum registro oficial de adoecimento até o momento.");
     setExistingControls(item.existingControls || "");
     setProbability(item.probability);
     setSeverity(item.severity);
     setUncertainty(item.uncertainty);
     setRecommendation(item.recommendation || "");
     setPriority(item.priority || "Média");
-    setResponsible(item.responsible || "");
+    setResponsible(item.responsible || "Liderança e Gestores");
     setStatus(item.status || "Pendente");
-    setDeadline(item.deadline || "");
+    setDeadline(item.deadline === "Mês Corrente + 3" ? "A definir pela empresa" : (item.deadline || "A definir pela empresa"));
     setMonitoring(item.monitoring || "");
     setMeasureResults(item.measureResults || "");
     setActionObjective(item.actionObjective || "");
     setActionProposed(item.actionProposed || "");
-    setPeriodicity(item.periodicity || "Mensal");
+    setPeriodicity(item.periodicity === "Mensal" ? "A definir pela empresa" : (item.periodicity || "A definir pela empresa"));
     setEfficacyIndicator(item.efficacyIndicator || "");
     setIsAdding(true);
     
@@ -90,6 +96,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
   const handleCancelEdit = () => {
     setEditingItemId(null);
     setIsAdding(false);
+    setSelectedCatalogRiskId("custom");
     // Reset Form fields
     setCustomRiskName("");
     setSourcesField("");
@@ -101,40 +108,84 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     setUncertainty("Certa");
     setRecommendation("");
     setPriority("Média");
-    setResponsible("");
+    setResponsible("Liderança e Gestores");
     setStatus("Pendente");
     setDeadline("");
     setMonitoring("");
     setMeasureResults("");
     setActionObjective("");
     setActionProposed("");
-    setPeriodicity("Mensal");
+    setPeriodicity("A definir pela empresa");
     setEfficacyIndicator("");
   };
 
-  // Sync inputs when selected risk from catalog changes
-  useEffect(() => {
-    if (selectedCatalogRiskId === "custom") {
-      setCustomRiskName("");
-      setSourcesField("");
-      setPossibleInjuries("");
+  // Explicit handler when user selects a risk from the catalog dropdown
+  const handleCatalogRiskSelect = (val: string) => {
+    setSelectedCatalogRiskId(val);
+    if (val === "custom") {
+      if (!editingItemId) {
+        setCustomRiskName("");
+        setSourcesField("");
+        setPossibleInjuries("");
+        setDiseaseHistory("Nenhum registro oficial de adoecimento até o momento.");
+        setExistingControls("");
+        setProbability(3);
+        setSeverity(3);
+        setUncertainty("Certa");
+        setRecommendation("");
+        setPriority("Média");
+        setResponsible("Liderança e Gestores");
+        setStatus("Pendente");
+        setDeadline("");
+        setMonitoring("");
+        setMeasureResults("");
+        setActionObjective("");
+        setActionProposed("");
+        setPeriodicity("A definir pela empresa");
+        setEfficacyIndicator("");
+      }
     } else {
-      const risk = catalog.find((r) => r.id === selectedCatalogRiskId);
+      const risk = catalog.find((r) => r.id === val);
       if (risk) {
         setCustomRiskName(risk.name);
         setSourcesField(risk.source);
         setPossibleInjuries(risk.possibleInjuries);
+        setDiseaseHistory(risk.diseaseHistory || "Nenhum registro oficial de adoecimento até o momento.");
+        setExistingControls(risk.existingControls || "");
+        
+        // Matrix calculation from catalog defaults
+        const prob = risk.probability || (risk.defaultLevel === "Insignificante" ? 1 : risk.defaultLevel === "Baixo" ? 2 : risk.defaultLevel === "Moderado" ? 3 : risk.defaultLevel === "Alto" ? 4 : 5);
+        const sev = risk.severity || (risk.defaultLevel === "Insignificante" ? 1 : risk.defaultLevel === "Baixo" ? 2 : risk.defaultLevel === "Moderado" ? 3 : risk.defaultLevel === "Alto" ? 4 : 5);
+        setProbability(prob);
+        setSeverity(sev);
+        setUncertainty(risk.uncertainty || "Certa");
+
+        // Action plan and recommendations pre-filled from catalog
+        const rec = risk.recommendation || `Implementar acompanhamento técnico e capacitação para mitigar ${risk.name}.`;
+        setRecommendation(rec);
+        setPriority(risk.priority || "Média");
+        setResponsible(risk.responsible || "Liderança e Gestores");
+        setStatus(risk.status || "Pendente");
+        setDeadline(risk.deadline || "");
+        setMonitoring(risk.monitoring || "Checklists de monitoramento periódico com os supervisores.");
+        setMeasureResults(risk.measureResults || "Redução de queixas na ouvidoria e manutenção ou aumento das notas nas próximas avaliações.");
+        setActionObjective(risk.actionObjective || `Mitigar os impactos decorrentes de ${risk.name}.`);
+        setActionProposed(risk.actionProposed || rec);
+        setPeriodicity(risk.periodicity || "A definir pela empresa");
+        setEfficacyIndicator(risk.efficacyIndicator || "Avaliação de clima / Feedbacks formais periódicos");
       }
     }
-  }, [selectedCatalogRiskId, catalog]);
+  };
 
-  // Sync exposed employees when sector changes
-  useEffect(() => {
-    const sect = report.sectors.find((s) => s.id === selectedSectorId);
-    if (sect) {
-      setExposedCount(sect.employeeCount);
+  const handleSectorSelect = (val: string) => {
+    setSelectedSectorId(val);
+    if (!editingItemId) {
+      const sect = report.sectors.find((s) => s.id === val);
+      if (sect) {
+        setExposedCount(sect.employeeCount);
+      }
     }
-  }, [selectedSectorId, report.sectors]);
+  };
 
   if (report.sectors.length === 0) {
     return (
@@ -178,14 +229,14 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
       priority,
       responsible: responsible.trim() || "Liderança e Gestores",
       status,
-      deadline: deadline.trim() || "Mês Corrente + 3",
+      deadline: deadline.trim() || "A definir pela empresa",
       monitoring: monitoring.trim() || "Checklists de monitoramento periódico com os supervisores.",
       measureResults: measureResults.trim() || "Redução de queixas na ouvidoria e manutenção ou aumento das notas nas próximas avaliações.",
       
       // Action Plan synchronized fields
       actionObjective: actionObjective.trim() || `Mitigar os impactos decorrentes de ${customRiskName}.`,
       actionProposed: actionProposed.trim() || recommendation.trim() || `Realizar plano de melhorias estruturais para mitigar ${customRiskName}.`,
-      periodicity: periodicity.trim() || "Mensal",
+      periodicity: periodicity.trim() || "A definir pela empresa",
       efficacyIndicator: efficacyIndicator.trim() || "Avaliação de clima / Feedbacks formais periódicos"
     };
 
@@ -277,8 +328,34 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
       {/* Formulário de Adicionar ao Inventário */}
       {isAdding && (
         <form id="risk-form-container" onSubmit={handleCreateInventoryItem} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
-          <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-3">
-            <ShieldAlert className="w-4 h-4 text-slate-600" /> Preencher Registro de Risco no Setor
+          {editingItemId && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-xs flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span>
+                  <strong>Modo de Edição Ativo:</strong> Editando a ficha do risco <strong>"{customRiskName || "sem título"}"</strong> no setor <strong>{getSectorName(selectedSectorId)}</strong>.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-xs font-bold text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 px-2.5 py-1 rounded transition cursor-pointer"
+              >
+                Cancelar Edição
+              </button>
+            </div>
+          )}
+
+          <h4 className="font-bold text-slate-800 text-sm flex items-center justify-between border-b border-slate-100 pb-3">
+            <span className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-slate-600" />
+              {editingItemId ? "Editar Ficha de Risco no Setor" : "Preencher Registro de Risco no Setor"}
+            </span>
+            {editingItemId && (
+              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                Ficha em Edição
+              </span>
+            )}
           </h4>
 
           {/* Seção 1: Identificação do Risco e Setor */}
@@ -290,7 +367,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                 <label className="text-xs font-semibold text-slate-600">Setor/GHE Afetado</label>
                 <SearchableSelect
                   value={selectedSectorId}
-                  onChange={(val) => setSelectedSectorId(val)}
+                  onChange={(val) => handleSectorSelect(val)}
                   options={report.sectors.map((s) => ({
                     value: s.id,
                     label: s.name,
@@ -306,14 +383,14 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                 <label className="text-xs font-semibold text-slate-600">Puxar do Catálogo ou Personalizar</label>
                 <SearchableSelect
                   value={selectedCatalogRiskId}
-                  onChange={(val) => setSelectedCatalogRiskId(val)}
+                  onChange={(val) => handleCatalogRiskSelect(val)}
                   options={[
                     ...catalog.map((risk) => ({
                       value: risk.id,
                       label: risk.name,
-                      subLabel: `Categoria: ${risk.category}`
+                      subLabel: `Nível sugerido: ${risk.defaultLevel}`
                     })),
-                    { value: "custom", label: "[Risco Personalizado / Não listado]", subLabel: "Crie um risco personalizado abaixo" }
+                    { value: "custom", label: "[Risco Personalizado / Não listado]", subLabel: "Preencher campos manualmente" }
                   ]}
                   placeholder="Selecione o risco do catálogo..."
                   searchPlaceholder="Buscar risco no catálogo..."
@@ -361,7 +438,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setSourcesField(e.target.value)}
                   placeholder="Ex: Introdução de novo sistema informatizado de faturamento sem treinamento prévio da equipe."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y max-w-full"
                 />
               </div>
 
@@ -372,7 +449,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setPossibleInjuries(e.target.value)}
                   placeholder="Ex: Estresse ocupacional crônico, dores cefálicas tensionais, crises episódicas de ansiedade no setor."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y max-w-full"
                 />
               </div>
             </div>
@@ -385,7 +462,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setDiseaseHistory(e.target.value)}
                   placeholder="Ex: Houve 1 afastamento médico de 5 dias nos últimos 12 meses por queixas correlacionadas a estresse."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y max-w-full"
                 />
               </div>
 
@@ -396,7 +473,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   onChange={(e) => setExistingControls(e.target.value)}
                   placeholder="Ex: Canais de comunicação abertos com o supervisor direto para reportar conflitos."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y max-w-full"
                 />
               </div>
             </div>
@@ -494,7 +571,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   }}
                   placeholder="Ex: Realizar rodadas de feedback individual com a nova equipe de faturamento e treinamento instrucional do novo CRM de forma urgente."
                   rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 resize-y max-w-full"
                 />
               </div>
             </div>
@@ -532,7 +609,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   type="text"
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
-                  placeholder="Ex: Agosto/2026"
+                  placeholder="A definir pela empresa"
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800"
                 />
               </div>
@@ -612,7 +689,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                     type="text"
                     value={periodicity}
                     onChange={(e) => setPeriodicity(e.target.value)}
-                    placeholder="Ex: Mensal / Eventual"
+                    placeholder="A definir pela empresa"
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
                   />
                 </div>

@@ -502,34 +502,22 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   </div>
                 </div>
 
-                {/* Escopo da Avaliação (Métricas Chave) */}
+                {/* Escopo da Avaliação (Métricas Chave Gerais) */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Funcionários Avaliados</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Funcionários na Empresa</span>
                     <span className="text-2xl font-black text-slate-800 font-mono">{totalEmployees}</span>
-                    <span className="text-[10px] text-slate-500 block">Total no GHE</span>
+                    <span className="text-[10px] text-slate-500 block">Total de Colaboradores</span>
                   </div>
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Setores Ativos</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Setores Mapeados</span>
                     <span className="text-2xl font-black text-slate-800 font-mono">{report.sectors.length}</span>
-                    <span className="text-[10px] text-slate-500 block">Setores Mapeados</span>
+                    <span className="text-[10px] text-slate-500 block">Setores Ativos</span>
                   </div>
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Taxa de Resposta</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Taxa de Resposta Geral</span>
                     <span className="text-2xl font-black text-slate-800 font-mono">{totalResponseRate}%</span>
-                    <span className="text-[10px] text-slate-500 block">{totalRespondents} respostas</span>
-                  </div>
-                </div>
-
-                {/* Setores Avaliados */}
-                <div className="text-xs text-left bg-white p-4 rounded-xl border border-slate-200 space-y-1.5">
-                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Detalhamento por Setor</span>
-                  <div className="flex flex-wrap gap-2">
-                    {report.sectors.map((s) => (
-                      <span key={s.id} className="inline-block bg-slate-50 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-medium">
-                        {s.name}: <strong className="font-extrabold text-slate-900 font-mono">{s.respondentsCount || 0}</strong> de <strong className="font-extrabold text-slate-900 font-mono">{s.employeeCount || 0}</strong> func. (<strong className="text-slate-800 font-bold font-mono">{s.employeeCount > 0 ? Math.round(((s.respondentsCount || 0) / s.employeeCount) * 100) : 0}%</strong>)
-                      </span>
-                    ))}
+                    <span className="text-[10px] text-slate-500 block">{totalRespondents} respostas apuradas</span>
                   </div>
                 </div>
               </div>
@@ -806,12 +794,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 <div className="space-y-8">
                   {report.sectors.map((sector) => (
                     <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none">
-                      <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
+                      <div className="bg-slate-100 p-3 rounded-lg flex items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2">
                         <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
-                        <div className="flex gap-4 text-xs font-semibold text-slate-600">
-                          <span>Expostos: {sector.employeeCount} func.</span>
-                          <span>Respondentes: {sector.respondentsCount ?? 0} ({sector.employeeCount > 0 ? (((sector.respondentsCount ?? 0) / sector.employeeCount) * 100).toFixed(1) : 0}%)</span>
-                        </div>
                       </div>
 
                       <table className="w-full border-collapse border border-slate-200 text-xs">

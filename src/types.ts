@@ -23,8 +23,26 @@ export interface CatalogRisk {
   source: string;
   possibleInjuries: string;
   defaultLevel: "Insignificante" | "Baixo" | "Moderado" | "Alto" | "Grave";
-  existingControls?: string; // Existing preventive controls
-  recommendation?: string; // Recommended controls
+  diseaseHistory?: string; // Histórico de doenças / afastamentos
+  existingControls?: string; // Medidas de controle existentes
+  
+  // Matrix 5x5 defaults
+  probability?: number; // 1 to 5
+  severity?: number; // 1 to 5
+  uncertainty?: "Certa" | "Incerta" | "Altamente Incerta";
+
+  // Recomendações e Cronograma de Ações
+  recommendation?: string; // Recomendação preventiva
+  priority?: "Baixa" | "Média" | "Alta";
+  responsible?: string; // Quem fará (ex: líderes, empresa, gestores)
+  status?: "Pendente" | "Em Andamento" | "Concluído";
+  deadline?: string; // Prazo estimado (padrão: "A definir pela empresa")
+  monitoring?: string; // Como acompanhar
+  measureResults?: string; // Como aferir resultados
+  actionObjective?: string; // Objetivo da ação
+  actionProposed?: string; // Ação proposta detalhada
+  periodicity?: string; // Periodicidade (padrão: "A definir pela empresa")
+  efficacyIndicator?: string; // Indicador de eficácia
 }
 
 export interface RiskInventoryItem {

@@ -39,10 +39,10 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
     setActionProposed(item.actionProposed || item.recommendation || "");
     setResponsible(item.responsible || "Liderança e Gestores");
     setPriority(item.priority || "Média");
-    setPeriodicity(item.periodicity || "Mensal");
+    setPeriodicity(item.periodicity === "Mensal" ? "A definir pela empresa" : (item.periodicity || "A definir pela empresa"));
     setStatus(item.status || "Pendente");
     setEfficacyIndicator(item.efficacyIndicator || "Feedbacks formais periódicos");
-    setDeadline(item.deadline || "Mês Corrente + 3");
+    setDeadline(item.deadline === "Mês Corrente + 3" ? "A definir pela empresa" : (item.deadline || "A definir pela empresa"));
   };
 
   const saveEdit = (id: string) => {
@@ -52,13 +52,13 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
           ...item,
           actionObjective: actionObjective.trim(),
           actionProposed: actionProposed.trim(),
-          recommendation: actionProposed.trim(), // Keep preventive recommendation synced
-          responsible: responsible.trim(),
+          recommendation: actionProposed.trim() || item.recommendation, // Keep preventive recommendation synced
+          responsible: responsible.trim() || "Liderança e Gestores",
           priority,
-          periodicity: periodicity.trim(),
+          periodicity: periodicity.trim() || "A definir pela empresa",
           status,
           efficacyIndicator: efficacyIndicator.trim(),
-          deadline: deadline.trim(),
+          deadline: deadline.trim() || "A definir pela empresa",
         };
       }
       return item;
@@ -282,7 +282,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
                             value={actionProposed}
                             onChange={(e) => setActionProposed(e.target.value)}
                             rows={1}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-slate-400 resize-none"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-slate-400 resize-y max-w-full"
                             placeholder="Ex: Oferecer horários alternativos e pausas programadas."
                           />
                         </div>
