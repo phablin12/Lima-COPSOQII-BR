@@ -6,8 +6,9 @@
 import React from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { replaceTemplateVariables } from "./ChaptersEditor";
-import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
+import { Download, FolderDown, Loader2, CheckCircle2, AlertCircle, Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
+import { exportReportToPdf, getReportDefaultFileName, PdfExportProgress } from "../utils/pdfExport";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -152,6 +153,37 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     return parts.filter(Boolean).join(", ");
   };
 
+  const [isExporting, setIsExporting] = React.useState(false);
+  const [exportProgress, setExportProgress] = React.useState<PdfExportProgress | null>(null);
+  const [exportResult, setExportResult] = React.useState<{ success: boolean; fileName?: string; error?: string } | null>(null);
+
+  const handleDownloadPdf = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportResult(null);
+    setExportProgress({ current: 0, total: 10, message: "Preparando documento...", percent: 5 });
+
+    try {
+      const result = await exportReportToPdf(report, (prog) => {
+        setExportProgress(prog);
+      });
+
+      if (result.success && !result.cancelled) {
+        setExportResult({ success: true, fileName: result.fileName });
+        setTimeout(() => {
+          setExportResult(null);
+        }, 8000);
+      } else if (result.error) {
+        setExportResult({ success: false, error: result.error });
+      }
+    } catch (err: any) {
+      setExportResult({ success: false, error: err?.message || "Erro inesperado ao gerar PDF" });
+    } finally {
+      setIsExporting(false);
+      setExportProgress(null);
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -280,28 +312,88 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
   return (
     <div className="space-y-6" id="report-print-preview-container">
-      {/* Barra de Ações Web */}
-      <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-            <Printer className="w-4 h-4 text-slate-600" />
-            Visualização de Impressão e Exportação
-          </h3>
-          <p className="text-xs text-slate-500">
-            Abaixo está o documento oficial formatado para impressão em papel A4 ou exportação para PDF (utilizando o comando de impressão do navegador).
-          </p>
+      {/* Ferramenta para Baixar o Relatório em PDF */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3.5 print:hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <Download className="w-4 h-4 text-slate-700" />
+              Download do Relatório Técnico em PDF
+            </h3>
+            <p className="text-xs text-slate-500 max-w-xl">
+              Gere o documento oficial completo em PDF em alta resolução. O arquivo será salvo diretamente na pasta do seu computador com a nomenclatura padronizada.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-700 font-mono bg-slate-50 px-3 py-1 rounded-lg border border-slate-200">
+                <FolderDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>Nome padrão: <strong className="text-slate-900 font-semibold">{getReportDefaultFileName(report)}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center">
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isExporting}
+              className={`flex items-center justify-center gap-2 text-xs font-bold text-white px-5 py-3 rounded-xl transition-all shadow-xs cursor-pointer ${
+                isExporting
+                  ? "bg-slate-700 opacity-90 cursor-not-allowed"
+                  : "bg-slate-900 hover:bg-black active:scale-[0.99]"
+              }`}
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Gerando PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-white" />
+                  <span>Baixar Relatório em PDF</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-        <button
-          onClick={handlePrint}
-          className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-5 py-2.5 rounded-lg transition-colors cursor-pointer shadow-xs self-start sm:self-center"
-        >
-          <Printer className="w-4 h-4" /> Imprimir / Salvar em PDF
-        </button>
+        {/* Barra de Progresso Durante a Geração */}
+        {isExporting && exportProgress && (
+          <div className="pt-3 border-t border-slate-100 space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span className="font-medium text-slate-700 flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
+                {exportProgress.message}
+              </span>
+              <span className="font-mono font-bold text-slate-900">{exportProgress.percent}%</span>
+            </div>
+            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-slate-800 transition-all duration-200 rounded-full"
+                style={{ width: `${exportProgress.percent}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Feedback de Sucesso */}
+        {exportResult?.success && (
+          <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Relatório em PDF gerado com sucesso! Arquivo salvo como: <strong>{exportResult.fileName}</strong></span>
+          </div>
+        )}
+
+        {/* Feedback de Erro */}
+        {exportResult?.error && (
+          <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs font-semibold text-rose-700 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>Não foi possível gerar o PDF: {exportResult.error}</span>
+          </div>
+        )}
       </div>
 
       {/* --- INÍCIO DO DOCUMENTO OFICIAL --- */}
-      <div className="bg-white p-8 sm:p-16 border border-slate-200 shadow-sm rounded-2xl mx-auto max-w-[900px] font-sans text-slate-800 print:border-none print:shadow-none print:p-0 leading-relaxed space-y-12">
+      <div id="report-printable-document" className="bg-white p-8 sm:p-16 border border-slate-200 shadow-sm rounded-2xl mx-auto max-w-[900px] font-sans text-slate-800 print:border-none print:shadow-none print:p-0 leading-relaxed space-y-12">
         
         {/* --- CAPA (Capa do Relatório) --- */}
         {(report.coverImage || assessor.defaultCoverImage) ? (

@@ -1019,8 +1019,8 @@ export default function App() {
                   >
                     <FileText className="w-4 h-4 shrink-0 text-slate-450" />
                     {currentReport.methodology === "qualitative"
-                      ? (currentReport.risksRecognized !== false ? "6. Visualizar Laudo" : "4. Visualizar Laudo")
-                      : (currentReport.risksRecognized !== false ? "7. Visualizar Laudo" : "5. Visualizar Laudo")
+                      ? (currentReport.risksRecognized !== false ? "6. Visualizar Relatório" : "4. Visualizar Relatório")
+                      : (currentReport.risksRecognized !== false ? "7. Visualizar Relatório" : "5. Visualizar Relatório")
                     }
                   </button>
                 </div>
