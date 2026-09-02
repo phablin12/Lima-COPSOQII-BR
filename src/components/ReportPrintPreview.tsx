@@ -6,9 +6,9 @@
 import React from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { replaceTemplateVariables } from "./ChaptersEditor";
-import { Download, FolderDown, Loader2, CheckCircle2, AlertCircle, Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
+import { Download, FolderDown, Loader2, CheckCircle2, AlertCircle, Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock, ExternalLink, X } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
-import { exportReportToPdf, getReportDefaultFileName, PdfExportProgress } from "../utils/pdfExport";
+import { exportReportToPdf, getReportDefaultFileName, triggerDirectDownload, PdfExportProgress } from "../utils/pdfExport";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -156,23 +156,32 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportProgress, setExportProgress] = React.useState<PdfExportProgress | null>(null);
   const [exportResult, setExportResult] = React.useState<{ success: boolean; fileName?: string; error?: string } | null>(null);
+  const [showFolderModal, setShowFolderModal] = React.useState(false);
+  const [pendingBlob, setPendingBlob] = React.useState<{ blob: Blob; fileName: string } | null>(null);
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (saveMode: "picker" | "download" = "picker") => {
     if (isExporting) return;
     setIsExporting(true);
     setExportResult(null);
-    setExportProgress({ current: 0, total: 10, message: "Preparando documento...", percent: 5 });
+    setExportProgress({ current: 0, total: 10, message: "Iniciando auditoria A4 e paginação...", percent: 5 });
 
     try {
-      const result = await exportReportToPdf(report, (prog) => {
-        setExportProgress(prog);
-      });
+      const result = await exportReportToPdf(
+        report,
+        (prog) => {
+          setExportProgress(prog);
+        },
+        saveMode
+      );
 
       if (result.success && !result.cancelled) {
         setExportResult({ success: true, fileName: result.fileName });
         setTimeout(() => {
           setExportResult(null);
         }, 8000);
+      } else if (result.iframeRestricted && result.blob) {
+        setPendingBlob({ blob: result.blob, fileName: result.fileName });
+        setShowFolderModal(true);
       } else if (result.error) {
         setExportResult({ success: false, error: result.error });
       }
@@ -184,8 +193,37 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     }
   };
 
-  const handlePrint = () => {
+  const handleSystemPrintSave = () => {
+    const fileName = getReportDefaultFileName(report);
+    const originalTitle = document.title;
+    document.title = fileName.replace(/\.pdf$/i, "");
+    setShowFolderModal(false);
     window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 3000);
+  };
+
+  const handleOpenInNewTab = () => {
+    setShowFolderModal(false);
+    window.open(window.location.href, "_blank");
+  };
+
+  const handleDirectDownloadFromModal = () => {
+    if (pendingBlob) {
+      triggerDirectDownload(pendingBlob.blob, pendingBlob.fileName);
+      setExportResult({ success: true, fileName: pendingBlob.fileName });
+      setTimeout(() => {
+        setExportResult(null);
+      }, 8000);
+    } else {
+      handleDownloadPdf("download");
+    }
+    setShowFolderModal(false);
+  };
+
+  const handlePrint = () => {
+    handleSystemPrintSave();
   };
 
   const renderIndentedText = (text: string) => {
@@ -312,16 +350,21 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
   return (
     <div className="space-y-6" id="report-print-preview-container">
-      {/* Ferramenta para Baixar o Relatório em PDF */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3.5 print:hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Ferramenta para Baixar o Relatório em PDF com Auditoria A4 e Escolha de Pasta */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 print:hidden">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-              <Download className="w-4 h-4 text-slate-700" />
-              Download do Relatório Técnico em PDF
-            </h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <Download className="w-4 h-4 text-slate-700" />
+                Download do Relatório Técnico em PDF
+              </h3>
+              <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded uppercase tracking-wider">
+                Padrão A4 • Margens Auditadas
+              </span>
+            </div>
             <p className="text-xs text-slate-500 max-w-xl">
-              Gere o documento oficial completo em PDF em alta resolução. O arquivo será salvo diretamente na pasta do seu computador com a nomenclatura padronizada.
+              Gere o documento oficial com limites dimensionais A4 padronizados, margens protegidas de 14mm e quebra automática de páginas.
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
               <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-700 font-mono bg-slate-50 px-3 py-1 rounded-lg border border-slate-200">
@@ -331,15 +374,17 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Botão Principal: Baixar Relatório em PDF (Escolher Pasta) */}
             <button
-              onClick={handleDownloadPdf}
+              onClick={() => handleDownloadPdf("picker")}
               disabled={isExporting}
-              className={`flex items-center justify-center gap-2 text-xs font-bold text-white px-5 py-3 rounded-xl transition-all shadow-xs cursor-pointer ${
+              className={`flex items-center justify-center gap-2 text-xs font-bold text-white px-5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer ${
                 isExporting
                   ? "bg-slate-700 opacity-90 cursor-not-allowed"
                   : "bg-slate-900 hover:bg-black active:scale-[0.99]"
               }`}
+              title="Gera o PDF e abre a janela para escolher em qual pasta do seu computador salvar"
             >
               {isExporting ? (
                 <>
@@ -348,10 +393,31 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 </>
               ) : (
                 <>
-                  <Download className="w-4 h-4 text-white" />
+                  <FolderDown className="w-4 h-4 text-white" />
                   <span>Baixar Relatório em PDF</span>
                 </>
               )}
+            </button>
+
+            {/* Botão de Diálogo do Sistema / Salvar como PDF */}
+            <button
+              onClick={handleSystemPrintSave}
+              disabled={isExporting}
+              className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl transition-all shadow-2xs cursor-pointer"
+              title="Abre a janela de salvamento do sistema para salvar como PDF na pasta desejada"
+            >
+              <Printer className="w-4 h-4 text-slate-500" />
+              <span className="hidden sm:inline">Diálogo do Sistema (Salvar como PDF)</span>
+              <span className="sm:hidden">Salvar como PDF</span>
+            </button>
+
+            {/* Botão Abrir em Nova Aba */}
+            <button
+              onClick={handleOpenInNewTab}
+              className="p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
+              title="Abrir em nova aba para salvar com acesso irrestrito ao explorador de pastas"
+            >
+              <ExternalLink className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -379,7 +445,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         {exportResult?.success && (
           <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Relatório em PDF gerado com sucesso! Arquivo salvo como: <strong>{exportResult.fileName}</strong></span>
+            <span>Relatório em PDF gerado com sucesso! Arquivo: <strong>{exportResult.fileName}</strong></span>
           </div>
         )}
 
@@ -392,12 +458,108 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         )}
       </div>
 
+      {/* Modal para Escolha de Pasta Quando em Ambiente iFrame */}
+      {showFolderModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 font-bold shrink-0">
+                  <FolderDown className="w-5 h-5 text-slate-700" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900">Salvar Relatório em Pasta Específica</h4>
+                  <p className="text-xs text-slate-500">Escolha como prefere salvar no seu computador</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFolderModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
+              <p>
+                O arquivo PDF com layout A4 auditado está pronto! Para selecionar a pasta onde salvar no seu disco rígido:
+              </p>
+            </div>
+
+            <div className="space-y-2.5">
+              {/* Opção 1: Janela de Salvamento do Sistema */}
+              <button
+                onClick={handleSystemPrintSave}
+                className="w-full text-left p-3.5 rounded-xl border border-slate-200 hover:border-slate-800 hover:bg-slate-50/70 transition-all flex items-start gap-3 group cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-700 transition-colors shrink-0 mt-0.5">
+                  <Printer className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-xs font-extrabold text-slate-900 block group-hover:text-slate-950">
+                    1. Diálogo do Sistema (Salvar como PDF / Escolher Pasta)
+                  </span>
+                  <span className="text-[11px] text-slate-500 block leading-tight">
+                    Abre a janela nativa do navegador onde você clica em "Salvar" e escolhe a pasta exata no Windows Explorer / Mac Finder.
+                  </span>
+                </div>
+              </button>
+
+              {/* Opção 2: Nova Aba */}
+              <button
+                onClick={handleOpenInNewTab}
+                className="w-full text-left p-3.5 rounded-xl border border-slate-200 hover:border-slate-800 hover:bg-slate-50/70 transition-all flex items-start gap-3 group cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-700 transition-colors shrink-0 mt-0.5">
+                  <ExternalLink className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-xs font-extrabold text-slate-900 block group-hover:text-slate-950">
+                    2. Abrir Relatório em Nova Aba
+                  </span>
+                  <span className="text-[11px] text-slate-500 block leading-tight">
+                    Abre em aba cheia sem restrições de iframe, ativando a seleção direta de pastas por janela de arquivos.
+                  </span>
+                </div>
+              </button>
+
+              {/* Opção 3: Download Direto */}
+              <button
+                onClick={handleDirectDownloadFromModal}
+                className="w-full text-left p-3.5 rounded-xl border border-slate-200 hover:border-slate-800 hover:bg-slate-50/70 transition-all flex items-start gap-3 group cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-700 transition-colors shrink-0 mt-0.5">
+                  <Download className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-xs font-extrabold text-slate-900 block group-hover:text-slate-950">
+                    3. Baixar Imediatamente (Pasta Downloads)
+                  </span>
+                  <span className="text-[11px] text-slate-500 block leading-tight">
+                    Salva diretamente o arquivo PDF gerado na sua pasta padrão de downloads.
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => setShowFolderModal(false)}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-4 py-2 cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- INÍCIO DO DOCUMENTO OFICIAL --- */}
-      <div id="report-printable-document" className="bg-white p-8 sm:p-16 border border-slate-200 shadow-sm rounded-2xl mx-auto max-w-[900px] font-sans text-slate-800 print:border-none print:shadow-none print:p-0 leading-relaxed space-y-12">
+      <div id="report-printable-document" className="a4-document-container p-6 sm:px-12 sm:py-10 border border-slate-200 shadow-sm rounded-2xl mx-auto font-sans text-slate-800 print:border-none print:shadow-none print:p-0 print:max-w-none print:w-full leading-relaxed space-y-10">
         
         {/* --- CAPA (Capa do Relatório) --- */}
         {(report.coverImage || assessor.defaultCoverImage) ? (
-          <div className="min-h-[1050px] print:h-screen print:min-h-0 flex flex-col justify-center items-center pb-16 print:pb-0 page-break-after">
+          <div data-pdf-block="true" data-pdf-cover="true" data-page-break="before" data-block-title="Capa do Relatório" className="pdf-block min-h-[1050px] print:h-screen print:min-h-0 flex flex-col justify-center items-center pb-16 print:pb-0 page-break-after">
             <div className="w-full h-full max-h-[1000px] flex items-center justify-center">
               <img 
                 src={report.coverImage || assessor.defaultCoverImage} 
@@ -408,7 +570,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             </div>
           </div>
         ) : (
-          <div className="min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 print:justify-center print:gap-12">
+          <div data-pdf-block="true" data-pdf-cover="true" data-page-break="before" data-block-title="Capa do Relatório" className="pdf-block min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 print:justify-center print:gap-12">
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-slate-800 pb-4">
                 <Activity className="w-8 h-8 text-slate-800" />
@@ -507,7 +669,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           const totalResponseRate = totalEmployees > 0 ? Math.round((totalRespondents / totalEmployees) * 100) : 0;
 
           return (
-            <div className="min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
+            <div data-pdf-block="true" data-page-break="before" data-block-title="Dados Cadastrais e Escopo" className="pdf-block min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
               {renderHeader("Dados Cadastrais e Escopo")}
 
               <div className="my-auto space-y-8 max-w-2xl mx-auto w-full">
@@ -649,8 +811,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           );
         })()}
 
-        {/* --- SUMÁRIO (ATUALIZAÇÃO AUTOMÁTICA) --- */}
-        <div className="min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
+        {/* --- SUMÁRIO --- */}
+        <div data-pdf-block="true" data-page-break="before" data-block-title="Sumário Geral do Relatório" className="pdf-block min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
           {renderHeader("Sumário Geral do Relatório")}
 
           <div className="my-auto max-w-2xl mx-auto w-full space-y-8">
@@ -776,13 +938,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             </div>
           </div>
 
-          <div className="text-center text-[10px] text-slate-400 font-semibold border-t border-slate-100 pt-4">
-            Este sumário é gerado e atualizado dinamicamente com base nas informações setoriais registradas.
-          </div>
+          <div aria-hidden="true" className="h-4"></div>
         </div>
 
         {/* --- CAPÍTULO 1: INTRODUÇÃO --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="1. Introdução" className="pdf-block space-y-4 print:pt-6 page-break-before">
           {renderHeader("1. Introdução")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             1. Introdução
@@ -791,7 +951,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 2: FUNDAMENTAÇÃO --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="2. Fundamentação Teórica" className="pdf-block space-y-4 print:pt-6 page-break-before">
           {renderHeader("2. Fundamentação Teórica")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             2. Fundamentação Teórica
@@ -800,7 +960,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 3: METODOLOGIA --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="3. Metodologia de Avaliação" className="pdf-block space-y-4 print:pt-6 page-break-before">
           {renderHeader("3. Metodologia de Avaliação")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             3. Metodologia de Avaliação
@@ -809,7 +969,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 4: APRESENTAÇÃO DOS RESULTADOS --- */}
-        <div className="space-y-6 print:pt-12 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="4. Apresentação dos Resultados" className="pdf-block space-y-6 print:pt-6 page-break-before">
           {renderHeader(isQualitative ? "4. Resultados do Diagnóstico" : "4. Resultados Tabulados")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             4. Apresentação dos Resultados
@@ -826,7 +986,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               ) : (
                 <div className="space-y-8">
                   {report.sectors.map((sector) => (
-                    <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6">
+                    <div key={sector.id} data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
                       <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
                         <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
                         <div className="flex gap-4 text-xs font-semibold text-slate-600">
@@ -885,7 +1045,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               ) : (
                 <div className="space-y-8">
                   {report.sectors.map((sector) => (
-                    <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none">
+                    <div key={sector.id} data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none break-inside-avoid print:break-inside-avoid">
                       <div className="bg-slate-100 p-3 rounded-lg flex items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2">
                         <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
                       </div>
@@ -937,7 +1097,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 5: ANÁLISE TÉCNICA DOS RISCOS --- */}
-        <div className="space-y-6 print:pt-12 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="5. Análise Técnica dos Riscos e Investigação Qualitativa" className="pdf-block space-y-6 print:pt-6 page-break-before">
           {renderHeader("5. Análise de Campo e Devolutivas")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             5. Análise Técnica dos Riscos e Investigação Qualitativa
@@ -959,7 +1119,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score > 0);
 
                 return (
-                  <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6">
+                  <div key={sector.id} data-pdf-block="true" data-block-title={`Devolutiva: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
                     <h4 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-1.5 uppercase">
                       Diagnóstico de Campo: {sector.name}
                     </h4>
@@ -1015,7 +1175,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         {report.risksRecognized !== false ? (
           <>
             {/* --- CAPÍTULO 6: INVENTÁRIO DOS RISCOS --- */}
-            <div className="space-y-4 print:pt-12 page-break-before">
+            <div data-pdf-block="true" data-page-break="before" data-block-title="6. Inventário de Riscos GRO" className="pdf-block space-y-4 print:pt-6 page-break-before">
               {renderHeader("6. Inventário de Riscos GRO")}
               <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
                 6. Inventário de Riscos Psicossociais
@@ -1417,7 +1577,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             </div>
 
             {/* --- CAPÍTULO 7: PLANO DE AÇÃO --- */}
-            <div className="space-y-4 print:pt-12 page-break-before">
+            <div data-pdf-block="true" data-page-break="before" data-block-title="7. Cronograma e Plano de Ação" className="pdf-block space-y-4 print:pt-6 page-break-before">
               {renderHeader("7. Cronograma e Plano de Ação")}
               <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
                 7. Cronograma e Plano de Ação
@@ -1450,7 +1610,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                         <div className="space-y-4">
                           {sectorRisks.map((item, idx) => {
                             return (
-                              <div key={item.id} className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
+                              <div key={item.id} data-pdf-block="true" data-block-title={`Ação: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs break-inside-avoid print:break-inside-avoid print:border-slate-350">
                                 {/* Header do Card */}
                                 <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-300 flex flex-row items-center justify-between gap-3">
                                   <div className="space-y-1">
@@ -1684,7 +1844,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
         {/* --- CAPÍTULOS PERSONALIZADOS --- */}
         {report.customChapters && report.customChapters.map((ch) => (
-          <div key={ch.id} className="space-y-4 print:pt-12 page-break-before">
+          <div key={ch.id} data-pdf-block="true" data-page-break="before" data-block-title={ch.title} className="pdf-block space-y-4 print:pt-6 page-break-before">
             {renderHeader(ch.title)}
             <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
               {ch.title}
@@ -1694,7 +1854,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         ))}
 
         {/* --- CAPÍTULO 8: CONSIDERAÇÕES FINAIS --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="Considerações Finais" className="pdf-block space-y-4 print:pt-6 page-break-before">
           {renderHeader("8. Considerações Finais")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             {report.risksRecognized !== false ? "8. Considerações Finais" : "6. Considerações Finais"}
@@ -1703,7 +1863,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 9: REFERÊNCIAS --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="Referências Bibliográficas" className="pdf-block space-y-4 print:pt-6 page-break-before">
           {renderHeader("9. Referências")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             {report.risksRecognized !== false ? "9. Referências Bibliográficas" : "7. Referências Bibliográficas"}
@@ -1714,7 +1874,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- ASSINATURAS DO PROFISSIONAL DE SST --- */}
-        <div className="pt-20 space-y-10 print:pt-24 page-break-inside-avoid">
+        <div data-pdf-block="true" data-block-title="Assinaturas e Encerramento" className="pdf-block pt-16 space-y-8 print:pt-16 break-inside-avoid print:break-inside-avoid">
           <p className="text-xs text-slate-500 text-center">
             Este laudo reflete fielmente as avaliações fáticas realizadas em campo nas datas especificadas.
           </p>
@@ -1723,7 +1883,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             {getEmissionDateFormatted()}
           </div>
           
-          <div className="flex flex-col items-center justify-center pt-28 pb-8">
+          <div className="flex flex-col items-center justify-center pt-20 pb-8">
             <div className="w-64 border-t-2 border-slate-800 text-center pt-2">
               <p className="text-sm font-bold text-slate-850 uppercase">{report.professionalName || "Profissional Responsável"}</p>
               <p className="text-xs text-slate-500">{report.professionalRole}</p>
