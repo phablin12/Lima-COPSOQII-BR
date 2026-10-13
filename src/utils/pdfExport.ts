@@ -26,7 +26,6 @@ export interface PdfExportResult {
 
 export function getReportDefaultFileName(report: Report): string {
   const company = (report.companyFantasyName || report.companyName || "Empresa").trim();
-  // Remove forbidden file system characters
   const sanitizedCompany = company.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, " ");
   return `Diagnostico dos Fatores de riscos - ${sanitizedCompany}.pdf`;
 }
@@ -39,123 +38,23 @@ export function triggerDirectDownload(blob: Blob, fileName: string): void {
   document.body.appendChild(downloadLink);
   downloadLink.click();
   document.body.removeChild(downloadLink);
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
 }
 
 /**
- * Opens a clean new tab synchronously on click, showing a sleek loader
- * while the PDF is rendering. Avoids popup blocker issues in modern browsers.
+ * Opens a dedicated viewer tab AFTER the PDF is 100% generated.
+ * Shows the full PDF preview and download/print actions instantly without infinite loading.
  */
-export function prepareViewerTab(fileName?: string): Window | null {
+export function openPdfViewerTab(blob: Blob, fileName: string): Window | null {
+  const blobUrl = URL.createObjectURL(blob);
+
   try {
     const win = window.open("", "_blank");
-    if (!win) return null;
+    if (!win) {
+      triggerDirectDownload(blob, fileName);
+      return null;
+    }
 
-    const safeTitle = fileName ? fileName.replace(/\.pdf$/i, "") : "Gerando Relatório...";
-    win.document.open();
-    win.document.write(`<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${safeTitle} • Processando...</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      text-align: center;
-      padding: 24px;
-    }
-    .spinner {
-      width: 48px;
-      height: 48px;
-      border: 4px solid #1e293b;
-      border-top-color: #38bdf8;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-bottom: 20px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .title {
-      font-size: 18px;
-      font-weight: 800;
-      color: #ffffff;
-      letter-spacing: -0.02em;
-      margin-bottom: 8px;
-    }
-    .sub {
-      font-size: 13px;
-      color: #94a3b8;
-      max-width: 420px;
-      line-height: 1.5;
-    }
-    .progress-bar-container {
-      width: 280px;
-      height: 6px;
-      background: #1e293b;
-      border-radius: 999px;
-      margin-top: 20px;
-      overflow: hidden;
-    }
-    .progress-bar-fill {
-      width: 30%;
-      height: 100%;
-      background: #38bdf8;
-      border-radius: 999px;
-      transition: width 0.3s ease;
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
-  </style>
-</head>
-<body>
-  <div class="spinner"></div>
-  <div class="title">Gerando Visualização do Laudo em PDF</div>
-  <div class="sub" id="status-msg">Formatando páginas, inventário de riscos e enquadramento ABNT...</div>
-  <div class="progress-bar-container">
-    <div class="progress-bar-fill" id="status-bar"></div>
-  </div>
-</body>
-</html>`);
-    win.document.close();
-    return win;
-  } catch (err) {
-    console.warn("Não foi possível pré-abrir guia para visualização:", err);
-    return null;
-  }
-}
-
-/**
- * Updates the viewer tab with the full PDF preview and download toolbar.
- */
-export function openPdfViewerTab(blob: Blob, fileName: string, existingWindow?: Window | null): Window | null {
-  const blobUrl = URL.createObjectURL(blob);
-  let win = existingWindow;
-
-  if (!win || win.closed) {
-    try {
-      win = window.open("", "_blank");
-    } catch {
-      win = null;
-    }
-  }
-
-  if (!win) {
-    // Popup was blocked: trigger direct download and return null
-    triggerDirectDownload(blob, fileName);
-    return null;
-  }
-
-  try {
     const escapedFileName = fileName.replace(/"/g, "&quot;");
     const safeTitle = fileName.replace(/\.pdf$/i, "");
 
@@ -179,7 +78,7 @@ export function openPdfViewerTab(blob: Blob, fileName: string, existingWindow?: 
       color: #f8fafc;
     }
     #viewer-toolbar {
-      height: 54px;
+      height: 52px;
       background: #0f172a;
       border-bottom: 1px solid #1e293b;
       display: flex;
@@ -196,13 +95,12 @@ export function openPdfViewerTab(blob: Blob, fileName: string, existingWindow?: 
       min-width: 0;
     }
     .badge {
-      background: #1e293b;
-      color: #38bdf8;
-      font-size: 10px;
+      background: #0284c7;
+      color: #ffffff;
+      font-size: 11px;
       font-weight: 800;
       padding: 3px 8px;
       border-radius: 6px;
-      border: 1px solid #334155;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       white-space: nowrap;
@@ -218,7 +116,7 @@ export function openPdfViewerTab(blob: Blob, fileName: string, existingWindow?: 
     .actions {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       flex-shrink: 0;
     }
     .btn {
@@ -254,9 +152,9 @@ export function openPdfViewerTab(blob: Blob, fileName: string, existingWindow?: 
     }
     #pdf-frame {
       width: 100%;
-      height: calc(100% - 54px);
+      height: calc(100% - 52px);
       border: none;
-      background: #525659;
+      background: #334155;
       display: block;
     }
   </style>
@@ -264,7 +162,7 @@ export function openPdfViewerTab(blob: Blob, fileName: string, existingWindow?: 
 <body>
   <div id="viewer-toolbar">
     <div class="file-info">
-      <span class="badge">Visualização PDF</span>
+      <span class="badge">Laudo Técnico</span>
       <span class="file-title">${escapedFileName}</span>
     </div>
     <div class="actions">
@@ -297,30 +195,46 @@ export function openPdfViewerTab(blob: Blob, fileName: string, existingWindow?: 
     win.document.close();
     return win;
   } catch (err) {
-    console.error("Erro ao configurar aba de visualização do PDF:", err);
-    triggerDirectDownload(blob, fileName);
-    return null;
+    console.warn("Erro ao configurar aba de visualização com shell, tentando abrir blob direto:", err);
+    try {
+      const win = window.open(blobUrl, "_blank");
+      return win;
+    } catch {
+      triggerDirectDownload(blob, fileName);
+      return null;
+    }
   }
 }
 
+/**
+ * Exports the report document into a high-precision, ABNT NBR 14724 compliant PDF.
+ * Eliminates blank pages and enforces crisp leaf block framing.
+ */
 export async function exportReportToPdf(
   report: Report,
-  onProgress?: (progress: PdfExportProgress) => void,
-  targetViewerWindow?: Window | null
+  onProgress?: (progress: PdfExportProgress) => void
 ): Promise<PdfExportResult> {
   const fileName = getReportDefaultFileName(report);
   const originalTitle = document.title;
   document.title = fileName.replace(/\.pdf$/i, "");
 
-  try {
-    const documentElement = document.getElementById("report-printable-document");
-    if (!documentElement) {
-      throw new Error("Elemento do relatório não encontrado na página.");
-    }
+  const documentElement = document.getElementById("report-printable-document");
+  if (!documentElement) {
+    throw new Error("Elemento do relatório não encontrado na página.");
+  }
 
+  // Force document to fixed 794px width (standard A4 at 96 DPI = 210mm) during capture
+  // so screen resizing or zoomed viewports never break column grids or cause layout shifts!
+  const prevWidth = documentElement.style.width;
+  const prevMaxWidth = documentElement.style.maxWidth;
+  const prevMinWidth = documentElement.style.minWidth;
+  documentElement.style.width = "794px";
+  documentElement.style.maxWidth = "794px";
+  documentElement.style.minWidth = "794px";
+
+  try {
     // Query blocks with data-pdf-block="true".
-    // Crucial: Filter out any block that is an ancestor of another candidate block,
-    // so we ONLY process atomic leaf blocks, never capturing duplicate container snapshots!
+    // Filter out ancestor containers so we only process atomic leaf blocks.
     const allCandidateBlocks = Array.from(
       documentElement.querySelectorAll<HTMLElement>("[data-pdf-block='true']")
     );
@@ -328,7 +242,6 @@ export async function exportReportToPdf(
     let blocksToProcess: HTMLElement[] = [];
     if (allCandidateBlocks.length > 0) {
       blocksToProcess = allCandidateBlocks.filter((b) => {
-        // Exclude if it contains another block in allCandidateBlocks
         const hasChildBlock = allCandidateBlocks.some((other) => other !== b && b.contains(other));
         return !hasChildBlock;
       });
@@ -339,7 +252,9 @@ export async function exportReportToPdf(
     const visibleBlocks = blocksToProcess.filter((b) => {
       if (b.classList.contains("print:hidden")) return false;
       const style = window.getComputedStyle(b);
-      return style.display !== "none" && style.visibility !== "hidden";
+      if (style.display === "none" || style.visibility === "hidden") return false;
+      if (b.offsetHeight < 5) return false;
+      return true;
     });
 
     if (visibleBlocks.length === 0) {
@@ -356,16 +271,13 @@ export async function exportReportToPdf(
 
     const PAGE_W = 210;
     const PAGE_H = 297;
-    // Margens equilibradas e precisas para enquadramento ABNT:
-    // Margens laterais: 20 mm (área útil: 170 mm)
-    // Margem superior: 25 mm
-    // Margem inferior: 22 mm (área útil: 250 mm)
+    // Margens equilibradas: Laterais 20mm (área útil: 170mm), Superior 22mm, Inferior 20mm (área útil: 255mm)
     const MARGIN_LEFT = 20;
     const MARGIN_RIGHT = 20;
-    const MARGIN_TOP = 25;
-    const MARGIN_BOTTOM = 22;
+    const MARGIN_TOP = 22;
+    const MARGIN_BOTTOM = 20;
     const CONTENT_W = PAGE_W - MARGIN_LEFT - MARGIN_RIGHT; // 170 mm
-    const CONTENT_MAX_H = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM; // 250 mm
+    const CONTENT_MAX_H = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM; // 255 mm
 
     let currentY = MARGIN_TOP;
     let isFirstPage = true;
@@ -387,25 +299,13 @@ export async function exportReportToPdf(
         onProgress({
           current: i + 1,
           total: visibleBlocks.length,
-          message: `Renderizando: ${blockName}...`,
+          message: `${blockName}`,
           percent,
         });
       }
 
-      // Update progress in viewer tab if open
-      if (targetViewerWindow && !targetViewerWindow.closed) {
-        try {
-          const msgEl = targetViewerWindow.document.getElementById("status-msg");
-          if (msgEl) msgEl.textContent = `Processando: ${blockName} (${percent}%)`;
-          const barEl = targetViewerWindow.document.getElementById("status-bar");
-          if (barEl) barEl.style.width = `${percent}%`;
-        } catch {
-          // Cross-window access might fail in strict environments
-        }
-      }
-
       // Small pause to yield to browser UI thread
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await new Promise((resolve) => setTimeout(resolve, 15));
 
       let blockCanvas: HTMLCanvasElement;
       try {
@@ -434,7 +334,7 @@ export async function exportReportToPdf(
       const blockH_MM = (ch / cw) * CONTENT_W;
 
       if (isCover) {
-        // Cover page is dedicated to Page 1
+        // Cover page is dedicated exclusively to Page 1
         if (!isFirstPage) {
           pdf.addPage("a4", "portrait");
         }
@@ -449,27 +349,49 @@ export async function exportReportToPdf(
         const coverY = MARGIN_TOP + (CONTENT_MAX_H - fittedH) / 2;
 
         pdf.addImage(imgData, "JPEG", coverX, coverY, fittedW, fittedH, undefined, "FAST");
-        currentY = MARGIN_TOP + CONTENT_MAX_H + 10; // Trigger page break for next section
+        
+        // After cover, prepare fresh page for page 2
+        pdf.addPage("a4", "portrait");
+        currentY = MARGIN_TOP;
         continue;
       }
 
-      // If block requires a forced page break, or if it overflows the remaining space
+      // If block requires a forced page break or if it overflows remaining space
       const wouldOverflow = currentY + blockH_MM > MARGIN_TOP + CONTENT_MAX_H;
 
       if (forceBreakBefore || wouldOverflow) {
-        if (!isFirstPage) {
+        // CRITICAL BUG FIX: Only add a new page if currentY is NOT already at MARGIN_TOP!
+        // This prevents creating empty/blank pages when a new page was already freshly started!
+        if (!isFirstPage && currentY > MARGIN_TOP) {
           pdf.addPage("a4", "portrait");
+          currentY = MARGIN_TOP;
+        } else if (isFirstPage) {
+          isFirstPage = false;
+          currentY = MARGIN_TOP;
         }
-        isFirstPage = false;
-        currentY = MARGIN_TOP;
       }
 
-      // If a single block is taller than an entire A4 page (e.g. huge text block)
-      if (blockH_MM > CONTENT_MAX_H) {
+      // If block height is just slightly larger than CONTENT_MAX_H (up to 15% tolerance),
+      // scale it down to fit on this single page, preventing microscopic 1-line slices on a blank second page!
+      if (blockH_MM > CONTENT_MAX_H && blockH_MM <= CONTENT_MAX_H * 1.15) {
+        const fitScale = CONTENT_MAX_H / blockH_MM;
+        const fittedW = CONTENT_W * fitScale;
+        const fittedH = CONTENT_MAX_H;
+        const posX = MARGIN_LEFT + (CONTENT_W - fittedW) / 2;
+        const imgData = blockCanvas.toDataURL("image/jpeg", 0.95);
+        pdf.addImage(imgData, "JPEG", posX, currentY, fittedW, fittedH, undefined, "FAST");
+        currentY += fittedH + 5;
+      } else if (blockH_MM > CONTENT_MAX_H) {
+        // Genuine multi-page block: slice cleanly
         const pageCanvasH = Math.round(cw * (CONTENT_MAX_H / CONTENT_W));
         const totalSlices = Math.ceil(ch / pageCanvasH);
 
         for (let s = 0; s < totalSlices; s++) {
+          const srcY = s * pageCanvasH;
+          const srcH = Math.min(pageCanvasH, ch - srcY);
+          // If the last slice is an empty sliver, don't create a blank page
+          if (srcH < 25) continue;
+
           if (s > 0) {
             pdf.addPage("a4", "portrait");
             currentY = MARGIN_TOP;
@@ -477,26 +399,24 @@ export async function exportReportToPdf(
 
           const sliceCanvas = document.createElement("canvas");
           sliceCanvas.width = cw;
-          sliceCanvas.height = pageCanvasH;
+          sliceCanvas.height = srcH;
           const sCtx = sliceCanvas.getContext("2d");
           if (sCtx) {
             sCtx.fillStyle = "#ffffff";
-            sCtx.fillRect(0, 0, cw, pageCanvasH);
-            const srcY = s * pageCanvasH;
-            const srcH = Math.min(pageCanvasH, ch - srcY);
+            sCtx.fillRect(0, 0, cw, srcH);
             sCtx.drawImage(blockCanvas, 0, srcY, cw, srcH, 0, 0, cw, srcH);
           }
 
           const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.95);
-          const sliceH_MM = (sliceCanvas.height / sliceCanvas.width) * CONTENT_W;
+          const sliceH_MM = (srcH / cw) * CONTENT_W;
           pdf.addImage(sliceData, "JPEG", MARGIN_LEFT, currentY, CONTENT_W, sliceH_MM, undefined, "FAST");
-          currentY = MARGIN_TOP + CONTENT_MAX_H + 10;
+          currentY += sliceH_MM + 5;
         }
       } else {
-        // Fits on current page
+        // Fits cleanly on current page
         const imgData = blockCanvas.toDataURL("image/jpeg", 0.95);
         pdf.addImage(imgData, "JPEG", MARGIN_LEFT, currentY, CONTENT_W, blockH_MM, undefined, "FAST");
-        currentY += blockH_MM + 5; // 5mm spacing between blocks
+        currentY += blockH_MM + 5; // 5mm vertical spacing between blocks
       }
     }
 
@@ -528,37 +448,33 @@ export async function exportReportToPdf(
       onProgress({
         current: visibleBlocks.length,
         total: visibleBlocks.length,
-        message: "Finalizando formatação do PDF...",
-        percent: 98,
+        message: "PDF 100% concluído!",
+        percent: 100,
       });
     }
 
     const pdfBlob = pdf.output("blob");
     const blobUrl = URL.createObjectURL(pdfBlob);
 
-    // Open in viewer tab (or update pre-opened tab)
-    const openedTab = openPdfViewerTab(pdfBlob, fileName, targetViewerWindow);
-
     return {
       success: true,
       fileName,
       blob: pdfBlob,
       blobUrl,
-      openedInNewTab: Boolean(openedTab),
+      openedInNewTab: false,
     };
   } catch (error: any) {
     console.error("Erro na geração do PDF:", error);
-    if (targetViewerWindow && !targetViewerWindow.closed) {
-      try {
-        targetViewerWindow.close();
-      } catch {}
-    }
     return {
       success: false,
       fileName,
       error: error?.message || "Erro desconhecido ao exportar PDF",
     };
   } finally {
+    // Restore document styling
+    documentElement.style.width = prevWidth;
+    documentElement.style.maxWidth = prevMaxWidth;
+    documentElement.style.minWidth = prevMinWidth;
     document.title = originalTitle;
   }
 }

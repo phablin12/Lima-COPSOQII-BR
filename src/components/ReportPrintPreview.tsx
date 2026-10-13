@@ -8,7 +8,7 @@ import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { replaceTemplateVariables } from "./ChaptersEditor";
 import { Download, Loader2, AlertCircle, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock, ExternalLink, Printer, CheckCircle2 } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
-import { exportReportToPdf, prepareViewerTab, triggerDirectDownload, getReportDefaultFileName } from "../utils/pdfExport";
+import { exportReportToPdf, openPdfViewerTab, triggerDirectDownload, getReportDefaultFileName } from "../utils/pdfExport";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -153,54 +153,89 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     return parts.filter(Boolean).join(", ");
   };
 
+  const isRiskInSector = (item: { sectorId?: string }, sector: { id: string; name: string }) => {
+    if (!item.sectorId) return false;
+    const sId = item.sectorId.trim().toLowerCase();
+    return sId === sector.id.trim().toLowerCase() || sId === sector.name.trim().toLowerCase();
+  };
+
   const [isExporting, setIsExporting] = React.useState(false);
-  const [exportProgress, setExportProgress] = React.useState<string | null>(null);
+  const [exportProgressText, setExportProgressText] = React.useState<string | null>(null);
+  const [exportPercent, setExportPercent] = React.useState<number>(0);
   const [exportError, setExportError] = React.useState<string | null>(null);
   const [lastGeneratedPdfUrl, setLastGeneratedPdfUrl] = React.useState<string | null>(null);
   const [lastGeneratedBlob, setLastGeneratedBlob] = React.useState<Blob | null>(null);
   const [lastGeneratedFileName, setLastGeneratedFileName] = React.useState<string | null>(null);
+  const [showCompletedModal, setShowCompletedModal] = React.useState(false);
 
   const handleOpenPdfViewer = async () => {
     if (isExporting) return;
     setIsExporting(true);
     setExportError(null);
-    setExportProgress("Preparando documento...");
-
-    // Pre-open the new tab immediately on user click so modern browsers don't block the popup
-    const fileName = getReportDefaultFileName(report);
-    const preOpenedWindow = prepareViewerTab(fileName);
+    setExportProgressText("Iniciando formatação do laudo ABNT...");
+    setExportPercent(5);
 
     try {
       const result = await exportReportToPdf(
         report,
         (prog) => {
-          setExportProgress(`${prog.message} (${prog.percent}%)`);
-        },
-        preOpenedWindow
+          setExportProgressText(prog.message);
+          setExportPercent(prog.percent);
+        }
       );
 
       if (!result.success || result.error) {
         setExportError(result.error || "Não foi possível gerar o PDF.");
-      } else {
-        if (result.blobUrl && result.blob) {
-          setLastGeneratedPdfUrl(result.blobUrl);
-          setLastGeneratedBlob(result.blob);
-          setLastGeneratedFileName(result.fileName);
-        }
+      } else if (result.blob && result.blobUrl) {
+        setLastGeneratedPdfUrl(result.blobUrl);
+        setLastGeneratedBlob(result.blob);
+        setLastGeneratedFileName(result.fileName);
+        setShowCompletedModal(true);
+
+        // ONLY after 100% of the report is emitted: open the viewer in the new tab!
+        openPdfViewerTab(result.blob, result.fileName);
       }
     } catch (err: any) {
       setExportError(err?.message || "Erro inesperado ao gerar a visualização do PDF.");
     } finally {
       setIsExporting(false);
-      setExportProgress(null);
+      setExportProgressText(null);
     }
   };
 
-  const handleDirectDownload = () => {
+  const handleDirectDownload = async () => {
     if (lastGeneratedBlob && lastGeneratedFileName) {
       triggerDirectDownload(lastGeneratedBlob, lastGeneratedFileName);
-    } else {
-      handleOpenPdfViewer();
+      return;
+    }
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportError(null);
+    setExportProgressText("Processando PDF para download direto...");
+    setExportPercent(5);
+
+    try {
+      const result = await exportReportToPdf(
+        report,
+        (prog) => {
+          setExportProgressText(prog.message);
+          setExportPercent(prog.percent);
+        }
+      );
+
+      if (!result.success || result.error) {
+        setExportError(result.error || "Não foi possível gerar o PDF.");
+      } else if (result.blob) {
+        setLastGeneratedPdfUrl(result.blobUrl || null);
+        setLastGeneratedBlob(result.blob);
+        setLastGeneratedFileName(result.fileName);
+        triggerDirectDownload(result.blob, result.fileName);
+      }
+    } catch (err: any) {
+      setExportError(err?.message || "Erro inesperado ao baixar PDF.");
+    } finally {
+      setIsExporting(false);
+      setExportProgressText(null);
     }
   };
 
@@ -338,16 +373,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
             <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Exportação Oficial do Laudo Técnico
+              Exportação do Laudo Técnico
             </span>
-            {isExporting && exportProgress && (
-              <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
-                {exportProgress}
+            {isExporting && (
+              <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200 animate-pulse">
+                {exportPercent}% concluído
               </span>
             )}
           </div>
           <p className="text-xs text-slate-500">
-            Abre a visualização completa do PDF em uma nova guia, com enquadramento ABNT, pronta para leitura e download.
+            Gera o laudo com enquadramento ABNT e abre a visualização em nova guia após 100% emitido.
           </p>
         </div>
 
@@ -363,6 +398,17 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           </button>
 
           <button
+            type="button"
+            onClick={handleDirectDownload}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3.5 py-2.5 rounded-xl transition cursor-pointer"
+            title="Baixar arquivo PDF diretamente para o computador"
+          >
+            <Download className="w-4 h-4 text-slate-600" />
+            <span>Baixar PDF</span>
+          </button>
+
+          <button
             id="btn-download-report-pdf"
             type="button"
             onClick={handleOpenPdfViewer}
@@ -370,13 +416,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             className={`flex items-center justify-center gap-2 text-xs font-bold text-white px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer ${
               isExporting
                 ? "bg-slate-700 opacity-90 cursor-not-allowed"
-                : "bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99]"
+                : "bg-blue-600 hover:bg-blue-700 active:scale-[0.99]"
             }`}
           >
             {isExporting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>Gerando PDF...</span>
+                <span>Processando ({exportPercent}%)...</span>
               </>
             ) : (
               <>
@@ -388,12 +434,109 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
       </div>
 
+      {/* Modal de Carregamento 0% a 100% na própria página */}
+      {isExporting && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-5 animate-in fade-in duration-200 text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base leading-tight">
+                  Emitindo Relatório Técnico em PDF
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Enquadramento ABNT NBR 14724 • Sem páginas em branco
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-700 truncate max-w-[260px]">
+                  {exportProgressText || "Renderizando páginas..."}
+                </span>
+                <span className="text-blue-600 font-mono text-sm">{exportPercent}%</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
+                <div
+                  className="bg-blue-600 h-full rounded-full transition-all duration-200 ease-out"
+                  style={{ width: `${Math.max(6, exportPercent)}%` }}
+                />
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-150">
+              Aguarde a emissão chegar a 100%. A guia de visualização do laudo será aberta automaticamente assim que o documento estiver pronto.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Sucesso após 100% gerado */}
+      {showCompletedModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in fade-in duration-150 text-left">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">Relatório 100% Emitido!</h3>
+                <p className="text-xs text-slate-500 truncate max-w-[280px]">{lastGeneratedFileName}</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              O laudo técnico foi renderizado com sucesso com paginação contínua, enquadramento ABNT e sem páginas em branco.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (lastGeneratedBlob && lastGeneratedFileName) {
+                    openPdfViewerTab(lastGeneratedBlob, lastGeneratedFileName);
+                  } else if (lastGeneratedPdfUrl) {
+                    window.open(lastGeneratedPdfUrl, "_blank");
+                  }
+                }}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Visualizar em Nova Guia
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (lastGeneratedBlob && lastGeneratedFileName) {
+                    triggerDirectDownload(lastGeneratedBlob, lastGeneratedFileName);
+                  }
+                }}
+                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                Baixar Arquivo PDF
+              </button>
+            </div>
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => setShowCompletedModal(false)}
+                className="text-xs text-slate-400 hover:text-slate-600 font-medium cursor-pointer"
+              >
+                Continuar no Sistema
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Banner de Sucesso / Atalhos quando o PDF estiver pronto */}
       {lastGeneratedPdfUrl && (
         <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl text-xs text-emerald-900 print:hidden">
           <div className="flex items-center gap-2 font-semibold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>PDF gerado com sucesso! Aberto em nova guia para visualização e download.</span>
+            <span>PDF 100% emitido! Aberto em nova guia para visualização e download.</span>
           </div>
           <div className="flex items-center gap-3">
             <a
@@ -430,7 +573,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         
         {/* --- CAPA (Capa do Relatório) --- */}
         {(report.coverImage || assessor.defaultCoverImage) ? (
-          <div data-pdf-block="true" data-pdf-cover="true" data-page-break="before" data-block-title="Capa do Relatório" className="pdf-block min-h-[1050px] print:h-screen print:min-h-0 flex flex-col justify-center items-center pb-16 print:pb-0 page-break-after">
+          <div data-pdf-block="true" data-pdf-cover="true" data-page-break="before" data-block-title="Capa do Relatório" className="pdf-block flex flex-col justify-center items-center pb-8 print:pb-0 page-break-after">
             <div className="w-full h-full max-h-[1000px] flex items-center justify-center">
               <img 
                 src={report.coverImage || assessor.defaultCoverImage} 
@@ -441,7 +584,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             </div>
           </div>
         ) : (
-          <div data-pdf-block="true" data-pdf-cover="true" data-page-break="before" data-block-title="Capa do Relatório" className="pdf-block min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 print:justify-center print:gap-12">
+          <div data-pdf-block="true" data-pdf-cover="true" data-page-break="before" data-block-title="Capa do Relatório" className="pdf-block flex flex-col justify-between border-b-2 border-slate-200 pb-12 print:border-none print:pb-0 print:justify-center print:gap-12">
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-slate-800 pb-4">
                 <Activity className="w-8 h-8 text-slate-800" />
@@ -538,7 +681,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           const totalEmployees = report.sectors.reduce((sum, s) => sum + (s.employeeCount || 0), 0);
 
           return (
-            <div data-pdf-block="true" data-page-break="before" data-block-title="Dados Cadastrais e Escopo" className="pdf-block min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
+            <div data-pdf-block="true" data-page-break="before" data-block-title="Dados Cadastrais e Escopo" className="pdf-block flex flex-col justify-between border-b-2 border-slate-200 pb-8 print:border-none print:pb-0 page-break-before page-break-after">
               {renderHeader("Dados Cadastrais e Escopo")}
 
               <div className="my-auto space-y-8 max-w-2xl mx-auto w-full">
@@ -568,7 +711,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200 text-[10px] text-left space-y-5">
                   <div>
                     <h4 className="text-[9px] font-black uppercase text-slate-500 tracking-wider border-b border-slate-200 pb-1.5 mb-2.5">Identificação da Empresa</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                       <div>
                         <span className="text-slate-400 block font-semibold text-[8px] uppercase tracking-wider">Razão Social / Nome da Empresa:</span>
                         <span className="font-extrabold text-slate-800 block">{report.companyName || "-"}</span>
@@ -598,8 +741,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                   <div>
                     <h4 className="text-[9px] font-black uppercase text-slate-500 tracking-wider border-b border-slate-200 pb-1.5 mb-2.5">Endereço da Empresa</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-3">
-                      <div className="sm:col-span-2">
+                    <div className="grid grid-cols-3 gap-x-6 gap-y-3">
+                      <div className="col-span-2">
                         <span className="text-slate-400 block font-semibold text-[8px] uppercase tracking-wider">Logradouro / Endereço:</span>
                         <span className="font-bold text-slate-800 block">{report.companyAddress || "-"}</span>
                       </div>
@@ -647,11 +790,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
               {/* Dados da Empresa Empresa Avaliadora no Rodapé */}
               <div className="border-t border-slate-200 pt-6 mt-auto">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-3 text-center sm:text-left">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-3 text-left">
                   ASSESSORIA EM SAÚDE E SEGURANÇA DO TRABALHO RESPONSÁVEL
                 </span>
-                <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 text-xs">
-                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
+                <div className="flex flex-row items-start justify-between gap-6 text-xs">
+                  <div className="flex flex-row items-start gap-4 text-left">
                     {activeAssessor.logo ? (
                       <img
                         src={activeAssessor.logo}
@@ -670,7 +813,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                       <span className="text-slate-500 block text-[11px] leading-tight">{activeAssessor.address || "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT"} • Contato: {activeAssessor.phone || "65 99998-0418"}</span>
                     </div>
                   </div>
-                  <div className="text-center sm:text-right shrink-0">
+                  <div className="text-right shrink-0">
                     <span className="text-slate-400 block font-semibold text-[9px] uppercase tracking-wider">Período de Campo:</span>
                     <span className="font-bold text-slate-700 block text-[13px]">{formatDate(report.dateStart)} a {formatDate(report.dateEnd)}</span>
                   </div>
@@ -681,7 +824,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         })()}
 
         {/* --- SUMÁRIO --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="Sumário Geral do Relatório" className="pdf-block min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="Sumário Geral do Relatório" className="pdf-block flex flex-col justify-between border-b-2 border-slate-200 pb-8 print:border-none print:pb-0 page-break-before page-break-after">
           {renderHeader("Sumário Geral do Relatório")}
 
           <div className="my-auto max-w-2xl mx-auto w-full space-y-8">
@@ -698,21 +841,21 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">1. INTRODUÇÃO</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">03</span>
+                <span className="text-slate-500 font-bold font-mono">04</span>
               </div>
 
               {/* 2. Fundamentação Teórica */}
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">2. FUNDAMENTAÇÃO TEÓRICA</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">04</span>
+                <span className="text-slate-500 font-bold font-mono">05</span>
               </div>
 
               {/* 3. Metodologia de Avaliação */}
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">3. METODOLOGIA DE AVALIAÇÃO</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">05</span>
+                <span className="text-slate-500 font-bold font-mono">06</span>
               </div>
 
               {/* 4. Apresentação dos Resultados */}
@@ -720,13 +863,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 <div className="flex items-end gap-2">
                   <span className="font-bold text-slate-850">4. APRESENTAÇÃO DOS RESULTADOS</span>
                   <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">06</span>
+                  <span className="text-slate-500 font-bold font-mono">07</span>
                 </div>
                 {report.sectors.map((sector, index) => (
                   <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                     <span className="font-medium">4.{index + 1}. Resultados do Setor: {sector.name}</span>
                     <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">06</span>
+                    <span className="text-slate-400 font-medium font-mono">07</span>
                   </div>
                 ))}
               </div>
@@ -736,13 +879,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 <div className="flex items-end gap-2">
                   <span className="font-bold text-slate-850">5. ANÁLISE TÉCNICA E DEVOLUTIVAS</span>
                   <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">07</span>
+                  <span className="text-slate-500 font-bold font-mono">08</span>
                 </div>
                 {report.sectors.map((sector, index) => (
                   <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                     <span className="font-medium">5.{index + 1}. Diagnóstico Qualitativo: {sector.name}</span>
                     <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">07</span>
+                    <span className="text-slate-400 font-medium font-mono">08</span>
                   </div>
                 ))}
               </div>
@@ -754,16 +897,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     <div className="flex items-end gap-2">
                       <span className="font-bold text-slate-850">6. INVENTÁRIO DE RISCOS PSICOSSOCIAIS</span>
                       <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                      <span className="text-slate-500 font-bold font-mono">08</span>
+                      <span className="text-slate-500 font-bold font-mono">09</span>
                     </div>
                     {report.sectors.map((sector, index) => {
-                      const hasRisks = report.riskInventory.some(r => r.sectorId === sector.id);
+                      const hasRisks = report.riskInventory.some(r => isRiskInSector(r, sector));
                       if (!hasRisks) return null;
                       return (
                         <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                           <span className="font-medium">6.{index + 1}. Riscos de {sector.name}</span>
                           <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                          <span className="text-slate-400 font-medium font-mono">08</span>
+                          <span className="text-slate-400 font-medium font-mono">09</span>
                         </div>
                       );
                     })}
@@ -774,16 +917,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     <div className="flex items-end gap-2">
                       <span className="font-bold text-slate-850">7. CRONOGRAMA E PLANO DE AÇÃO</span>
                       <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                      <span className="text-slate-500 font-bold font-mono">09</span>
+                      <span className="text-slate-500 font-bold font-mono">10</span>
                     </div>
                     {report.sectors.map((sector, index) => {
-                      const hasActions = report.riskInventory.some(r => r.sectorId === sector.id);
+                      const hasActions = report.riskInventory.some(r => isRiskInSector(r, sector));
                       if (!hasActions) return null;
                       return (
                         <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                           <span className="font-medium">7.{index + 1}. Ações de {sector.name}</span>
                           <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                          <span className="text-slate-400 font-medium font-mono">09</span>
+                          <span className="text-slate-400 font-medium font-mono">10</span>
                         </div>
                       );
                     })}
@@ -795,14 +938,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">8. CONSIDERAÇÕES FINAIS</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">10</span>
+                <span className="text-slate-500 font-bold font-mono">11</span>
               </div>
 
               {/* 9. Referências Bibliográficas */}
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">9. REFERÊNCIAS BIBLIOGRÁFICAS</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">11</span>
+                <span className="text-slate-500 font-bold font-mono">12</span>
               </div>
             </div>
           </div>
@@ -1054,7 +1197,9 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             {report.riskInventory.length > 0 && (
               <div className="space-y-8">
                 {report.sectors.map((sector) => {
-                  const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
+                  const directRisks = report.riskInventory.filter(r => isRiskInSector(r, sector));
+                  if (directRisks.length === 0 && report.sectors.length > 1) return null;
+                  const sectorRisks = directRisks.length > 0 ? directRisks : report.riskInventory;
                   if (sectorRisks.length === 0) return null;
 
                   return (
@@ -1067,13 +1212,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                           </h4>
                         </div>
                         <div className="text-[9px] font-bold text-slate-300 uppercase">
-                          {sector.employeeCount || 0} {(sector.employeeCount || 0) === 1 ? "colaborador exposto" : "colaboradores expostos"}
+                          {sector.employeeCount || 0} {(sector.employeeCount || 0) === 1 ? "colaborador no setor" : "colaboradores no setor"}
                         </div>
                       </div>
 
                       <div className="space-y-4">
                         {sectorRisks.map((item, index) => {
-                          const effectiveCount = sector.employeeCount || item.exposedCount || 1;
+                          const effectiveCount = item.exposedCount || sector.employeeCount || 1;
 
                           return (
                             <div key={item.id} data-pdf-block="true" data-block-title={`Inventário: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
@@ -1178,7 +1323,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 </div>
 
                                 {/* Row 10: Estimativa and 5x5 Matrix Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 text-left">
+                                <div className="grid grid-cols-2 text-left">
                                   <div className="px-4 py-3 border-r border-slate-300 space-y-2 flex flex-col justify-between">
                                     <div>
                                       <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa:</span>
@@ -1189,7 +1334,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                       <p className="text-slate-700 leading-relaxed font-semibold italic">"{item.recommendation}"</p>
                                     </div>
                                   </div>
-                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 print:border-t-0 border-slate-300 print:bg-white">
+                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-slate-300 print:bg-white">
                                     <span className="font-extrabold text-slate-500 block text-[8px] uppercase tracking-wider mb-1.5">Matriz de Avaliação 5x5</span>
                                     <div className="grid grid-cols-6 gap-0.5 max-w-[200px] w-full text-[7px] font-bold text-center">
                                       {/* Top Header Labels */}
@@ -1252,21 +1397,22 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   })}
 
                   {/* Fallback for unrecognized sector risks if any */}
-                  {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
+                  {report.riskInventory.filter(item => !report.sectors.some(s => isRiskInSector(item, s))).length > 0 && report.sectors.length > 1 && (
                     <div className="space-y-4">
-                      <div data-pdf-block="true" data-block-title="Setor não identificado" className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
+                      <div data-pdf-block="true" data-block-title="Inventário de Riscos • Ações Gerais" className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
-                            Setor não identificado
+                            Setor: Ações Gerais
                           </h4>
                         </div>
                       </div>
 
                       <div className="space-y-4">
                         {report.riskInventory
-                          .filter(item => !report.sectors.some(s => s.id === item.sectorId))
+                          .filter(item => !report.sectors.some(s => isRiskInSector(item, s)))
                           .map((item, index) => {
+                            const effectiveCount = item.exposedCount || 1;
                             return (
                               <div key={item.id} data-pdf-block="true" data-block-title={`Inventário: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
                                 {/* Header */}
@@ -1274,7 +1420,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                   <div className="flex items-center gap-2">
                                     <span className="w-2.5 h-2.5 rounded bg-slate-400 inline-block"></span>
                                     <h5 className="font-extrabold uppercase tracking-wide text-slate-700 text-xs">
-                                      INVENTÁRIO DE RISCOS PSICOSSOCIAIS - SETOR NÃO IDENTIFICADO
+                                      INVENTÁRIO DE RISCOS PSICOSSOCIAIS - AÇÕES GERAIS
                                     </h5>
                                   </div>
                                 </div>
@@ -1287,18 +1433,12 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                 {/* Row 2: Exposição */}
                                 <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-2 gap-2 text-left">
-                                  {(() => {
-                                    const matchingSector = report.sectors.find(s => s.id === item.sectorId);
-                                    const count = matchingSector ? matchingSector.employeeCount : item.exposedCount;
-                                    return (
-                                      <div>
-                                        <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                                        <span className="text-slate-800 font-semibold">
-                                          {count} {count === 1 ? "colaborador" : "colaboradores"}
-                                        </span>
-                                      </div>
-                                    );
-                                  })()}
+                                  <div>
+                                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
+                                    <span className="text-slate-800 font-semibold">
+                                      {effectiveCount} {effectiveCount === 1 ? "colaborador" : "colaboradores"}
+                                    </span>
+                                  </div>
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
                                     <span className="text-slate-800 font-semibold">Contínua / Habitual</span>
@@ -1376,7 +1516,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 </div>
 
                                 {/* Row 10: Estimativa and 5x5 Matrix Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 text-left">
+                                <div className="grid grid-cols-2 text-left">
                                   <div className="px-4 py-3 border-r border-slate-300 space-y-2 flex flex-col justify-between">
                                     <div>
                                       <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa:</span>
@@ -1387,7 +1527,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                       <p className="text-slate-700 leading-relaxed font-semibold italic">"{item.recommendation}"</p>
                                     </div>
                                   </div>
-                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 print:border-t-0 border-slate-300 print:bg-white">
+                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-slate-300 print:bg-white">
                                     <span className="font-extrabold text-slate-500 block text-[8px] uppercase tracking-wider mb-1.5">Matriz de Avaliação 5x5</span>
                                     <div className="grid grid-cols-6 gap-0.5 max-w-[200px] w-full text-[7px] font-bold text-center">
                                       {/* Top Header Labels */}
@@ -1469,8 +1609,62 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
             {report.riskInventory.length > 0 && (
               <div className="space-y-8">
+                {/* Tabela Executiva do Cronograma Geral de Ações */}
+                <div data-pdf-block="true" data-block-title="Cronograma Geral de Gestão e Prazos" className="pdf-block space-y-3 break-inside-avoid print:break-inside-avoid">
+                  <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                      <h4 className="text-xs font-black uppercase tracking-wider">
+                        Cronograma Geral de Gestão e Prazos (PGR)
+                      </h4>
+                    </div>
+                    <span className="text-[10px] text-slate-300 font-bold uppercase">
+                      {report.riskInventory.length} {report.riskInventory.length === 1 ? "ação programada" : "ações programadas"}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-700 font-black uppercase text-[10px] tracking-wider border-b border-slate-300">
+                          <th className="py-2.5 px-3 border-r border-slate-300">Risco / Fator</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300">Setor / GHE</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300 text-center">Expostos</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300">Ação Proposta</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300">Responsável</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300 text-center">Prazo</th>
+                          <th className="py-2.5 px-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {report.riskInventory.map((item, idx) => {
+                          const itemSector = report.sectors.find(s => isRiskInSector(item, s)) || report.sectors[0];
+                          const expCount = item.exposedCount || (itemSector ? itemSector.employeeCount : 1) || 1;
+                          return (
+                            <tr key={item.id} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+                              <td className="py-2 px-3 font-bold text-slate-900 border-r border-slate-200">{item.riskName}</td>
+                              <td className="py-2 px-3 text-slate-700 font-medium border-r border-slate-200">{itemSector?.name || "Geral"}</td>
+                              <td className="py-2 px-3 text-center font-bold text-slate-800 border-r border-slate-200">{expCount}</td>
+                              <td className="py-2 px-3 text-slate-700 leading-snug border-r border-slate-200 max-w-[240px]">{item.actionProposed || item.recommendation}</td>
+                              <td className="py-2 px-3 text-slate-700 font-medium border-r border-slate-200">{item.responsible || "Liderança e Gestão de Pessoas"}</td>
+                              <td className="py-2 px-3 text-center font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">{item.deadline || "A definir"}</td>
+                              <td className="py-2 px-3 text-center whitespace-nowrap">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${getStatusColorPrint(item.status)}`}>
+                                  {item.status || "Pendente"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 {report.sectors.map((sector) => {
-                  const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
+                  const directRisks = report.riskInventory.filter(r => isRiskInSector(r, sector));
+                  if (directRisks.length === 0 && report.sectors.length > 1) return null;
+                  const sectorRisks = directRisks.length > 0 ? directRisks : report.riskInventory;
                   if (sectorRisks.length === 0) return null;
 
                   return (
@@ -1479,13 +1673,18 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
-                            Plano de Ação • Setor: {sector.name}
+                            Plano de Ação Detalhado • Setor: {sector.name}
                           </h4>
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-300 uppercase">
+                          {sector.employeeCount || 0} {(sector.employeeCount || 0) === 1 ? "colaborador no setor" : "colaboradores no setor"}
                         </div>
                       </div>
 
                       <div className="space-y-4">
                           {sectorRisks.map((item, idx) => {
+                            const effectiveCount = item.exposedCount || sector.employeeCount || 1;
+
                             return (
                               <div key={item.id} data-pdf-block="true" data-block-title={`Ação: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs break-inside-avoid print:break-inside-avoid print:border-slate-350">
                                 {/* Header do Card */}
@@ -1514,14 +1713,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                 {/* Conteúdo do Card */}
                                 <div className="p-6">
-                                  <div className="grid grid-cols-1 md:grid-cols-12 print:grid-cols-12 gap-6 text-sm">
+                                  <div className="grid grid-cols-12 gap-6 text-sm">
                                     {/* Lado Esquerdo: Ações Principais (Objetivo e Proposta) */}
-                                    <div className="md:col-span-7 print:col-span-7 space-y-4">
+                                    <div className="col-span-7 space-y-4">
                                       <div className="space-y-1.5">
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Target className="w-3.5 h-3.5 text-slate-400" /> Objetivo Estratégico da Ação
                                         </span>
-                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150">
+                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150 text-xs">
                                           {item.actionObjective || `Mitigar os impactos decorrentes de ${item.riskName}.`}
                                         </p>
                                       </div>
@@ -1530,14 +1729,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Shield className="w-3.5 h-3.5 text-slate-400" /> Detalhamento da Ação Proposta / Medida de Controle
                                         </span>
-                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150">
+                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150 text-xs">
                                           {item.actionProposed || item.recommendation}
                                         </p>
                                       </div>
                                     </div>
 
                                     {/* Lado Direito: Atributos de Gestão/Cronograma */}
-                                    <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
+                                    <div className="col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
                                       <div className="space-y-3">
                                         <div className="space-y-1">
                                           <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
@@ -1548,13 +1747,22 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                           </span>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-150/60">
+                                        <div className="space-y-1 pt-2 border-t border-slate-150/60">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <ShieldAlert className="w-3 h-3 text-slate-400" /> População Exposta (GHE)
+                                          </span>
+                                          <span className="font-extrabold text-slate-800 block">
+                                            {effectiveCount} {effectiveCount === 1 ? "colaborador exposto" : "colaboradores expostos"}
+                                          </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-150/60">
                                           <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                               <Clock className="w-3 h-3 text-slate-400" /> Prazo
                                             </span>
                                             <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit text-[11px]">
-                                              {item.deadline || "Mês Corrente + 3"}
+                                              {item.deadline || "A definir"}
                                             </span>
                                           </div>
 
@@ -1563,7 +1771,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                               <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
                                             </span>
                                             <span className="font-semibold text-slate-700 block">
-                                              {item.periodicity || "Mensal"}
+                                              {item.periodicity || "A definir"}
                                             </span>
                                           </div>
                                         </div>
@@ -1571,8 +1779,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                     </div>
                                   </div>
 
-                                  {/* Indicador de Eficácia (Desmembrado e maior em largura) */}
-                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
+                                  {/* Indicador de Eficácia */}
+                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-row items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
                                     <div className="flex items-center gap-1.5 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider shrink-0">
                                       <CheckSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Indicador de Eficácia Recomendado
                                     </div>
@@ -1590,21 +1798,22 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   })}
 
                   {/* Fallback for unrecognized sector actions */}
-                  {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
+                  {report.riskInventory.filter(item => !report.sectors.some(s => isRiskInSector(item, s))).length > 0 && report.sectors.length > 1 && (
                     <div className="space-y-4">
-                      <div data-pdf-block="true" data-block-title="Plano de Ação • Setor não identificado" className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
+                      <div data-pdf-block="true" data-block-title="Plano de Ação • Setor Geral" className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
-                            Plano de Ação • Setor não identificado
+                            Plano de Ação • Ações Gerais
                           </h4>
                         </div>
                       </div>
 
                       <div className="space-y-4">
                         {report.riskInventory
-                          .filter(item => !report.sectors.some(s => s.id === item.sectorId))
+                          .filter(item => !report.sectors.some(s => isRiskInSector(item, s)))
                           .map((item, idx) => {
+                            const effectiveCount = item.exposedCount || 1;
                             return (
                               <div key={item.id} data-pdf-block="true" data-block-title={`Ação: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs break-inside-avoid print:break-inside-avoid print:border-slate-350">
                                 {/* Header do Card */}
@@ -1612,7 +1821,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                   <div className="space-y-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span className="text-[10px] bg-slate-800 text-white font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                        Setor: Não Identificado
+                                        Setor: Geral
                                       </span>
                                       <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                                         Risco Associado: {item.riskName}
@@ -1620,7 +1829,6 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                     </div>
                                   </div>
 
-                                  {/* Badges de Gestão e Controles */}
                                   <div className="flex items-center gap-2">
                                     <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase ${getPriorityColorPrint(item.priority)}`}>
                                       Prioridade: {item.priority}
@@ -1631,16 +1839,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                   </div>
                                 </div>
 
-                                {/* Conteúdo do Card */}
                                 <div className="p-6">
-                                  <div className="grid grid-cols-1 md:grid-cols-12 print:grid-cols-12 gap-6 text-sm">
-                                    {/* Lado Esquerdo: Ações Principais (Objetivo e Proposta) */}
-                                    <div className="md:col-span-7 print:col-span-7 space-y-4">
+                                  <div className="grid grid-cols-12 gap-6 text-sm">
+                                    <div className="col-span-7 space-y-4">
                                       <div className="space-y-1.5">
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Target className="w-3.5 h-3.5 text-slate-400" /> Objetivo Estratégico da Ação
                                         </span>
-                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150">
+                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150 text-xs">
                                           {item.actionObjective || `Mitigar os impactos decorrentes de ${item.riskName}.`}
                                         </p>
                                       </div>
@@ -1649,14 +1855,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Shield className="w-3.5 h-3.5 text-slate-400" /> Detalhamento da Ação Proposta / Medida de Controle
                                         </span>
-                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150">
+                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150 text-xs">
                                           {item.actionProposed || item.recommendation}
                                         </p>
                                       </div>
                                     </div>
 
-                                    {/* Lado Direito: Atributos de Gestão/Cronograma */}
-                                    <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
+                                    <div className="col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
                                       <div className="space-y-3">
                                         <div className="space-y-1">
                                           <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
@@ -1667,13 +1872,22 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                           </span>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-150/60">
+                                        <div className="space-y-1 pt-2 border-t border-slate-150/60">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                            <ShieldAlert className="w-3 h-3 text-slate-400" /> População Exposta (GHE)
+                                          </span>
+                                          <span className="font-extrabold text-slate-800 block">
+                                            {effectiveCount} {effectiveCount === 1 ? "colaborador exposto" : "colaboradores expostos"}
+                                          </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-150/60">
                                           <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                               <Clock className="w-3 h-3 text-slate-400" /> Prazo
                                             </span>
                                             <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit text-[11px]">
-                                              {item.deadline || "Mês Corrente + 3"}
+                                              {item.deadline || "A definir"}
                                             </span>
                                           </div>
 
@@ -1682,7 +1896,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                               <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
                                             </span>
                                             <span className="font-semibold text-slate-700 block">
-                                              {item.periodicity || "Mensal"}
+                                              {item.periodicity || "A definir"}
                                             </span>
                                           </div>
                                         </div>
@@ -1690,8 +1904,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                     </div>
                                   </div>
 
-                                  {/* Indicador de Eficácia (Desmembrado e maior em largura) */}
-                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
+                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-row items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
                                     <div className="flex items-center gap-1.5 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider shrink-0">
                                       <CheckSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Indicador de Eficácia Recomendado
                                     </div>
