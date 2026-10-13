@@ -6,11 +6,8 @@
 import React from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { replaceTemplateVariables } from "./ChaptersEditor";
-import { Download, Loader2, AlertCircle, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock, ExternalLink, Printer, CheckCircle2 } from "lucide-react";
+import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
-import { exportReportToPdf, openPdfViewerTab, triggerDirectDownload, getReportDefaultFileName } from "../utils/pdfExport";
-import { auth } from "../firebase";
-import { generateReportHtml } from "../utils/reportHtmlGenerator";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -155,150 +152,6 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     return parts.filter(Boolean).join(", ");
   };
 
-  const isRiskInSector = (item: { sectorId?: string }, sector: { id: string; name: string }) => {
-    if (!item.sectorId) return false;
-    const sId = item.sectorId.trim().toLowerCase();
-    return sId === sector.id.trim().toLowerCase() || sId === sector.name.trim().toLowerCase();
-  };
-
-  const [isExporting, setIsExporting] = React.useState(false);
-  const [exportProgressText, setExportProgressText] = React.useState<string | null>(null);
-  const [exportPercent, setExportPercent] = React.useState<number>(0);
-  const [exportError, setExportError] = React.useState<string | null>(null);
-  const [lastGeneratedPdfUrl, setLastGeneratedPdfUrl] = React.useState<string | null>(null);
-  const [lastGeneratedBlob, setLastGeneratedBlob] = React.useState<Blob | null>(null);
-  const [lastGeneratedFileName, setLastGeneratedFileName] = React.useState<string | null>(null);
-  const [showCompletedModal, setShowCompletedModal] = React.useState(false);
-
-  const [generatedViewUrl, setGeneratedViewUrl] = React.useState<string | null>(null);
-
-  const handleOpenPdfViewer = async () => {
-    if (isExporting) return;
-    setIsExporting(true);
-    setExportError(null);
-    setExportProgressText("Conectando ao endpoint de visualização do laudo...");
-    setExportPercent(15);
-
-    try {
-      let idToken = "";
-      if (auth?.currentUser) {
-        try {
-          idToken = await auth.currentUser.getIdToken();
-        } catch {
-          // Continue without token if local
-        }
-      }
-      setExportPercent(40);
-      setExportProgressText("Renderizando layout semântico com dados do cliente...");
-
-      let targetUrl = `/api/reports/${report.id}/view`;
-
-      // 1. Register session on backend endpoint
-      try {
-        const res = await fetch("/api/reports/preview-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            report,
-            assessor: activeAssessor
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.viewUrl) {
-            targetUrl = data.viewUrl;
-          }
-        } else if (idToken) {
-          targetUrl = `/api/reports/${report.id}/view?token=${encodeURIComponent(idToken)}`;
-        }
-      } catch (endpointErr) {
-        console.warn("Endpoint call fallback:", endpointErr);
-        if (idToken) {
-          targetUrl = `/api/reports/${report.id}/view?token=${encodeURIComponent(idToken)}`;
-        }
-      }
-
-      setExportPercent(90);
-      setExportProgressText("Finalizando emissão do laudo técnico (100%)...");
-
-      // Small pause to guarantee smooth visual feedback to 100%
-      await new Promise(r => setTimeout(r, 200));
-      setExportPercent(100);
-      setGeneratedViewUrl(targetUrl);
-      setShowCompletedModal(true);
-
-      // Open in new tab after 100% emission
-      const win = window.open(targetUrl, "_blank");
-      if (!win) {
-        // Fallback for pop-up blockers: open via location or direct window
-        const fallbackWin = window.open("", "_blank");
-        if (fallbackWin) {
-          const html = generateReportHtml(report, activeAssessor, { showToolbar: true });
-          fallbackWin.document.open();
-          fallbackWin.document.write(html);
-          fallbackWin.document.close();
-        }
-      }
-    } catch (err: any) {
-      console.error("Erro ao abrir visualização:", err);
-      // Client-side fallback with semantic HTML
-      try {
-        const html = generateReportHtml(report, activeAssessor, { showToolbar: true });
-        const fallbackWin = window.open("", "_blank");
-        if (fallbackWin) {
-          fallbackWin.document.open();
-          fallbackWin.document.write(html);
-          fallbackWin.document.close();
-          setShowCompletedModal(true);
-        } else {
-          setExportError("O navegador bloqueou a abertura da nova guia. Por favor, autorize pop-ups para este site.");
-        }
-      } catch (renderErr: any) {
-        setExportError(renderErr?.message || "Erro inesperado ao gerar a visualização do laudo.");
-      }
-    } finally {
-      setIsExporting(false);
-      setExportProgressText(null);
-    }
-  };
-
-  const handleDirectDownload = async () => {
-    if (lastGeneratedBlob && lastGeneratedFileName) {
-      triggerDirectDownload(lastGeneratedBlob, lastGeneratedFileName);
-      return;
-    }
-    if (isExporting) return;
-    setIsExporting(true);
-    setExportError(null);
-    setExportProgressText("Processando PDF para download direto...");
-    setExportPercent(5);
-
-    try {
-      const result = await exportReportToPdf(
-        report,
-        (prog) => {
-          setExportProgressText(prog.message);
-          setExportPercent(prog.percent);
-        }
-      );
-
-      if (!result.success || result.error) {
-        setExportError(result.error || "Não foi possível gerar o PDF.");
-      } else if (result.blob) {
-        setLastGeneratedPdfUrl(result.blobUrl || null);
-        setLastGeneratedBlob(result.blob);
-        setLastGeneratedFileName(result.fileName);
-        triggerDirectDownload(result.blob, result.fileName);
-      }
-    } catch (err: any) {
-      setExportError(err?.message || "Erro inesperado ao baixar PDF.");
-    } finally {
-      setIsExporting(false);
-      setExportProgressText(null);
-    }
-  };
-
   const handlePrint = () => {
     window.print();
   };
@@ -427,211 +280,32 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
   return (
     <div className="space-y-6" id="report-print-preview-container">
-      {/* Barra de Ações: Visualização em Nova Guia, Download e Impressão */}
-      <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-        <div className="space-y-0.5 text-left">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-            <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Exportação do Laudo Técnico
-            </span>
-            {isExporting && (
-              <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200 animate-pulse">
-                {exportPercent}% concluído
-              </span>
-            )}
-          </div>
+      {/* Barra de Ações Web */}
+      <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+            <Printer className="w-4 h-4 text-slate-600" />
+            Visualização de Impressão e Exportação
+          </h3>
           <p className="text-xs text-slate-500">
-            Gera o laudo com enquadramento ABNT e abre a visualização em nova guia após 100% emitido.
+            Abaixo está o documento oficial formatado para impressão em papel A4 ou exportação para PDF (utilizando o comando de impressão do navegador).
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3.5 py-2.5 rounded-xl transition cursor-pointer"
-            title="Abrir diálogo de impressão do navegador"
-          >
-            <Printer className="w-4 h-4 text-slate-600" />
-            <span>Imprimir</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDirectDownload}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3.5 py-2.5 rounded-xl transition cursor-pointer"
-            title="Baixar arquivo PDF diretamente para o computador"
-          >
-            <Download className="w-4 h-4 text-slate-600" />
-            <span>Baixar PDF</span>
-          </button>
-
-          <button
-            id="btn-download-report-pdf"
-            type="button"
-            onClick={handleOpenPdfViewer}
-            disabled={isExporting}
-            className={`flex items-center justify-center gap-2 text-xs font-bold text-white px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer ${
-              isExporting
-                ? "bg-slate-700 opacity-90 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 active:scale-[0.99]"
-            }`}
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>Processando ({exportPercent}%)...</span>
-              </>
-            ) : (
-              <>
-                <ExternalLink className="w-4 h-4 text-white" />
-                <span>Visualizar Laudo (A4 Print / Nova Guia)</span>
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          onClick={handlePrint}
+          className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-5 py-2.5 rounded-lg transition-colors cursor-pointer shadow-xs self-start sm:self-center"
+        >
+          <Printer className="w-4 h-4" /> Imprimir / Salvar em PDF
+        </button>
       </div>
 
-      {/* Modal de Carregamento 0% a 100% na própria página */}
-      {isExporting && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-5 animate-in fade-in duration-200 text-left">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
-                <Loader2 className="w-5 h-5 animate-spin" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-base leading-tight">
-                  Emitindo Laudo Técnico A4
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Endpoint Seguro • HTML Semântico &amp; CSS Print • Sem páginas em branco
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-slate-700 truncate max-w-[260px]">
-                  {exportProgressText || "Renderizando páginas..."}
-                </span>
-                <span className="text-blue-600 font-mono text-sm">{exportPercent}%</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200">
-                <div
-                  className="bg-blue-600 h-full rounded-full transition-all duration-200 ease-out"
-                  style={{ width: `${Math.max(6, exportPercent)}%` }}
-                />
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-150">
-              Aguarde a emissão chegar a 100%. A guia de visualização do laudo será aberta automaticamente assim que o documento estiver pronto.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Sucesso após 100% gerado */}
-      {showCompletedModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in fade-in duration-150 text-left">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-base">Laudo 100% Emitido!</h3>
-                <p className="text-xs text-slate-500 truncate max-w-[280px]">{report.companyName}</p>
-              </div>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              O laudo técnico foi estruturado com layout HTML semântico, tabelas limpas e regras de impressão (@media print) com cabeçalhos repetidos e sem páginas em branco.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (generatedViewUrl) {
-                    window.open(generatedViewUrl, "_blank");
-                  } else if (lastGeneratedBlob && lastGeneratedFileName) {
-                    openPdfViewerTab(lastGeneratedBlob, lastGeneratedFileName);
-                  } else if (lastGeneratedPdfUrl) {
-                    window.open(lastGeneratedPdfUrl, "_blank");
-                  }
-                }}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Visualizar Laudo (A4 Print)
-              </button>
-              <button
-                type="button"
-                onClick={handleDirectDownload}
-                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                Baixar Arquivo PDF
-              </button>
-            </div>
-            <div className="text-center pt-1">
-              <button
-                type="button"
-                onClick={() => setShowCompletedModal(false)}
-                className="text-xs text-slate-400 hover:text-slate-600 font-medium cursor-pointer"
-              >
-                Continuar no Sistema
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Banner de Sucesso / Atalhos quando o PDF estiver pronto */}
-      {lastGeneratedPdfUrl && (
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl text-xs text-emerald-900 print:hidden">
-          <div className="flex items-center gap-2 font-semibold">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>PDF 100% emitido! Aberto em nova guia para visualização e download.</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <a
-              href={lastGeneratedPdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-bold text-emerald-800 underline hover:text-emerald-950 inline-flex items-center gap-1"
-            >
-              <ExternalLink className="w-3.5 h-3.5" /> Reabrir Guia
-            </a>
-            {lastGeneratedBlob && (
-              <button
-                type="button"
-                onClick={handleDirectDownload}
-                className="text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <Download className="w-3.5 h-3.5" /> Baixar Novamente
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Alerta em caso de erro na geração */}
-      {exportError && (
-        <div className="flex items-center gap-2 text-xs font-semibold text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200 print:hidden">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-          <span>Não foi possível gerar o PDF: {exportError}</span>
-        </div>
-      )}
-
       {/* --- INÍCIO DO DOCUMENTO OFICIAL --- */}
-      <div id="report-printable-document" className="a4-document-container p-6 sm:px-12 sm:py-10 border border-slate-200 shadow-sm rounded-2xl mx-auto font-sans text-slate-800 print:border-none print:shadow-none print:p-0 print:max-w-none print:w-full leading-relaxed space-y-10">
+      <div className="bg-white p-8 sm:p-16 border border-slate-200 shadow-sm rounded-2xl mx-auto max-w-[900px] font-sans text-slate-800 print:border-none print:shadow-none print:p-0 leading-relaxed space-y-12">
         
         {/* --- CAPA (Capa do Relatório) --- */}
         {(report.coverImage || assessor.defaultCoverImage) ? (
-          <div data-pdf-block="true" data-pdf-cover="true" data-page-break="before" data-block-title="Capa do Relatório" className="pdf-block flex flex-col justify-center items-center pb-8 print:pb-0 page-break-after">
+          <div className="min-h-[1050px] print:h-screen print:min-h-0 flex flex-col justify-center items-center pb-16 print:pb-0 page-break-after">
             <div className="w-full h-full max-h-[1000px] flex items-center justify-center">
               <img 
                 src={report.coverImage || assessor.defaultCoverImage} 
@@ -642,7 +316,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             </div>
           </div>
         ) : (
-          <div data-pdf-block="true" data-pdf-cover="true" data-page-break="before" data-block-title="Capa do Relatório" className="pdf-block flex flex-col justify-between border-b-2 border-slate-200 pb-12 print:border-none print:pb-0 print:justify-center print:gap-12">
+          <div className="min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 print:justify-center print:gap-12">
             <div className="space-y-4">
               <div className="flex items-center gap-2 border-b-2 border-slate-800 pb-4">
                 <Activity className="w-8 h-8 text-slate-800" />
@@ -737,9 +411,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         {/* --- PÁGINA 2: RESUMO E IDENTIFICAÇÃO DO ESCOPO --- */}
         {(() => {
           const totalEmployees = report.sectors.reduce((sum, s) => sum + (s.employeeCount || 0), 0);
+          const totalRespondents = report.sectors.reduce((sum, s) => sum + (s.respondentsCount || 0), 0);
+          const totalResponseRate = totalEmployees > 0 ? Math.round((totalRespondents / totalEmployees) * 100) : 0;
 
           return (
-            <div data-pdf-block="true" data-page-break="before" data-block-title="Dados Cadastrais e Escopo" className="pdf-block flex flex-col justify-between border-b-2 border-slate-200 pb-8 print:border-none print:pb-0 page-break-before page-break-after">
+            <div className="min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
               {renderHeader("Dados Cadastrais e Escopo")}
 
               <div className="my-auto space-y-8 max-w-2xl mx-auto w-full">
@@ -769,7 +445,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200 text-[10px] text-left space-y-5">
                   <div>
                     <h4 className="text-[9px] font-black uppercase text-slate-500 tracking-wider border-b border-slate-200 pb-1.5 mb-2.5">Identificação da Empresa</h4>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                       <div>
                         <span className="text-slate-400 block font-semibold text-[8px] uppercase tracking-wider">Razão Social / Nome da Empresa:</span>
                         <span className="font-extrabold text-slate-800 block">{report.companyName || "-"}</span>
@@ -799,8 +475,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                   <div>
                     <h4 className="text-[9px] font-black uppercase text-slate-500 tracking-wider border-b border-slate-200 pb-1.5 mb-2.5">Endereço da Empresa</h4>
-                    <div className="grid grid-cols-3 gap-x-6 gap-y-3">
-                      <div className="col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-3">
+                      <div className="sm:col-span-2">
                         <span className="text-slate-400 block font-semibold text-[8px] uppercase tracking-wider">Logradouro / Endereço:</span>
                         <span className="font-bold text-slate-800 block">{report.companyAddress || "-"}</span>
                       </div>
@@ -826,33 +502,45 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   </div>
                 </div>
 
-                {/* Escopo da Avaliação (Métricas Chave Gerais) */}
+                {/* Escopo da Avaliação (Métricas Chave) */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Funcionários na Empresa</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Funcionários Avaliados</span>
                     <span className="text-2xl font-black text-slate-800 font-mono">{totalEmployees}</span>
-                    <span className="text-[10px] text-slate-500 block">Total de Colaboradores</span>
+                    <span className="text-[10px] text-slate-500 block">Total no GHE</span>
                   </div>
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Setores / GHE Mapeados</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Setores Ativos</span>
                     <span className="text-2xl font-black text-slate-800 font-mono">{report.sectors.length}</span>
-                    <span className="text-[10px] text-slate-500 block">Grupos de Exposição</span>
+                    <span className="text-[10px] text-slate-500 block">Setores Mapeados</span>
                   </div>
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Riscos no Inventário</span>
-                    <span className="text-2xl font-black text-slate-800 font-mono">{report.riskInventory.length}</span>
-                    <span className="text-[10px] text-slate-500 block">Fatores Identificados</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Taxa de Resposta</span>
+                    <span className="text-2xl font-black text-slate-800 font-mono">{totalResponseRate}%</span>
+                    <span className="text-[10px] text-slate-500 block">{totalRespondents} respostas</span>
+                  </div>
+                </div>
+
+                {/* Setores Avaliados */}
+                <div className="text-xs text-left bg-white p-4 rounded-xl border border-slate-200 space-y-1.5">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Detalhamento por Setor</span>
+                  <div className="flex flex-wrap gap-2">
+                    {report.sectors.map((s) => (
+                      <span key={s.id} className="inline-block bg-slate-50 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-medium">
+                        {s.name}: <strong className="font-extrabold text-slate-900 font-mono">{s.respondentsCount || 0}</strong> de <strong className="font-extrabold text-slate-900 font-mono">{s.employeeCount || 0}</strong> func. (<strong className="text-slate-800 font-bold font-mono">{s.employeeCount > 0 ? Math.round(((s.respondentsCount || 0) / s.employeeCount) * 100) : 0}%</strong>)
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
 
               {/* Dados da Empresa Empresa Avaliadora no Rodapé */}
               <div className="border-t border-slate-200 pt-6 mt-auto">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-3 text-left">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-3 text-center sm:text-left">
                   ASSESSORIA EM SAÚDE E SEGURANÇA DO TRABALHO RESPONSÁVEL
                 </span>
-                <div className="flex flex-row items-start justify-between gap-6 text-xs">
-                  <div className="flex flex-row items-start gap-4 text-left">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 text-xs">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
                     {activeAssessor.logo ? (
                       <img
                         src={activeAssessor.logo}
@@ -871,7 +559,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                       <span className="text-slate-500 block text-[11px] leading-tight">{activeAssessor.address || "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT"} • Contato: {activeAssessor.phone || "65 99998-0418"}</span>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="text-center sm:text-right shrink-0">
                     <span className="text-slate-400 block font-semibold text-[9px] uppercase tracking-wider">Período de Campo:</span>
                     <span className="font-bold text-slate-700 block text-[13px]">{formatDate(report.dateStart)} a {formatDate(report.dateEnd)}</span>
                   </div>
@@ -881,8 +569,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           );
         })()}
 
-        {/* --- SUMÁRIO --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="Sumário Geral do Relatório" className="pdf-block flex flex-col justify-between border-b-2 border-slate-200 pb-8 print:border-none print:pb-0 page-break-before page-break-after">
+        {/* --- SUMÁRIO (ATUALIZAÇÃO AUTOMÁTICA) --- */}
+        <div className="min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
           {renderHeader("Sumário Geral do Relatório")}
 
           <div className="my-auto max-w-2xl mx-auto w-full space-y-8">
@@ -899,21 +587,21 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">1. INTRODUÇÃO</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">04</span>
+                <span className="text-slate-500 font-bold font-mono">03</span>
               </div>
 
               {/* 2. Fundamentação Teórica */}
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">2. FUNDAMENTAÇÃO TEÓRICA</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">05</span>
+                <span className="text-slate-500 font-bold font-mono">04</span>
               </div>
 
               {/* 3. Metodologia de Avaliação */}
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">3. METODOLOGIA DE AVALIAÇÃO</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">06</span>
+                <span className="text-slate-500 font-bold font-mono">05</span>
               </div>
 
               {/* 4. Apresentação dos Resultados */}
@@ -921,13 +609,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 <div className="flex items-end gap-2">
                   <span className="font-bold text-slate-850">4. APRESENTAÇÃO DOS RESULTADOS</span>
                   <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">07</span>
+                  <span className="text-slate-500 font-bold font-mono">06</span>
                 </div>
                 {report.sectors.map((sector, index) => (
                   <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                     <span className="font-medium">4.{index + 1}. Resultados do Setor: {sector.name}</span>
                     <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">07</span>
+                    <span className="text-slate-400 font-medium font-mono">06</span>
                   </div>
                 ))}
               </div>
@@ -937,13 +625,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 <div className="flex items-end gap-2">
                   <span className="font-bold text-slate-850">5. ANÁLISE TÉCNICA E DEVOLUTIVAS</span>
                   <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">08</span>
+                  <span className="text-slate-500 font-bold font-mono">07</span>
                 </div>
                 {report.sectors.map((sector, index) => (
                   <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                     <span className="font-medium">5.{index + 1}. Diagnóstico Qualitativo: {sector.name}</span>
                     <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">08</span>
+                    <span className="text-slate-400 font-medium font-mono">07</span>
                   </div>
                 ))}
               </div>
@@ -955,16 +643,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     <div className="flex items-end gap-2">
                       <span className="font-bold text-slate-850">6. INVENTÁRIO DE RISCOS PSICOSSOCIAIS</span>
                       <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                      <span className="text-slate-500 font-bold font-mono">09</span>
+                      <span className="text-slate-500 font-bold font-mono">08</span>
                     </div>
                     {report.sectors.map((sector, index) => {
-                      const hasRisks = report.riskInventory.some(r => isRiskInSector(r, sector));
+                      const hasRisks = report.riskInventory.some(r => r.sectorId === sector.id);
                       if (!hasRisks) return null;
                       return (
                         <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                           <span className="font-medium">6.{index + 1}. Riscos de {sector.name}</span>
                           <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                          <span className="text-slate-400 font-medium font-mono">09</span>
+                          <span className="text-slate-400 font-medium font-mono">08</span>
                         </div>
                       );
                     })}
@@ -975,16 +663,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     <div className="flex items-end gap-2">
                       <span className="font-bold text-slate-850">7. CRONOGRAMA E PLANO DE AÇÃO</span>
                       <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                      <span className="text-slate-500 font-bold font-mono">10</span>
+                      <span className="text-slate-500 font-bold font-mono">09</span>
                     </div>
                     {report.sectors.map((sector, index) => {
-                      const hasActions = report.riskInventory.some(r => isRiskInSector(r, sector));
+                      const hasActions = report.riskInventory.some(r => r.sectorId === sector.id);
                       if (!hasActions) return null;
                       return (
                         <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                           <span className="font-medium">7.{index + 1}. Ações de {sector.name}</span>
                           <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                          <span className="text-slate-400 font-medium font-mono">10</span>
+                          <span className="text-slate-400 font-medium font-mono">09</span>
                         </div>
                       );
                     })}
@@ -996,23 +684,25 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">8. CONSIDERAÇÕES FINAIS</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">11</span>
+                <span className="text-slate-500 font-bold font-mono">10</span>
               </div>
 
               {/* 9. Referências Bibliográficas */}
               <div className="flex items-end gap-2">
                 <span className="font-bold text-slate-850">9. REFERÊNCIAS BIBLIOGRÁFICAS</span>
                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">12</span>
+                <span className="text-slate-500 font-bold font-mono">11</span>
               </div>
             </div>
           </div>
 
-          <div aria-hidden="true" className="h-4"></div>
+          <div className="text-center text-[10px] text-slate-400 font-semibold border-t border-slate-100 pt-4">
+            Este sumário é gerado e atualizado dinamicamente com base nas informações setoriais registradas.
+          </div>
         </div>
 
         {/* --- CAPÍTULO 1: INTRODUÇÃO --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="1. Introdução" className="pdf-block space-y-4 print:pt-6 page-break-before">
+        <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("1. Introdução")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             1. Introdução
@@ -1021,7 +711,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 2: FUNDAMENTAÇÃO --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="2. Fundamentação Teórica" className="pdf-block space-y-4 print:pt-6 page-break-before">
+        <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("2. Fundamentação Teórica")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             2. Fundamentação Teórica
@@ -1030,7 +720,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 3: METODOLOGIA --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="3. Metodologia de Avaliação" className="pdf-block space-y-4 print:pt-6 page-break-before">
+        <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("3. Metodologia de Avaliação")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             3. Metodologia de Avaliação
@@ -1039,124 +729,139 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 4: APRESENTAÇÃO DOS RESULTADOS --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="4. Apresentação dos Resultados" className="pdf-block space-y-4 print:pt-6 page-break-before">
+        <div className="space-y-6 print:pt-12 page-break-before">
           {renderHeader(isQualitative ? "4. Resultados do Diagnóstico" : "4. Resultados Tabulados")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             4. Apresentação dos Resultados
           </h3>
-          <p className="text-sm text-slate-700">
-            {isQualitative
-              ? "Abaixo estão detalhados os resultados descritivos obtidos através da avaliação qualitativa por setor. O diagnóstico baseou-se na observação de rotinas, no levantamento de campo e em entrevistas estruturadas coletivas e individuais com os colaboradores."
-              : "Abaixo estão detalhados os resultados numéricos médios tabulados por setor avaliado. Para cada setor, apresenta-se a pontuação obtida na escala COPSOQ II de 0,00 a 4,00 pontos."}
-          </p>
-          {report.sectors.length === 0 && (
-            <p className="text-xs text-slate-400 italic">Nenhum setor cadastrado no relatório.</p>
+
+          {isQualitative ? (
+            <>
+              <p className="text-sm text-slate-700">
+                Abaixo estão detalhados os resultados descritivos obtidos através da avaliação qualitativa por setor. O diagnóstico baseou-se na observação de rotinas, no levantamento de campo e em entrevistas estruturadas coletivas e individuais com os colaboradores.
+              </p>
+
+              {report.sectors.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Nenhum setor cadastrado no relatório.</p>
+              ) : (
+                <div className="space-y-8">
+                  {report.sectors.map((sector) => (
+                    <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6">
+                      <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
+                        <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
+                        <div className="flex gap-4 text-xs font-semibold text-slate-600">
+                          <span>Trabalhadores Expostos: {sector.employeeCount}</span>
+                        </div>
+                      </div>
+
+                      {/* Bloco 1: O que foi avaliado */}
+                      <div className="space-y-1.5 text-left">
+                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">1. O que foi Avaliado / Escopo da Observação:</h4>
+                        <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                          {sector.qualitativeEvaluatedText ? (
+                            sector.qualitativeEvaluatedText
+                          ) : (
+                            <span className="text-slate-400 italic">Não preenchido.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bloco 2: Percepção do colaborador */}
+                      <div className="space-y-1.5 text-left">
+                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">2. Percepção dos Colaboradores (Diálogos/Entrevistas):</h4>
+                        <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                          {sector.qualitativePerceptionText ? (
+                            sector.qualitativePerceptionText
+                          ) : (
+                            <span className="text-slate-400 italic">Não preenchido.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bloco 3: Conclusão do setor */}
+                      <div className="space-y-1.5 text-left">
+                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">3. Conclusão e Parecer do Avaliador:</h4>
+                        <div className="p-3.5 bg-amber-50/20 rounded-lg border border-amber-100/50 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                          {sector.qualitativeConclusionText ? (
+                            sector.qualitativeConclusionText
+                          ) : (
+                            <span className="text-slate-400 italic">Não preenchido.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-700">
+                Abaixo estão detalhados os resultados numéricos médios tabulados por setor avaliado. Para cada setor, apresenta-se a pontuação obtida na escala COPSOQ II de 0,00 a 4,00 pontos.
+              </p>
+
+              {report.sectors.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Nenhum dado setorial cadastrado no relatório.</p>
+              ) : (
+                <div className="space-y-8">
+                  {report.sectors.map((sector) => (
+                    <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none">
+                      <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
+                        <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
+                        <div className="flex gap-4 text-xs font-semibold text-slate-600">
+                          <span>Expostos: {sector.employeeCount} func.</span>
+                          <span>Respondentes: {sector.respondentsCount ?? 0} ({sector.employeeCount > 0 ? (((sector.respondentsCount ?? 0) / sector.employeeCount) * 100).toFixed(1) : 0}%)</span>
+                        </div>
+                      </div>
+
+                      <table className="w-full border-collapse border border-slate-200 text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+                            <th className="p-2 border border-slate-200 text-left">Dimensão do COPSOQ II</th>
+                            <th className="p-2 border border-slate-200 text-center w-24">Tipo</th>
+                            <th className="p-2 border border-slate-200 text-center w-28">Pontuação</th>
+                            <th className="p-2 border border-slate-200 text-center w-36">Classificação Técnica</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {COPSOQ_DIMENSIONS.map((dim) => {
+                            const score = sector.scores?.[dim.key] ?? 0;
+                            const ratingInfo = getDimensionRating(score, dim.type);
+
+                            return (
+                              <tr key={dim.key} className="hover:bg-slate-50/50 print:hover:bg-transparent">
+                                <td className="p-2 border border-slate-200 font-medium">{dim.name}</td>
+                                <td className="p-2 border border-slate-200 text-center uppercase text-[9px] font-bold text-slate-400">
+                                  {dim.type === "positive" ? "Positiva" : "Negativa"}
+                                </td>
+                                <td className="p-2 border border-slate-200 text-center font-bold text-slate-800 font-mono">
+                                  {score === 0 ? "N/A" : score.toFixed(2)}
+                                </td>
+                                <td className={`p-2 border border-slate-200 text-center font-bold text-[10px] uppercase ${ratingInfo.bgClass}`}>
+                                  {ratingInfo.rating}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+
+                      {sector.generalAnalysis && (
+                        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-justify leading-relaxed print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                          <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">Análise Geral da Percepção dos Colaboradores:</strong>
+                          <span className="text-slate-700 italic">{sector.generalAnalysis}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        {/* Setores do Capítulo 4 */}
-        {report.sectors.length > 0 && (
-          <div className="space-y-6">
-            {isQualitative ? (
-              report.sectors.map((sector) => (
-                <div key={sector.id} data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
-                  <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
-                    <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
-                    <div className="flex gap-4 text-xs font-semibold text-slate-600">
-                      <span>Trabalhadores Expostos: {sector.employeeCount}</span>
-                    </div>
-                  </div>
-
-                  {/* Bloco 1: O que foi avaliado */}
-                  <div className="space-y-1.5 text-left">
-                    <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">1. O que foi Avaliado / Escopo da Observação:</h4>
-                    <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                      {sector.qualitativeEvaluatedText ? (
-                        sector.qualitativeEvaluatedText
-                      ) : (
-                        <span className="text-slate-400 italic">Não preenchido.</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Bloco 2: Percepção do colaborador */}
-                  <div className="space-y-1.5 text-left">
-                    <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">2. Percepção dos Colaboradores (Diálogos/Entrevistas):</h4>
-                    <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                      {sector.qualitativePerceptionText ? (
-                        sector.qualitativePerceptionText
-                      ) : (
-                        <span className="text-slate-400 italic">Não preenchido.</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Bloco 3: Conclusão do setor */}
-                  <div className="space-y-1.5 text-left">
-                    <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">3. Conclusão e Parecer do Avaliador:</h4>
-                    <div className="p-3.5 bg-amber-50/20 rounded-lg border border-amber-100/50 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                      {sector.qualitativeConclusionText ? (
-                        sector.qualitativeConclusionText
-                      ) : (
-                        <span className="text-slate-400 italic">Não preenchido.</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              report.sectors.map((sector) => (
-                <div key={sector.id} data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none break-inside-avoid print:break-inside-avoid">
-                  <div className="bg-slate-100 p-3 rounded-lg flex items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2">
-                    <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
-                  </div>
-
-                  <table className="w-full border-collapse border border-slate-200 text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
-                        <th className="p-2 border border-slate-200 text-left">Dimensão do COPSOQ II</th>
-                        <th className="p-2 border border-slate-200 text-center w-24">Tipo</th>
-                        <th className="p-2 border border-slate-200 text-center w-28">Pontuação</th>
-                        <th className="p-2 border border-slate-200 text-center w-36">Classificação Técnica</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {COPSOQ_DIMENSIONS.map((dim) => {
-                        const score = sector.scores?.[dim.key];
-                        const ratingInfo = getDimensionRating(score, dim.type);
-
-                        return (
-                          <tr key={dim.key} className="hover:bg-slate-50/50 print:hover:bg-transparent">
-                            <td className="p-2 border border-slate-200 font-medium">{dim.name}</td>
-                            <td className="p-2 border border-slate-200 text-center uppercase text-[9px] font-bold text-slate-400">
-                              {dim.type === "positive" ? "Positiva" : "Negativa"}
-                            </td>
-                            <td className="p-2 border border-slate-200 text-center font-bold text-slate-800 font-mono">
-                              {score !== undefined && score !== null ? score.toFixed(2) : "N/A"}
-                            </td>
-                            <td className={`p-2 border border-slate-200 text-center font-bold text-[10px] uppercase ${ratingInfo.bgClass}`}>
-                              {ratingInfo.rating}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-
-                  {sector.generalAnalysis && (
-                    <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-justify leading-relaxed print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
-                      <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">Análise Geral da Percepção dos Colaboradores:</strong>
-                      <span className="text-slate-700 italic">{sector.generalAnalysis}</span>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
         {/* --- CAPÍTULO 5: ANÁLISE TÉCNICA DOS RISCOS --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="5. Análise Técnica dos Riscos e Investigação Qualitativa" className="pdf-block space-y-4 print:pt-6 page-break-before">
+        <div className="space-y-6 print:pt-12 page-break-before">
           {renderHeader("5. Análise de Campo e Devolutivas")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             5. Análise Técnica dos Riscos e Investigação Qualitativa
@@ -1164,79 +869,77 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           <p className="text-sm text-slate-700">
             Abaixo estão registradas as conclusões qualitativas das sessões de devolutiva mantidas com a liderança de cada setor. O escopo foca especificamente no cruzamento dos riscos percebidos desfavoráveis/moderados com o ambiente real de trabalho.
           </p>
-          {report.sectors.length === 0 && (
+
+          {report.sectors.length === 0 ? (
             <p className="text-xs text-slate-400 italic">Nenhum dado cadastrado.</p>
+          ) : (
+            <div className="space-y-6">
+              {report.sectors.map((sector) => {
+                // Get critical dimensions for this sector
+                const critical = COPSOQ_DIMENSIONS.map((d) => {
+                  const score = sector.scores?.[d.key] ?? 0.0;
+                  const rat = getDimensionRating(score, d.type);
+                  return { name: d.name, score, rating: rat.rating };
+                }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score > 0);
+
+                return (
+                  <div key={sector.id} className="p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6">
+                    <h4 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-1.5 uppercase">
+                      Diagnóstico de Campo: {sector.name}
+                    </h4>
+
+                    <div className="flex flex-wrap gap-2 text-[10px] items-center">
+                      {isQualitative ? (
+                        <>
+                          <strong className="text-slate-500 uppercase tracking-wider">Metodologia:</strong>
+                          <span className="text-amber-800 font-semibold bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+                            Avaliação de Fatores de Riscos Psicossociais Qualitativos (MPE)
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <strong className="text-slate-500 uppercase tracking-wider">Fatores Investigados:</strong>
+                          {critical.length === 0 ? (
+                            <span className="text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                              Nenhum desvio detectado
+                            </span>
+                          ) : (
+                            critical.map((c, i) => (
+                              <span key={i} className={`px-2 py-0.5 rounded border font-semibold ${
+                                c.rating === "Desfavorável" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-amber-50 text-amber-800 border-amber-200"
+                              }`}>
+                                {c.name} ({c.score.toFixed(2)})
+                              </span>
+                            ))
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-xs text-justify leading-relaxed text-slate-700 whitespace-pre-wrap print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                      {sector.devolvedSynthesis ? (
+                        sector.devolvedSynthesis
+                      ) : (
+                        sector.qualitativeConclusionText ? (
+                          sector.qualitativeConclusionText
+                        ) : (
+                          <span className="text-slate-400 italic">
+                            Ainda não foi preenchido o relatório técnico de devolutiva ou conclusão para este setor.
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
-
-        {/* Setores do Capítulo 5 */}
-        {report.sectors.length > 0 && (
-          <div className="space-y-6">
-            {report.sectors.map((sector) => {
-              // Get critical dimensions for this sector
-              const critical = COPSOQ_DIMENSIONS.map((d) => {
-                const score = sector.scores?.[d.key];
-                const rat = getDimensionRating(score, d.type);
-                return { name: d.name, score: score ?? 0, rating: rat.rating };
-              }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado");
-
-              return (
-                <div key={sector.id} data-pdf-block="true" data-block-title={`Devolutiva: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
-                  <h4 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-1.5 uppercase">
-                    Diagnóstico de Campo: {sector.name}
-                  </h4>
-
-                  <div className="flex flex-wrap gap-2 text-[10px] items-center">
-                    {isQualitative ? (
-                      <>
-                        <strong className="text-slate-500 uppercase tracking-wider">Metodologia:</strong>
-                        <span className="text-amber-800 font-semibold bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
-                          Avaliação de Fatores de Riscos Psicossociais Qualitativos (MPE)
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <strong className="text-slate-500 uppercase tracking-wider">Fatores Investigados:</strong>
-                        {critical.length === 0 ? (
-                          <span className="text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-                            Nenhum desvio detectado
-                          </span>
-                        ) : (
-                          critical.map((c, i) => (
-                            <span key={i} className={`px-2 py-0.5 rounded border font-semibold ${
-                              c.rating === "Desfavorável" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-amber-50 text-amber-800 border-amber-200"
-                            }`}>
-                              {c.name} ({c.score.toFixed(2)})
-                            </span>
-                          ))
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-xs text-justify leading-relaxed text-slate-700 whitespace-pre-wrap print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
-                    {sector.devolvedSynthesis ? (
-                      sector.devolvedSynthesis
-                    ) : (
-                      sector.qualitativeConclusionText ? (
-                        sector.qualitativeConclusionText
-                      ) : (
-                        <span className="text-slate-400 italic">
-                          Ainda não foi preenchido o relatório técnico de devolutiva ou conclusão para este setor.
-                        </span>
-                      )
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
 
         {report.risksRecognized !== false ? (
           <>
             {/* --- CAPÍTULO 6: INVENTÁRIO DOS RISCOS --- */}
-            <div data-pdf-block="true" data-page-break="before" data-block-title="6. Inventário de Riscos GRO" className="pdf-block space-y-4 print:pt-6 page-break-before">
+            <div className="space-y-4 print:pt-12 page-break-before">
               {renderHeader("6. Inventário de Riscos GRO")}
               <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
                 6. Inventário de Riscos Psicossociais
@@ -1245,41 +948,34 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 Abaixo estão estruturados de forma sistemática os riscos psicossociais evidenciados em campo, incluindo as fontes geradoras, as populações expostas, as medidas preventivas existentes e a respectiva avaliação de severidade e probabilidade através da matriz 5x5.
               </p>
 
-              {report.riskInventory.length === 0 && (
+              {report.riskInventory.length === 0 ? (
                 <p className="text-xs text-slate-400 italic py-6 text-center border border-dashed rounded-lg">
                   Nenhum risco registrado no inventário.
                 </p>
-              )}
-            </div>
+              ) : (
+                <div className="space-y-8">
+                  {report.sectors.map((sector) => {
+                    const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
+                    if (sectorRisks.length === 0) return null;
 
-            {report.riskInventory.length > 0 && (
-              <div className="space-y-8">
-                {report.sectors.map((sector) => {
-                  const directRisks = report.riskInventory.filter(r => isRiskInSector(r, sector));
-                  if (directRisks.length === 0 && report.sectors.length > 1) return null;
-                  const sectorRisks = directRisks.length > 0 ? directRisks : report.riskInventory;
-                  if (sectorRisks.length === 0) return null;
-
-                  return (
-                    <div key={sector.id} className="space-y-4">
-                      <div data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                          <h4 className="text-[10px] font-black uppercase tracking-wider">
-                            Setor / GHE: {sector.name}
-                          </h4>
+                    return (
+                      <div key={sector.id} className="space-y-4">
+                        <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                            <h4 className="text-[10px] font-black uppercase tracking-wider">
+                              Setor / GHE: {sector.name}
+                            </h4>
+                          </div>
+                          <div className="text-[9px] font-bold text-slate-300 uppercase">
+                            {sector.employeeCount || 0} colaboradores expostos
+                          </div>
                         </div>
-                        <div className="text-[9px] font-bold text-slate-300 uppercase">
-                          {sector.employeeCount || 0} {(sector.employeeCount || 0) === 1 ? "colaborador no setor" : "colaboradores no setor"}
-                        </div>
-                      </div>
 
-                      <div className="space-y-4">
-                        {sectorRisks.map((item, index) => {
-                          const effectiveCount = item.exposedCount || sector.employeeCount || 1;
-
-                          return (
-                            <div key={item.id} data-pdf-block="true" data-block-title={`Inventário: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
+                        <div className="space-y-4">
+                          {sectorRisks.map((item, index) => {
+                            return (
+                              <div key={item.id} className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
                                 {/* Header */}
                                 <div className="bg-slate-100 border-b border-slate-300 px-4 py-2 flex flex-row justify-between items-center gap-2">
                                   <div className="flex items-center gap-2">
@@ -1300,9 +996,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-2 gap-2 text-left">
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                                    <span className="text-slate-800 font-semibold">
-                                      {effectiveCount} {effectiveCount === 1 ? "colaborador" : "colaboradores"}
-                                    </span>
+                                    <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
                                   </div>
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
@@ -1381,18 +1075,18 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 </div>
 
                                 {/* Row 10: Estimativa and 5x5 Matrix Grid */}
-                                <div className="grid grid-cols-2 text-left">
+                                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 text-left">
                                   <div className="px-4 py-3 border-r border-slate-300 space-y-2 flex flex-col justify-between">
                                     <div>
                                       <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa:</span>
                                       <span className="text-slate-850 font-bold text-xs">{item.uncertainty || "Certa"}</span>
                                     </div>
                                     <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs space-y-1 mt-2">
-                                      <span className="font-extrabold text-slate-600 block uppercase text-[9px] tracking-wider">Recomendação Preventiva Proposta (PGR):</span>
+                                      <span className="font-extrabold text-slate-600 block uppercase text-[9px] tracking-wider">Medida Preventiva Recomendada (PGR):</span>
                                       <p className="text-slate-700 leading-relaxed font-semibold italic">"{item.recommendation}"</p>
                                     </div>
                                   </div>
-                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-slate-300 print:bg-white">
+                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 print:border-t-0 border-slate-300 print:bg-white">
                                     <span className="font-extrabold text-slate-500 block text-[8px] uppercase tracking-wider mb-1.5">Matriz de Avaliação 5x5</span>
                                     <div className="grid grid-cols-6 gap-0.5 max-w-[200px] w-full text-[7px] font-bold text-center">
                                       {/* Top Header Labels */}
@@ -1455,30 +1149,29 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   })}
 
                   {/* Fallback for unrecognized sector risks if any */}
-                  {report.riskInventory.filter(item => !report.sectors.some(s => isRiskInSector(item, s))).length > 0 && report.sectors.length > 1 && (
+                  {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
                     <div className="space-y-4">
-                      <div data-pdf-block="true" data-block-title="Inventário de Riscos • Ações Gerais" className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
+                      <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
-                            Setor: Ações Gerais
+                            Setor não identificado
                           </h4>
                         </div>
                       </div>
 
                       <div className="space-y-4">
                         {report.riskInventory
-                          .filter(item => !report.sectors.some(s => isRiskInSector(item, s)))
+                          .filter(item => !report.sectors.some(s => s.id === item.sectorId))
                           .map((item, index) => {
-                            const effectiveCount = item.exposedCount || 1;
                             return (
-                              <div key={item.id} data-pdf-block="true" data-block-title={`Inventário: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
+                              <div key={item.id} className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
                                 {/* Header */}
                                 <div className="bg-slate-100 border-b border-slate-300 px-4 py-2 flex flex-row justify-between items-center gap-2">
                                   <div className="flex items-center gap-2">
                                     <span className="w-2.5 h-2.5 rounded bg-slate-400 inline-block"></span>
                                     <h5 className="font-extrabold uppercase tracking-wide text-slate-700 text-xs">
-                                      INVENTÁRIO DE RISCOS PSICOSSOCIAIS - AÇÕES GERAIS
+                                      INVENTÁRIO DE RISCOS PSICOSSOCIAIS - SETOR NÃO IDENTIFICADO
                                     </h5>
                                   </div>
                                 </div>
@@ -1493,9 +1186,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-2 gap-2 text-left">
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                                    <span className="text-slate-800 font-semibold">
-                                      {effectiveCount} {effectiveCount === 1 ? "colaborador" : "colaboradores"}
-                                    </span>
+                                    <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
                                   </div>
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
@@ -1574,18 +1265,18 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 </div>
 
                                 {/* Row 10: Estimativa and 5x5 Matrix Grid */}
-                                <div className="grid grid-cols-2 text-left">
+                                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 text-left">
                                   <div className="px-4 py-3 border-r border-slate-300 space-y-2 flex flex-col justify-between">
                                     <div>
                                       <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Estimativa:</span>
                                       <span className="text-slate-850 font-bold text-xs">{item.uncertainty || "Certa"}</span>
                                     </div>
                                     <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs space-y-1 mt-2">
-                                      <span className="font-extrabold text-slate-600 block uppercase text-[9px] tracking-wider">Recomendação Preventiva Proposta (PGR):</span>
+                                      <span className="font-extrabold text-slate-600 block uppercase text-[9px] tracking-wider">Medida Preventiva Recomendada (PGR):</span>
                                       <p className="text-slate-700 leading-relaxed font-semibold italic">"{item.recommendation}"</p>
                                     </div>
                                   </div>
-                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-slate-300 print:bg-white">
+                                  <div className="p-3 bg-slate-50/50 flex flex-col items-center justify-center border-t md:border-t-0 print:border-t-0 border-slate-300 print:bg-white">
                                     <span className="font-extrabold text-slate-500 block text-[8px] uppercase tracking-wider mb-1.5">Matriz de Avaliação 5x5</span>
                                     <div className="grid grid-cols-6 gap-0.5 max-w-[200px] w-full text-[7px] font-bold text-center">
                                       {/* Top Header Labels */}
@@ -1647,9 +1338,10 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   )}
                 </div>
               )}
+            </div>
 
             {/* --- CAPÍTULO 7: PLANO DE AÇÃO --- */}
-            <div data-pdf-block="true" data-page-break="before" data-block-title="7. Cronograma e Plano de Ação" className="pdf-block space-y-4 print:pt-6 page-break-before">
+            <div className="space-y-4 print:pt-12 page-break-before">
               {renderHeader("7. Cronograma e Plano de Ação")}
               <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
                 7. Cronograma e Plano de Ação
@@ -1658,93 +1350,31 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 Com base no inventário técnico de riscos psicossociais, estabeleceram-se as seguintes ações integradas com objetivo, responsáveis, prioridade, prazos e indicadores de eficácia, conforme as diretrizes do PGR.
               </p>
 
-              {report.riskInventory.length === 0 && (
+              {report.riskInventory.length === 0 ? (
                 <p className="text-xs text-slate-400 italic py-6 text-center border border-dashed rounded-lg">
                   Nenhum plano de ação registrado.
                 </p>
-              )}
-            </div>
+              ) : (
+                <div className="space-y-8">
+                  {report.sectors.map((sector) => {
+                    const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
+                    if (sectorRisks.length === 0) return null;
 
-            {report.riskInventory.length > 0 && (
-              <div className="space-y-8">
-                {/* Tabela Executiva do Cronograma Geral de Ações */}
-                <div data-pdf-block="true" data-block-title="Cronograma Geral de Gestão e Prazos" className="pdf-block space-y-3 break-inside-avoid print:break-inside-avoid">
-                  <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                      <h4 className="text-xs font-black uppercase tracking-wider">
-                        Cronograma Geral de Gestão e Prazos (PGR)
-                      </h4>
-                    </div>
-                    <span className="text-[10px] text-slate-300 font-bold uppercase">
-                      {report.riskInventory.length} {report.riskInventory.length === 1 ? "ação programada" : "ações programadas"}
-                    </span>
-                  </div>
-
-                  <div className="overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-xs">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-700 font-black uppercase text-[10px] tracking-wider border-b border-slate-300">
-                          <th className="py-2.5 px-3 border-r border-slate-300">Risco / Fator</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300">Setor / GHE</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300 text-center">Expostos</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300">Ação Proposta</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300">Responsável</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300 text-center">Prazo</th>
-                          <th className="py-2.5 px-3 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200">
-                        {report.riskInventory.map((item, idx) => {
-                          const itemSector = report.sectors.find(s => isRiskInSector(item, s)) || report.sectors[0];
-                          const expCount = item.exposedCount || (itemSector ? itemSector.employeeCount : 1) || 1;
-                          return (
-                            <tr key={item.id} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
-                              <td className="py-2 px-3 font-bold text-slate-900 border-r border-slate-200">{item.riskName}</td>
-                              <td className="py-2 px-3 text-slate-700 font-medium border-r border-slate-200">{itemSector?.name || "Geral"}</td>
-                              <td className="py-2 px-3 text-center font-bold text-slate-800 border-r border-slate-200">{expCount}</td>
-                              <td className="py-2 px-3 text-slate-700 leading-snug border-r border-slate-200 max-w-[240px]">{item.actionProposed || item.recommendation}</td>
-                              <td className="py-2 px-3 text-slate-700 font-medium border-r border-slate-200">{item.responsible || "Liderança e Gestão de Pessoas"}</td>
-                              <td className="py-2 px-3 text-center font-bold text-slate-900 border-r border-slate-200 whitespace-nowrap">{item.deadline || "A definir"}</td>
-                              <td className="py-2 px-3 text-center whitespace-nowrap">
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${getStatusColorPrint(item.status)}`}>
-                                  {item.status || "Pendente"}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {report.sectors.map((sector) => {
-                  const directRisks = report.riskInventory.filter(r => isRiskInSector(r, sector));
-                  if (directRisks.length === 0 && report.sectors.length > 1) return null;
-                  const sectorRisks = directRisks.length > 0 ? directRisks : report.riskInventory;
-                  if (sectorRisks.length === 0) return null;
-
-                  return (
-                    <div key={sector.id} className="space-y-4">
-                      <div data-pdf-block="true" data-block-title={`Plano de Ação: ${sector.name}`} className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                          <h4 className="text-[10px] font-black uppercase tracking-wider">
-                            Plano de Ação Detalhado • Setor: {sector.name}
-                          </h4>
+                    return (
+                      <div key={sector.id} className="space-y-4">
+                        <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <h4 className="text-[10px] font-black uppercase tracking-wider">
+                              Plano de Ação • Setor: {sector.name}
+                            </h4>
+                          </div>
                         </div>
-                        <div className="text-[9px] font-bold text-slate-300 uppercase">
-                          {sector.employeeCount || 0} {(sector.employeeCount || 0) === 1 ? "colaborador no setor" : "colaboradores no setor"}
-                        </div>
-                      </div>
 
-                      <div className="space-y-4">
+                        <div className="space-y-4">
                           {sectorRisks.map((item, idx) => {
-                            const effectiveCount = item.exposedCount || sector.employeeCount || 1;
-
                             return (
-                              <div key={item.id} data-pdf-block="true" data-block-title={`Ação: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs break-inside-avoid print:break-inside-avoid print:border-slate-350">
+                              <div key={item.id} className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
                                 {/* Header do Card */}
                                 <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-300 flex flex-row items-center justify-between gap-3">
                                   <div className="space-y-1">
@@ -1771,14 +1401,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                 {/* Conteúdo do Card */}
                                 <div className="p-6">
-                                  <div className="grid grid-cols-12 gap-6 text-sm">
+                                  <div className="grid grid-cols-1 md:grid-cols-12 print:grid-cols-12 gap-6 text-sm">
                                     {/* Lado Esquerdo: Ações Principais (Objetivo e Proposta) */}
-                                    <div className="col-span-7 space-y-4">
+                                    <div className="md:col-span-7 print:col-span-7 space-y-4">
                                       <div className="space-y-1.5">
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Target className="w-3.5 h-3.5 text-slate-400" /> Objetivo Estratégico da Ação
                                         </span>
-                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150 text-xs">
+                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150">
                                           {item.actionObjective || `Mitigar os impactos decorrentes de ${item.riskName}.`}
                                         </p>
                                       </div>
@@ -1787,14 +1417,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Shield className="w-3.5 h-3.5 text-slate-400" /> Detalhamento da Ação Proposta / Medida de Controle
                                         </span>
-                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150 text-xs">
+                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150">
                                           {item.actionProposed || item.recommendation}
                                         </p>
                                       </div>
                                     </div>
 
                                     {/* Lado Direito: Atributos de Gestão/Cronograma */}
-                                    <div className="col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
+                                    <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
                                       <div className="space-y-3">
                                         <div className="space-y-1">
                                           <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
@@ -1805,22 +1435,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                           </span>
                                         </div>
 
-                                        <div className="space-y-1 pt-2 border-t border-slate-150/60">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <ShieldAlert className="w-3 h-3 text-slate-400" /> População Exposta (GHE)
-                                          </span>
-                                          <span className="font-extrabold text-slate-800 block">
-                                            {effectiveCount} {effectiveCount === 1 ? "colaborador exposto" : "colaboradores expostos"}
-                                          </span>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-150/60">
+                                        <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-150/60">
                                           <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                               <Clock className="w-3 h-3 text-slate-400" /> Prazo
                                             </span>
                                             <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit text-[11px]">
-                                              {item.deadline || "A definir"}
+                                              {item.deadline || "Mês Corrente + 3"}
                                             </span>
                                           </div>
 
@@ -1829,7 +1450,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                               <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
                                             </span>
                                             <span className="font-semibold text-slate-700 block">
-                                              {item.periodicity || "A definir"}
+                                              {item.periodicity || "Mensal"}
                                             </span>
                                           </div>
                                         </div>
@@ -1837,8 +1458,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                     </div>
                                   </div>
 
-                                  {/* Indicador de Eficácia */}
-                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-row items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
+                                  {/* Indicador de Eficácia (Desmembrado e maior em largura) */}
+                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
                                     <div className="flex items-center gap-1.5 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider shrink-0">
                                       <CheckSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Indicador de Eficácia Recomendado
                                     </div>
@@ -1856,30 +1477,29 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   })}
 
                   {/* Fallback for unrecognized sector actions */}
-                  {report.riskInventory.filter(item => !report.sectors.some(s => isRiskInSector(item, s))).length > 0 && report.sectors.length > 1 && (
+                  {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
                     <div className="space-y-4">
-                      <div data-pdf-block="true" data-block-title="Plano de Ação • Setor Geral" className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
+                      <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
-                            Plano de Ação • Ações Gerais
+                            Plano de Ação • Setor não identificado
                           </h4>
                         </div>
                       </div>
 
                       <div className="space-y-4">
                         {report.riskInventory
-                          .filter(item => !report.sectors.some(s => isRiskInSector(item, s)))
+                          .filter(item => !report.sectors.some(s => s.id === item.sectorId))
                           .map((item, idx) => {
-                            const effectiveCount = item.exposedCount || 1;
                             return (
-                              <div key={item.id} data-pdf-block="true" data-block-title={`Ação: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs break-inside-avoid print:break-inside-avoid print:border-slate-350">
+                              <div key={item.id} className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
                                 {/* Header do Card */}
                                 <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-300 flex flex-row items-center justify-between gap-3">
                                   <div className="space-y-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span className="text-[10px] bg-slate-800 text-white font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                                        Setor: Geral
+                                        Setor: Não Identificado
                                       </span>
                                       <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                                         Risco Associado: {item.riskName}
@@ -1887,6 +1507,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                     </div>
                                   </div>
 
+                                  {/* Badges de Gestão e Controles */}
                                   <div className="flex items-center gap-2">
                                     <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase ${getPriorityColorPrint(item.priority)}`}>
                                       Prioridade: {item.priority}
@@ -1897,14 +1518,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                   </div>
                                 </div>
 
+                                {/* Conteúdo do Card */}
                                 <div className="p-6">
-                                  <div className="grid grid-cols-12 gap-6 text-sm">
-                                    <div className="col-span-7 space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-12 print:grid-cols-12 gap-6 text-sm">
+                                    {/* Lado Esquerdo: Ações Principais (Objetivo e Proposta) */}
+                                    <div className="md:col-span-7 print:col-span-7 space-y-4">
                                       <div className="space-y-1.5">
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Target className="w-3.5 h-3.5 text-slate-400" /> Objetivo Estratégico da Ação
                                         </span>
-                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150 text-xs">
+                                        <p className="text-slate-850 font-semibold bg-slate-50/50 p-3 rounded-xl border border-slate-150">
                                           {item.actionObjective || `Mitigar os impactos decorrentes de ${item.riskName}.`}
                                         </p>
                                       </div>
@@ -1913,13 +1536,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1">
                                           <Shield className="w-3.5 h-3.5 text-slate-400" /> Detalhamento da Ação Proposta / Medida de Controle
                                         </span>
-                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150 text-xs">
+                                        <p className="text-slate-750 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-150">
                                           {item.actionProposed || item.recommendation}
                                         </p>
                                       </div>
                                     </div>
 
-                                    <div className="col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
+                                    {/* Lado Direito: Atributos de Gestão/Cronograma */}
+                                    <div className="md:col-span-5 print:col-span-5 bg-slate-50/30 p-4 rounded-xl border border-slate-150 space-y-3.5 text-xs print:bg-white">
                                       <div className="space-y-3">
                                         <div className="space-y-1">
                                           <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
@@ -1930,22 +1554,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                           </span>
                                         </div>
 
-                                        <div className="space-y-1 pt-2 border-t border-slate-150/60">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                            <ShieldAlert className="w-3 h-3 text-slate-400" /> População Exposta (GHE)
-                                          </span>
-                                          <span className="font-extrabold text-slate-800 block">
-                                            {effectiveCount} {effectiveCount === 1 ? "colaborador exposto" : "colaboradores expostos"}
-                                          </span>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-150/60">
+                                        <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-150/60">
                                           <div className="space-y-1">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
                                               <Clock className="w-3 h-3 text-slate-400" /> Prazo
                                             </span>
                                             <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit text-[11px]">
-                                              {item.deadline || "A definir"}
+                                              {item.deadline || "Mês Corrente + 3"}
                                             </span>
                                           </div>
 
@@ -1954,7 +1569,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                               <Calendar className="w-3 h-3 text-slate-400" /> Periodicidade
                                             </span>
                                             <span className="font-semibold text-slate-700 block">
-                                              {item.periodicity || "A definir"}
+                                              {item.periodicity || "Mensal"}
                                             </span>
                                           </div>
                                         </div>
@@ -1962,7 +1577,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                     </div>
                                   </div>
 
-                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-row items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
+                                  {/* Indicador de Eficácia (Desmembrado e maior em largura) */}
+                                  <div className="mt-4 pt-4 border-t border-slate-150 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs bg-slate-50/40 px-4 py-3 rounded-xl border border-slate-150 print:bg-white print:border-slate-300">
                                     <div className="flex items-center gap-1.5 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider shrink-0">
                                       <CheckSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Indicador de Eficácia Recomendado
                                     </div>
@@ -1979,6 +1595,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   )}
                 </div>
               )}
+            </div>
           </>
         ) : (
           <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-2 print:hidden">
@@ -1991,7 +1608,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
         {/* --- CAPÍTULOS PERSONALIZADOS --- */}
         {report.customChapters && report.customChapters.map((ch) => (
-          <div key={ch.id} data-pdf-block="true" data-page-break="before" data-block-title={ch.title} className="pdf-block space-y-4 print:pt-6 page-break-before">
+          <div key={ch.id} className="space-y-4 print:pt-12 page-break-before">
             {renderHeader(ch.title)}
             <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
               {ch.title}
@@ -2001,7 +1618,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         ))}
 
         {/* --- CAPÍTULO 8: CONSIDERAÇÕES FINAIS --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="Considerações Finais" className="pdf-block space-y-4 print:pt-6 page-break-before">
+        <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("8. Considerações Finais")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             {report.risksRecognized !== false ? "8. Considerações Finais" : "6. Considerações Finais"}
@@ -2010,7 +1627,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 9: REFERÊNCIAS --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="Referências Bibliográficas" className="pdf-block space-y-4 print:pt-6 page-break-before">
+        <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("9. Referências")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             {report.risksRecognized !== false ? "9. Referências Bibliográficas" : "7. Referências Bibliográficas"}
@@ -2021,7 +1638,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- ASSINATURAS DO PROFISSIONAL DE SST --- */}
-        <div data-pdf-block="true" data-block-title="Assinaturas e Encerramento" className="pdf-block pt-16 space-y-8 print:pt-16 break-inside-avoid print:break-inside-avoid">
+        <div className="pt-20 space-y-10 print:pt-24 page-break-inside-avoid">
           <p className="text-xs text-slate-500 text-center">
             Este laudo reflete fielmente as avaliações fáticas realizadas em campo nas datas especificadas.
           </p>
@@ -2030,7 +1647,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             {getEmissionDateFormatted()}
           </div>
           
-          <div className="flex flex-col items-center justify-center pt-20 pb-8">
+          <div className="flex flex-col items-center justify-center pt-28 pb-8">
             <div className="w-64 border-t-2 border-slate-800 text-center pt-2">
               <p className="text-sm font-bold text-slate-850 uppercase">{report.professionalName || "Profissional Responsável"}</p>
               <p className="text-xs text-slate-500">{report.professionalRole}</p>

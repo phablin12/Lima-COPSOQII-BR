@@ -18,9 +18,7 @@ service cloud.firestore {
     // Reports collection validation
     function isValidReport(data) {
       return data.id is string && data.id.size() <= 128
-        && data.companyName is string && data.companyName.size() <= 256
-        && data.createdAt is string
-        && data.updatedAt is string;
+        && data.companyName is string && data.companyName.size() <= 256;
     }
 
     match /reports/{reportId} {
@@ -53,6 +51,17 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidId(profId) && isValidProfessional(request.resource.data);
       allow update: if isSignedIn() && isValidId(profId) && isValidProfessional(request.resource.data);
       allow delete: if isSignedIn() && isValidId(profId);
+    }
+
+    // Evaluators collection validation
+    function isValidEvaluator(data) {
+      return data.id is string && data.id.size() <= 128;
+    }
+
+    match /evaluators/{evaluatorId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(evaluatorId) && isValidEvaluator(request.resource.data);
+      allow delete: if isSignedIn() && isValidId(evaluatorId);
     }
 
     // Catalog collection validation

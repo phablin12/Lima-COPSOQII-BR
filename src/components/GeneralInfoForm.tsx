@@ -50,11 +50,13 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
 }) => {
   const [newSectorName, setNewSectorName] = useState("");
   const [newSectorEmployees, setNewSectorEmployees] = useState<string>("");
+  const [newSectorRespondents, setNewSectorRespondents] = useState<string>("");
   const [newSectorRecognized, setNewSectorRecognized] = useState(true);
 
   const [editingSectorId, setEditingSectorId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [editingEmployees, setEditingEmployees] = useState<string>("");
+  const [editingRespondents, setEditingRespondents] = useState<string>("");
   const [editingRecognized, setEditingRecognized] = useState(true);
   const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
 
@@ -99,13 +101,26 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
     if (!newSectorName.trim()) return;
 
     const empCount = parseInt(newSectorEmployees) || 0;
+    const respCount = parseInt(newSectorRespondents) || 0;
 
     const newSector: Sector = {
       id: "sector-" + Date.now(),
       name: newSectorName.trim(),
       employeeCount: Math.max(1, empCount),
+      respondentsCount: respCount,
       risksRecognized: newSectorRecognized,
-      scores: {},
+      scores: {
+        influencia: 0,
+        significado: 0,
+        relacoes: 0,
+        lideranca: 0,
+        satisfacao: 0,
+        valores: 0,
+        saude: 0,
+        demandas: 0,
+        conflitos: 0,
+        burnout: 0,
+      },
       devolvedSynthesis: "",
     };
 
@@ -115,6 +130,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
 
     setNewSectorName("");
     setNewSectorEmployees("");
+    setNewSectorRespondents("");
     setNewSectorRecognized(true);
   };
 
@@ -131,12 +147,14 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
     setEditingSectorId(sector.id);
     setEditingName(sector.name);
     setEditingEmployees(sector.employeeCount.toString());
+    setEditingRespondents((sector.respondentsCount ?? 0).toString());
     setEditingRecognized(sector.risksRecognized ?? true);
   };
 
   const handleSaveSectorEdit = (id: string) => {
     if (!editingName.trim()) return;
     const empCount = parseInt(editingEmployees) || 0;
+    const respCount = parseInt(editingRespondents) || 0;
 
     const updatedSectors = report.sectors.map((s) => {
       if (s.id === id) {
@@ -144,27 +162,14 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
           ...s,
           name: editingName.trim(),
           employeeCount: Math.max(1, empCount),
+          respondentsCount: respCount,
           risksRecognized: editingRecognized,
         };
       }
       return s;
     });
 
-    // Synchronize exposedCount in all existing risk inventory items for this sector
-    const updatedInventory = report.riskInventory.map((item) => {
-      if (item.sectorId === id) {
-        return {
-          ...item,
-          exposedCount: Math.max(1, empCount),
-        };
-      }
-      return item;
-    });
-
-    onChange({
-      sectors: updatedSectors,
-      riskInventory: updatedInventory,
-    });
+    onChange({ sectors: updatedSectors });
     setEditingSectorId(null);
   };
 
@@ -180,6 +185,13 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
         onChange({ evaluator: chosen });
       }
     }
+  };
+
+  // Helper to calculate participation percentage
+  const getPercentageStr = (respondents: number | undefined, employees: number) => {
+    if (!respondents || employees <= 0) return "0%";
+    const pct = (respondents / employees) * 100;
+    return `${pct.toFixed(1)}%`;
   };
 
   return (
@@ -684,14 +696,14 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             Setores, Funções ou Grupos de Exposição (GES/GHE)
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            Cadastre os setores ou grupos homogêneos de exposição (GES/GHE) avaliados, especificando a quantidade de colaboradores existentes em cada setor.
+            Cadastre os setores ou grupos homogêneos de exposição que participaram da avaliação psicossocial, especificando funcionários expostos e respondentes.
           </p>
         </div>
 
         {/* Formulário para Novo Setor */}
         <form onSubmit={handleAddSector} className="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
-          <div className="space-y-1 lg:col-span-6">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Identificação do Setor / GES / GHE</label>
+          <div className="space-y-1 lg:col-span-4">
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Identificação do Setor / GES</label>
             <input
               type="text"
               required
@@ -702,34 +714,49 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             />
           </div>
 
-          <div className="space-y-1 lg:col-span-3">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1">
-              <Users className="w-3.5 h-3.5 text-slate-400" /> Quantidade de Colaboradores
-            </label>
-            <input
-              type="number"
-              min="1"
-              required
-              value={newSectorEmployees}
-              onChange={(e) => setNewSectorEmployees(e.target.value)}
-              placeholder="Ex: 12"
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 bg-white outline-none text-sm text-slate-800"
-            />
-          </div>
+          <div className="grid grid-cols-3 gap-3 items-end lg:col-span-8">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1">
+                <Users className="w-3 h-3 text-slate-400" /> N.º Func.
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={newSectorEmployees}
+                onChange={(e) => setNewSectorEmployees(e.target.value)}
+                placeholder="Ex: 10"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 bg-white outline-none text-sm text-slate-800"
+              />
+            </div>
 
-          <div className="flex flex-col gap-1 lg:col-span-3">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block text-center">Reconhece riscos?</label>
-            <button
-              type="button"
-              onClick={() => setNewSectorRecognized(!newSectorRecognized)}
-              className={`w-full font-bold text-xs py-2 px-3 rounded-lg border transition-all cursor-pointer ${
-                newSectorRecognized
-                  ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                  : "bg-slate-100 border-slate-200 text-slate-500"
-              }`}
-            >
-              {newSectorRecognized ? "Sim" : "Não"}
-            </button>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1">
+                <Users className="w-3 h-3 text-slate-400" /> N.º Respond.
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={newSectorRespondents}
+                onChange={(e) => setNewSectorRespondents(e.target.value)}
+                placeholder="Ex: 8"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 bg-white outline-none text-sm text-slate-800"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block text-center">Reconhece riscos?</label>
+              <button
+                type="button"
+                onClick={() => setNewSectorRecognized(!newSectorRecognized)}
+                className={`w-full font-bold text-xs py-2 px-3 rounded-lg border transition-all cursor-pointer ${
+                  newSectorRecognized
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                    : "bg-slate-100 border-slate-200 text-slate-500"
+                }`}
+              >
+                {newSectorRecognized ? "Sim" : "Não"}
+              </button>
+            </div>
           </div>
 
           <div className="lg:col-span-12 flex justify-end">
@@ -748,15 +775,17 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome do Setor / GES / GHE</th>
-                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-48 text-center">Quantidade de Colaboradores</th>
-                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-36 text-center">Reconhece Riscos?</th>
+                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-36 text-center">N.º Colaboradores</th>
+                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-36 text-center">N.º Respondentes</th>
+                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32 text-center">Participação (%)</th>
+                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32 text-center">Reconhece Riscos?</th>
                 <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-28 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {report.sectors.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-slate-400 text-sm">
+                  <td colSpan={6} className="px-6 py-10 text-center text-slate-400 text-sm">
                     Nenhum setor cadastrado ainda. Use o formulário acima para adicionar os setores avaliados.
                   </td>
                 </tr>
@@ -782,13 +811,33 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                           min="1"
                           value={editingEmployees}
                           onChange={(e) => setEditingEmployees(e.target.value)}
-                          className="w-24 px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-slate-400 outline-none text-center text-slate-800 mx-auto"
+                          className="w-20 px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-slate-400 outline-none text-center text-slate-800"
                         />
                       ) : (
-                        <span className="text-slate-700 text-sm bg-slate-100 px-3 py-1 rounded-full font-mono font-semibold">
-                          {sector.employeeCount} {sector.employeeCount === 1 ? "colaborador" : "colaboradores"}
+                        <span className="text-slate-600 text-sm bg-slate-100 px-2.5 py-1 rounded-full font-mono font-semibold">
+                          {sector.employeeCount}
                         </span>
                       )}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {editingSectorId === sector.id ? (
+                        <input
+                          type="number"
+                          min="0"
+                          value={editingRespondents}
+                          onChange={(e) => setEditingRespondents(e.target.value)}
+                          className="w-20 px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-slate-400 outline-none text-center text-slate-800"
+                        />
+                      ) : (
+                        <span className="text-slate-600 text-sm bg-slate-100 px-2.5 py-1 rounded-full font-mono font-semibold">
+                          {sector.respondentsCount ?? 0}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-xs text-slate-500 font-bold bg-slate-50 border border-slate-100 px-2 py-1 rounded">
+                        {getPercentageStr(sector.respondentsCount, sector.employeeCount)}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       {editingSectorId === sector.id ? (

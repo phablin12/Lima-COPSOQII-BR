@@ -36,7 +36,7 @@
     },
     "Professional": {
       "title": "Professional",
-      "description": "A safety professional definition",
+      "description": "A safety professional technical registry",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -45,6 +45,20 @@
         "reg": { "type": "string" }
       },
       "required": ["id", "name"]
+    },
+    "Evaluator": {
+      "title": "Evaluator",
+      "description": "An assessing company evaluation entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fantasyName": { "type": "string" },
+        "socialName": { "type": "string" },
+        "cnpj": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["id"]
     },
     "CatalogRisk": {
       "title": "CatalogRisk",
@@ -84,6 +98,10 @@
     "/professionals/{profId}": {
       "schema": "Professional",
       "description": "Technical professionals registry"
+    },
+    "/evaluators/{evaluatorId}": {
+      "schema": "Evaluator",
+      "description": "Assessor evaluating companies registry"
     },
     "/catalog/{catalogId}": {
       "schema": "CatalogRisk",
