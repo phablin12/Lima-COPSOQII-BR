@@ -6,9 +6,9 @@
 import React from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { replaceTemplateVariables } from "./ChaptersEditor";
-import { Download, FolderDown, Loader2, CheckCircle2, AlertCircle, Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock, ExternalLink, X } from "lucide-react";
+import { Download, Loader2, AlertCircle, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
-import { exportReportToPdf, getReportDefaultFileName, triggerDirectDownload, PdfExportProgress } from "../utils/pdfExport";
+import { exportReportToPdf } from "../utils/pdfExport";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -154,76 +154,27 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const [isExporting, setIsExporting] = React.useState(false);
-  const [exportProgress, setExportProgress] = React.useState<PdfExportProgress | null>(null);
-  const [exportResult, setExportResult] = React.useState<{ success: boolean; fileName?: string; error?: string } | null>(null);
-  const [showFolderModal, setShowFolderModal] = React.useState(false);
-  const [pendingBlob, setPendingBlob] = React.useState<{ blob: Blob; fileName: string } | null>(null);
+  const [exportError, setExportError] = React.useState<string | null>(null);
 
-  const handleDownloadPdf = async (saveMode: "picker" | "download" = "picker") => {
+  const handleDownloadPdf = async () => {
     if (isExporting) return;
     setIsExporting(true);
-    setExportResult(null);
-    setExportProgress({ current: 0, total: 10, message: "Iniciando auditoria A4 e paginação...", percent: 5 });
+    setExportError(null);
 
     try {
-      const result = await exportReportToPdf(
-        report,
-        (prog) => {
-          setExportProgress(prog);
-        },
-        saveMode
-      );
-
-      if (result.success && !result.cancelled) {
-        setExportResult({ success: true, fileName: result.fileName });
-        setTimeout(() => {
-          setExportResult(null);
-        }, 8000);
-      } else if (result.iframeRestricted && result.blob) {
-        setPendingBlob({ blob: result.blob, fileName: result.fileName });
-        setShowFolderModal(true);
-      } else if (result.error) {
-        setExportResult({ success: false, error: result.error });
+      const result = await exportReportToPdf(report);
+      if (result.error) {
+        setExportError(result.error);
       }
     } catch (err: any) {
-      setExportResult({ success: false, error: err?.message || "Erro inesperado ao gerar PDF" });
+      setExportError(err?.message || "Erro inesperado ao gerar o PDF");
     } finally {
       setIsExporting(false);
-      setExportProgress(null);
     }
-  };
-
-  const handleSystemPrintSave = () => {
-    const fileName = getReportDefaultFileName(report);
-    const originalTitle = document.title;
-    document.title = fileName.replace(/\.pdf$/i, "");
-    setShowFolderModal(false);
-    window.print();
-    setTimeout(() => {
-      document.title = originalTitle;
-    }, 3000);
-  };
-
-  const handleOpenInNewTab = () => {
-    setShowFolderModal(false);
-    window.open(window.location.href, "_blank");
-  };
-
-  const handleDirectDownloadFromModal = () => {
-    if (pendingBlob) {
-      triggerDirectDownload(pendingBlob.blob, pendingBlob.fileName);
-      setExportResult({ success: true, fileName: pendingBlob.fileName });
-      setTimeout(() => {
-        setExportResult(null);
-      }, 8000);
-    } else {
-      handleDownloadPdf("download");
-    }
-    setShowFolderModal(false);
   };
 
   const handlePrint = () => {
-    handleSystemPrintSave();
+    window.print();
   };
 
   const renderIndentedText = (text: string) => {
@@ -350,207 +301,37 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
   return (
     <div className="space-y-6" id="report-print-preview-container">
-      {/* Ferramenta para Baixar o Relatório em PDF com Auditoria A4 e Escolha de Pasta */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 print:hidden">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <Download className="w-4 h-4 text-slate-700" />
-                Download do Relatório Técnico em PDF
-              </h3>
-              <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded uppercase tracking-wider">
-                Padrão A4 • Margens Auditadas
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 max-w-xl">
-              Gere o documento oficial com limites dimensionais A4 padronizados, margens protegidas de 14mm e quebra automática de páginas.
-            </p>
-            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-              <div className="inline-flex items-center gap-1.5 text-[11px] text-slate-700 font-mono bg-slate-50 px-3 py-1 rounded-lg border border-slate-200">
-                <FolderDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span>Nome padrão: <strong className="text-slate-900 font-semibold">{getReportDefaultFileName(report)}</strong></span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Botão Principal: Baixar Relatório em PDF (Escolher Pasta) */}
-            <button
-              onClick={() => handleDownloadPdf("picker")}
-              disabled={isExporting}
-              className={`flex items-center justify-center gap-2 text-xs font-bold text-white px-5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer ${
-                isExporting
-                  ? "bg-slate-700 opacity-90 cursor-not-allowed"
-                  : "bg-slate-900 hover:bg-black active:scale-[0.99]"
-              }`}
-              title="Gera o PDF e abre a janela para escolher em qual pasta do seu computador salvar"
-            >
-              {isExporting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span>Gerando PDF...</span>
-                </>
-              ) : (
-                <>
-                  <FolderDown className="w-4 h-4 text-white" />
-                  <span>Baixar Relatório em PDF</span>
-                </>
-              )}
-            </button>
-
-            {/* Botão de Diálogo do Sistema / Salvar como PDF */}
-            <button
-              onClick={handleSystemPrintSave}
-              disabled={isExporting}
-              className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl transition-all shadow-2xs cursor-pointer"
-              title="Abre a janela de salvamento do sistema para salvar como PDF na pasta desejada"
-            >
-              <Printer className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">Diálogo do Sistema (Salvar como PDF)</span>
-              <span className="sm:hidden">Salvar como PDF</span>
-            </button>
-
-            {/* Botão Abrir em Nova Aba */}
-            <button
-              onClick={handleOpenInNewTab}
-              className="p-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer"
-              title="Abrir em nova aba para salvar com acesso irrestrito ao explorador de pastas"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Barra de Progresso Durante a Geração */}
-        {isExporting && exportProgress && (
-          <div className="pt-3 border-t border-slate-100 space-y-1.5">
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span className="font-medium text-slate-700 flex items-center gap-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
-                {exportProgress.message}
-              </span>
-              <span className="font-mono font-bold text-slate-900">{exportProgress.percent}%</span>
-            </div>
-            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-slate-800 transition-all duration-200 rounded-full"
-                style={{ width: `${exportProgress.percent}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Feedback de Sucesso */}
-        {exportResult?.success && (
-          <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Relatório em PDF gerado com sucesso! Arquivo: <strong>{exportResult.fileName}</strong></span>
-          </div>
-        )}
-
-        {/* Feedback de Erro */}
-        {exportResult?.error && (
-          <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-xs font-semibold text-rose-700 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>Não foi possível gerar o PDF: {exportResult.error}</span>
-          </div>
-        )}
+      {/* Botão de Ação: Baixar Relatório em PDF */}
+      <div className="flex items-center justify-end print:hidden">
+        <button
+          id="btn-download-report-pdf"
+          onClick={handleDownloadPdf}
+          disabled={isExporting}
+          className={`flex items-center justify-center gap-2.5 text-xs font-bold text-white px-6 py-3 rounded-xl transition-all shadow-xs cursor-pointer ${
+            isExporting
+              ? "bg-slate-700 opacity-90 cursor-not-allowed"
+              : "bg-slate-900 hover:bg-black active:scale-[0.99]"
+          }`}
+        >
+          {isExporting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+              <span>Gerando PDF...</span>
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4 text-white" />
+              <span>Baixar Relatório em PDF</span>
+            </>
+          )}
+        </button>
       </div>
 
-      {/* Modal para Escolha de Pasta Quando em Ambiente iFrame */}
-      {showFolderModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800 font-bold shrink-0">
-                  <FolderDown className="w-5 h-5 text-slate-700" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-extrabold text-slate-900">Salvar Relatório em Pasta Específica</h4>
-                  <p className="text-xs text-slate-500">Escolha como prefere salvar no seu computador</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowFolderModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
-              <p>
-                O arquivo PDF com layout A4 auditado está pronto! Para selecionar a pasta onde salvar no seu disco rígido:
-              </p>
-            </div>
-
-            <div className="space-y-2.5">
-              {/* Opção 1: Janela de Salvamento do Sistema */}
-              <button
-                onClick={handleSystemPrintSave}
-                className="w-full text-left p-3.5 rounded-xl border border-slate-200 hover:border-slate-800 hover:bg-slate-50/70 transition-all flex items-start gap-3 group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-700 transition-colors shrink-0 mt-0.5">
-                  <Printer className="w-4 h-4" />
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-xs font-extrabold text-slate-900 block group-hover:text-slate-950">
-                    1. Diálogo do Sistema (Salvar como PDF / Escolher Pasta)
-                  </span>
-                  <span className="text-[11px] text-slate-500 block leading-tight">
-                    Abre a janela nativa do navegador onde você clica em "Salvar" e escolhe a pasta exata no Windows Explorer / Mac Finder.
-                  </span>
-                </div>
-              </button>
-
-              {/* Opção 2: Nova Aba */}
-              <button
-                onClick={handleOpenInNewTab}
-                className="w-full text-left p-3.5 rounded-xl border border-slate-200 hover:border-slate-800 hover:bg-slate-50/70 transition-all flex items-start gap-3 group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-700 transition-colors shrink-0 mt-0.5">
-                  <ExternalLink className="w-4 h-4" />
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-xs font-extrabold text-slate-900 block group-hover:text-slate-950">
-                    2. Abrir Relatório em Nova Aba
-                  </span>
-                  <span className="text-[11px] text-slate-500 block leading-tight">
-                    Abre em aba cheia sem restrições de iframe, ativando a seleção direta de pastas por janela de arquivos.
-                  </span>
-                </div>
-              </button>
-
-              {/* Opção 3: Download Direto */}
-              <button
-                onClick={handleDirectDownloadFromModal}
-                className="w-full text-left p-3.5 rounded-xl border border-slate-200 hover:border-slate-800 hover:bg-slate-50/70 transition-all flex items-start gap-3 group cursor-pointer"
-              >
-                <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-slate-900 group-hover:text-white flex items-center justify-center text-slate-700 transition-colors shrink-0 mt-0.5">
-                  <Download className="w-4 h-4" />
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-xs font-extrabold text-slate-900 block group-hover:text-slate-950">
-                    3. Baixar Imediatamente (Pasta Downloads)
-                  </span>
-                  <span className="text-[11px] text-slate-500 block leading-tight">
-                    Salva diretamente o arquivo PDF gerado na sua pasta padrão de downloads.
-                  </span>
-                </div>
-              </button>
-            </div>
-
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={() => setShowFolderModal(false)}
-                className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-4 py-2 cursor-pointer"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
+      {/* Alerta em caso de erro na geração */}
+      {exportError && (
+        <div className="flex items-center gap-2 text-xs font-semibold text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200 print:hidden">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>Não foi possível gerar o PDF: {exportError}</span>
         </div>
       )}
 
@@ -665,8 +446,6 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         {/* --- PÁGINA 2: RESUMO E IDENTIFICAÇÃO DO ESCOPO --- */}
         {(() => {
           const totalEmployees = report.sectors.reduce((sum, s) => sum + (s.employeeCount || 0), 0);
-          const totalRespondents = report.sectors.reduce((sum, s) => sum + (s.respondentsCount || 0), 0);
-          const totalResponseRate = totalEmployees > 0 ? Math.round((totalRespondents / totalEmployees) * 100) : 0;
 
           return (
             <div data-pdf-block="true" data-page-break="before" data-block-title="Dados Cadastrais e Escopo" className="pdf-block min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
@@ -764,14 +543,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     <span className="text-[10px] text-slate-500 block">Total de Colaboradores</span>
                   </div>
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Setores Mapeados</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Setores / GHE Mapeados</span>
                     <span className="text-2xl font-black text-slate-800 font-mono">{report.sectors.length}</span>
-                    <span className="text-[10px] text-slate-500 block">Setores Ativos</span>
+                    <span className="text-[10px] text-slate-500 block">Grupos de Exposição</span>
                   </div>
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Taxa de Resposta Geral</span>
-                    <span className="text-2xl font-black text-slate-800 font-mono">{totalResponseRate}%</span>
-                    <span className="text-[10px] text-slate-500 block">{totalRespondents} respostas apuradas</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Riscos no Inventário</span>
+                    <span className="text-2xl font-black text-slate-800 font-mono">{report.riskInventory.length}</span>
+                    <span className="text-[10px] text-slate-500 block">Fatores Identificados</span>
                   </div>
                 </div>
               </div>
@@ -1061,7 +840,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                         </thead>
                         <tbody className="divide-y divide-slate-200">
                           {COPSOQ_DIMENSIONS.map((dim) => {
-                            const score = sector.scores?.[dim.key] ?? 0;
+                            const score = sector.scores?.[dim.key];
                             const ratingInfo = getDimensionRating(score, dim.type);
 
                             return (
@@ -1071,7 +850,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                   {dim.type === "positive" ? "Positiva" : "Negativa"}
                                 </td>
                                 <td className="p-2 border border-slate-200 text-center font-bold text-slate-800 font-mono">
-                                  {score === 0 ? "N/A" : score.toFixed(2)}
+                                  {score !== undefined && score !== null ? score.toFixed(2) : "N/A"}
                                 </td>
                                 <td className={`p-2 border border-slate-200 text-center font-bold text-[10px] uppercase ${ratingInfo.bgClass}`}>
                                   {ratingInfo.rating}
@@ -1113,10 +892,10 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               {report.sectors.map((sector) => {
                 // Get critical dimensions for this sector
                 const critical = COPSOQ_DIMENSIONS.map((d) => {
-                  const score = sector.scores?.[d.key] ?? 0.0;
+                  const score = sector.scores?.[d.key];
                   const rat = getDimensionRating(score, d.type);
-                  return { name: d.name, score, rating: rat.rating };
-                }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score > 0);
+                  return { name: d.name, score: score ?? 0, rating: rat.rating };
+                }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado");
 
                 return (
                   <div key={sector.id} data-pdf-block="true" data-block-title={`Devolutiva: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
@@ -1204,12 +983,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                             </h4>
                           </div>
                           <div className="text-[9px] font-bold text-slate-300 uppercase">
-                            {sector.employeeCount || 0} colaboradores expostos
+                            {sector.employeeCount || 0} {(sector.employeeCount || 0) === 1 ? "colaborador exposto" : "colaboradores expostos"}
                           </div>
                         </div>
 
                         <div className="space-y-4">
                           {sectorRisks.map((item, index) => {
+                            const effectiveCount = sector.employeeCount || item.exposedCount || 1;
+
                             return (
                               <div key={item.id} className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
                                 {/* Header */}
@@ -1232,7 +1013,9 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-2 gap-2 text-left">
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                                    <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
+                                    <span className="text-slate-800 font-semibold">
+                                      {effectiveCount} {effectiveCount === 1 ? "colaborador" : "colaboradores"}
+                                    </span>
                                   </div>
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
@@ -1420,10 +1203,18 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
                                 {/* Row 2: Exposição */}
                                 <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-2 gap-2 text-left">
-                                  <div>
-                                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                                    <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
-                                  </div>
+                                  {(() => {
+                                    const matchingSector = report.sectors.find(s => s.id === item.sectorId);
+                                    const count = matchingSector ? matchingSector.employeeCount : item.exposedCount;
+                                    return (
+                                      <div>
+                                        <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
+                                        <span className="text-slate-800 font-semibold">
+                                          {count} {count === 1 ? "colaborador" : "colaboradores"}
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
                                     <span className="text-slate-800 font-semibold">Contínua / Habitual</span>

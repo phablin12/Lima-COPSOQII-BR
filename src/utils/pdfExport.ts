@@ -18,9 +18,6 @@ export interface PdfExportResult {
   success: boolean;
   cancelled?: boolean;
   fileName: string;
-  method?: "picker" | "download";
-  iframeRestricted?: boolean;
-  blob?: Blob;
   error?: string;
 }
 
@@ -44,8 +41,7 @@ export function triggerDirectDownload(blob: Blob, fileName: string): void {
 
 export async function exportReportToPdf(
   report: Report,
-  onProgress?: (progress: PdfExportProgress) => void,
-  saveMode: "picker" | "download" = "picker"
+  onProgress?: (progress: PdfExportProgress) => void
 ): Promise<PdfExportResult> {
   const fileName = getReportDefaultFileName(report);
 
@@ -78,6 +74,7 @@ export async function exportReportToPdf(
       throw new Error("Nenhuma seção do relatório encontrada para exportar.");
     }
 
+    // Padrão ABNT NBR 14724: Formato A4 (210 x 297 mm)
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -87,11 +84,17 @@ export async function exportReportToPdf(
 
     const PAGE_W = 210;
     const PAGE_H = 297;
-    const MARGIN_X = 14; // Standard A4 14mm margin
-    const MARGIN_TOP = 14; // Standard A4 14mm top margin
-    const MARGIN_BOTTOM = 18; // 18mm bottom margin (includes footer clearance)
-    const CONTENT_W = PAGE_W - 2 * MARGIN_X; // 182mm
-    const CONTENT_MAX_H = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM; // 265mm
+    // Margens padronizadas ABNT:
+    // Superior: 3,0 cm (30 mm)
+    // Esquerda: 3,0 cm (30 mm)
+    // Direita: 2,0 cm (20 mm)
+    // Inferior: 2,0 cm (20 mm)
+    const MARGIN_LEFT = 30;
+    const MARGIN_TOP = 30;
+    const MARGIN_RIGHT = 20;
+    const MARGIN_BOTTOM = 20;
+    const CONTENT_W = PAGE_W - MARGIN_LEFT - MARGIN_RIGHT; // 160 mm de área útil
+    const CONTENT_MAX_H = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM; // 247 mm de área útil
 
     let currentY = MARGIN_TOP;
     let isFirstPage = true;
@@ -155,7 +158,7 @@ export async function exportReportToPdf(
         const imgData = blockCanvas.toDataURL("image/jpeg", 0.95);
         // Center cover vertically if it's slightly shorter
         const coverY = blockH_MM < CONTENT_MAX_H ? MARGIN_TOP + (CONTENT_MAX_H - blockH_MM) / 2 : MARGIN_TOP;
-        pdf.addImage(imgData, "JPEG", MARGIN_X, coverY, CONTENT_W, Math.min(blockH_MM, CONTENT_MAX_H), undefined, "FAST");
+        pdf.addImage(imgData, "JPEG", MARGIN_LEFT, coverY, CONTENT_W, Math.min(blockH_MM, CONTENT_MAX_H), undefined, "FAST");
         currentY = CONTENT_MAX_H + 10; // Trigger new page for next block
         continue;
       }
@@ -196,37 +199,37 @@ export async function exportReportToPdf(
 
           const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.95);
           const sliceH_MM = (sliceCanvas.height / sliceCanvas.width) * CONTENT_W;
-          pdf.addImage(sliceData, "JPEG", MARGIN_X, currentY, CONTENT_W, sliceH_MM, undefined, "FAST");
+          pdf.addImage(sliceData, "JPEG", MARGIN_LEFT, currentY, CONTENT_W, sliceH_MM, undefined, "FAST");
           currentY = CONTENT_MAX_H + 10;
         }
       } else {
         // Fits comfortably on current page
         const imgData = blockCanvas.toDataURL("image/jpeg", 0.95);
-        pdf.addImage(imgData, "JPEG", MARGIN_X, currentY, CONTENT_W, blockH_MM, undefined, "FAST");
+        pdf.addImage(imgData, "JPEG", MARGIN_LEFT, currentY, CONTENT_W, blockH_MM, undefined, "FAST");
         currentY += blockH_MM + 4; // 4mm spacing between blocks
       }
     }
 
-    // Apply running footers with page numbers to all pages (excluding cover page 1)
+    // Apply running footers with page numbers to all pages (excluding cover page 1) according to ABNT NBR 14724
     const totalPages = pdf.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
-      if (p === 1) continue; // Skip cover page
+      if (p === 1) continue; // Cover page is counted, but not numbered visually in ABNT
       pdf.setPage(p);
-      pdf.setFontSize(8);
+      pdf.setFontSize(8.5);
       pdf.setTextColor(100, 116, 139); // slate-500
 
-      // Left running header text:
+      // Left running text at left margin 30mm
       pdf.text(
         `Diagnóstico dos Fatores de Riscos Psicossociais • ${report.companyName || "Empresa"}`,
-        MARGIN_X,
-        PAGE_H - 10
+        MARGIN_LEFT,
+        PAGE_H - 12
       );
 
-      // Right page number:
+      // Right page number at right margin 20mm (PAGE_W - 20 = 190mm)
       pdf.text(
         `Página ${p} de ${totalPages}`,
-        PAGE_W - MARGIN_X,
-        PAGE_H - 10,
+        PAGE_W - MARGIN_RIGHT,
+        PAGE_H - 12,
         { align: "right" }
       );
     }
@@ -236,72 +239,40 @@ export async function exportReportToPdf(
         current: visibleBlocks.length,
         total: visibleBlocks.length,
         message: "Finalizando formatação do PDF...",
-        percent: 96,
+        percent: 98,
       });
     }
 
     const pdfBlob = pdf.output("blob");
 
-    // Saving workflow
-    if (saveMode === "picker") {
-      if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
-        try {
-          const handle = await (window as any).showSaveFilePicker({
-            suggestedName: fileName,
-            types: [
-              {
-                description: "Documento PDF (*.pdf)",
-                accept: { "application/pdf": [".pdf"] },
-              },
-            ],
-          });
-          const writable = await handle.createWritable();
-          await writable.write(pdfBlob);
-          await writable.close();
+    // Saving workflow: try native save file picker if available, otherwise direct download
+    if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+          types: [
+            {
+              description: "Documento PDF (*.pdf)",
+              accept: { "application/pdf": [".pdf"] },
+            },
+          ],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(pdfBlob);
+        await writable.close();
 
-          if (onProgress) {
-            onProgress({
-              current: visibleBlocks.length,
-              total: visibleBlocks.length,
-              message: "Arquivo salvo com sucesso na pasta selecionada!",
-              percent: 100,
-            });
-          }
-
-          return { success: true, fileName, method: "picker", blob: pdfBlob };
-        } catch (err: any) {
-          if (err?.name === "AbortError") {
-            return { success: true, cancelled: true, fileName, blob: pdfBlob };
-          }
-          if (err?.name === "SecurityError") {
-            // Blocked inside cross-origin iframe
-            console.warn("showSaveFilePicker bloqueado por restrição de iframe:", err);
-            return {
-              success: false,
-              iframeRestricted: true,
-              fileName,
-              blob: pdfBlob,
-              error: "O navegador não permite abrir a seleção de pastas dentro de janelas integradas.",
-            };
-          }
-          console.warn("Erro no showSaveFilePicker, caindo para download:", err);
+        return { success: true, fileName };
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          return { success: true, cancelled: true, fileName };
         }
+        // Silently fall back to direct download if blocked (e.g. iframe) or unsupported
       }
     }
 
-    // Default download fallback
+    // Direct download
     triggerDirectDownload(pdfBlob, fileName);
-
-    if (onProgress) {
-      onProgress({
-        current: visibleBlocks.length,
-        total: visibleBlocks.length,
-        message: "Download do relatório concluído com sucesso!",
-        percent: 100,
-      });
-    }
-
-    return { success: true, fileName, method: "download", blob: pdfBlob };
+    return { success: true, fileName };
   } catch (error: any) {
     console.error("Erro na geração do PDF:", error);
     return {

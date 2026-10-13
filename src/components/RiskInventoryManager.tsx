@@ -16,8 +16,10 @@ interface RiskInventoryManagerProps {
 }
 
 export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ report, catalog, onChange }) => {
+  const initialSector = report.sectors.length > 0 ? report.sectors[0] : null;
+
   const [selectedSectorId, setSelectedSectorId] = useState<string>(
-    report.sectors.length > 0 ? report.sectors[0].id : ""
+    initialSector ? initialSector.id : ""
   );
 
   const [selectedCatalogRiskId, setSelectedCatalogRiskId] = useState<string>(
@@ -26,7 +28,9 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
   // Form Fields State
   const [customRiskName, setCustomRiskName] = useState("");
-  const [exposedCount, setExposedCount] = useState<number>(1);
+  const [exposedCount, setExposedCount] = useState<number>(
+    initialSector ? initialSector.employeeCount : 1
+  );
   const [sourcesField, setSourcesField] = useState("");
   const [possibleInjuries, setPossibleInjuries] = useState("");
   const [diseaseHistory, setDiseaseHistory] = useState("");
@@ -316,6 +320,13 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
             if (editingItemId) {
               handleCancelEdit();
             } else {
+              if (!isAdding) {
+                const sect = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
+                if (sect) {
+                  setSelectedSectorId(sect.id);
+                  setExposedCount(sect.employeeCount);
+                }
+              }
               setIsAdding(!isAdding);
             }
           }}
@@ -399,9 +410,20 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
               </div>
 
               <div className="md:col-span-3 space-y-1">
-                <label className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                  Expostos (GHE)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-600">
+                    Expostos (GHE)
+                  </label>
+                  {(() => {
+                    const currentSector = report.sectors.find((s) => s.id === selectedSectorId);
+                    if (!currentSector) return null;
+                    return (
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        Setor: {currentSector.employeeCount} {currentSector.employeeCount === 1 ? "colaborador" : "colaboradores"}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <input
                   type="number"
                   min="1"
@@ -808,10 +830,18 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
                   {/* Row 2: Exposição */}
                   <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                      <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
-                    </div>
+                    {(() => {
+                      const itemSector = report.sectors.find((s) => s.id === item.sectorId);
+                      const effectiveCount = itemSector ? itemSector.employeeCount : item.exposedCount;
+                      return (
+                        <div>
+                          <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
+                          <span className="text-slate-800 font-semibold">
+                            {effectiveCount} {effectiveCount === 1 ? "colaborador" : "colaboradores"}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <div>
                       <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
                       <span className="text-slate-800 font-semibold">Contínua / Habitual</span>

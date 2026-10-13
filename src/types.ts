@@ -9,7 +9,7 @@ export interface Sector {
   employeeCount: number;
   respondentsCount?: number; // Number of employees who responded
   risksRecognized?: boolean; // Whether the company/sector recognizes risks in the devolution
-  scores: Record<string, number>; // dimensionKey -> score (0 to 4)
+  scores: Record<string, number | undefined>; // dimensionKey -> score (0 to 4)
   devolvedSynthesis: string; // Synth for moderate/unfavorable risks during devolution with leaders
   generalAnalysis?: string; // Optional general analysis text
   qualitativeEvaluatedText?: string; // O que foi avaliado no ambiente
@@ -229,13 +229,13 @@ export const COPSOQ_DIMENSIONS: DimensionDefinition[] = [
   }
 ];
 
-export const getDimensionRating = (score: number, type: "positive" | "negative" = "positive"): {
+export const getDimensionRating = (score: number | undefined | null, type: "positive" | "negative" = "positive"): {
   rating: "Favorável" | "Moderada" | "Desfavorável" | "Não Avaliado";
   colorClass: string;
   bgClass: string;
   textColor: string;
 } => {
-  if (score <= 0 || score === undefined) {
+  if (score === undefined || score === null || isNaN(score) || score < 0) {
     return {
       rating: "Não Avaliado",
       colorClass: "bg-slate-300",

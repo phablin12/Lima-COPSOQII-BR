@@ -36,10 +36,10 @@
 }
 
 @media print {
-  /* Reset margins and set size for A4 pages */
+  /* Margens padronizadas ABNT NBR 14724 para papel A4: Superior 30mm, Direita 20mm, Inferior 20mm, Esquerda 30mm */
   @page {
     size: A4 portrait;
-    margin: 15mm 15mm 15mm 15mm;
+    margin: 30mm 20mm 20mm 30mm;
   }
 
   body {
