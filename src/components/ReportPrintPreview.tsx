@@ -6,9 +6,9 @@
 import React from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { replaceTemplateVariables } from "./ChaptersEditor";
-import { Download, Loader2, AlertCircle, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
+import { Download, Loader2, AlertCircle, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock, ExternalLink, Printer, CheckCircle2 } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
-import { exportReportToPdf } from "../utils/pdfExport";
+import { exportReportToPdf, prepareViewerTab, triggerDirectDownload, getReportDefaultFileName } from "../utils/pdfExport";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -154,22 +154,53 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const [isExporting, setIsExporting] = React.useState(false);
+  const [exportProgress, setExportProgress] = React.useState<string | null>(null);
   const [exportError, setExportError] = React.useState<string | null>(null);
+  const [lastGeneratedPdfUrl, setLastGeneratedPdfUrl] = React.useState<string | null>(null);
+  const [lastGeneratedBlob, setLastGeneratedBlob] = React.useState<Blob | null>(null);
+  const [lastGeneratedFileName, setLastGeneratedFileName] = React.useState<string | null>(null);
 
-  const handleDownloadPdf = async () => {
+  const handleOpenPdfViewer = async () => {
     if (isExporting) return;
     setIsExporting(true);
     setExportError(null);
+    setExportProgress("Preparando documento...");
+
+    // Pre-open the new tab immediately on user click so modern browsers don't block the popup
+    const fileName = getReportDefaultFileName(report);
+    const preOpenedWindow = prepareViewerTab(fileName);
 
     try {
-      const result = await exportReportToPdf(report);
-      if (result.error) {
-        setExportError(result.error);
+      const result = await exportReportToPdf(
+        report,
+        (prog) => {
+          setExportProgress(`${prog.message} (${prog.percent}%)`);
+        },
+        preOpenedWindow
+      );
+
+      if (!result.success || result.error) {
+        setExportError(result.error || "Não foi possível gerar o PDF.");
+      } else {
+        if (result.blobUrl && result.blob) {
+          setLastGeneratedPdfUrl(result.blobUrl);
+          setLastGeneratedBlob(result.blob);
+          setLastGeneratedFileName(result.fileName);
+        }
       }
     } catch (err: any) {
-      setExportError(err?.message || "Erro inesperado ao gerar o PDF");
+      setExportError(err?.message || "Erro inesperado ao gerar a visualização do PDF.");
     } finally {
       setIsExporting(false);
+      setExportProgress(null);
+    }
+  };
+
+  const handleDirectDownload = () => {
+    if (lastGeneratedBlob && lastGeneratedFileName) {
+      triggerDirectDownload(lastGeneratedBlob, lastGeneratedFileName);
+    } else {
+      handleOpenPdfViewer();
     }
   };
 
@@ -301,31 +332,90 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
   return (
     <div className="space-y-6" id="report-print-preview-container">
-      {/* Botão de Ação: Baixar Relatório em PDF */}
-      <div className="flex items-center justify-end print:hidden">
-        <button
-          id="btn-download-report-pdf"
-          onClick={handleDownloadPdf}
-          disabled={isExporting}
-          className={`flex items-center justify-center gap-2.5 text-xs font-bold text-white px-6 py-3 rounded-xl transition-all shadow-xs cursor-pointer ${
-            isExporting
-              ? "bg-slate-700 opacity-90 cursor-not-allowed"
-              : "bg-slate-900 hover:bg-black active:scale-[0.99]"
-          }`}
-        >
-          {isExporting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin text-white" />
-              <span>Gerando PDF...</span>
-            </>
-          ) : (
-            <>
-              <Download className="w-4 h-4 text-white" />
-              <span>Baixar Relatório em PDF</span>
-            </>
-          )}
-        </button>
+      {/* Barra de Ações: Visualização em Nova Guia, Download e Impressão */}
+      <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
+        <div className="space-y-0.5 text-left">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+            <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+              Exportação Oficial do Laudo Técnico
+            </span>
+            {isExporting && exportProgress && (
+              <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200">
+                {exportProgress}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">
+            Abre a visualização completa do PDF em uma nova guia, com enquadramento ABNT, pronta para leitura e download.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3.5 py-2.5 rounded-xl transition cursor-pointer"
+            title="Abrir diálogo de impressão do navegador"
+          >
+            <Printer className="w-4 h-4 text-slate-600" />
+            <span>Imprimir</span>
+          </button>
+
+          <button
+            id="btn-download-report-pdf"
+            type="button"
+            onClick={handleOpenPdfViewer}
+            disabled={isExporting}
+            className={`flex items-center justify-center gap-2 text-xs font-bold text-white px-5 py-2.5 rounded-xl transition shadow-xs cursor-pointer ${
+              isExporting
+                ? "bg-slate-700 opacity-90 cursor-not-allowed"
+                : "bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99]"
+            }`}
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Gerando PDF...</span>
+              </>
+            ) : (
+              <>
+                <ExternalLink className="w-4 h-4 text-white" />
+                <span>Visualizar PDF em Nova Guia</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Banner de Sucesso / Atalhos quando o PDF estiver pronto */}
+      {lastGeneratedPdfUrl && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl text-xs text-emerald-900 print:hidden">
+          <div className="flex items-center gap-2 font-semibold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>PDF gerado com sucesso! Aberto em nova guia para visualização e download.</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <a
+              href={lastGeneratedPdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-bold text-emerald-800 underline hover:text-emerald-950 inline-flex items-center gap-1"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Reabrir Guia
+            </a>
+            {lastGeneratedBlob && (
+              <button
+                type="button"
+                onClick={handleDirectDownload}
+                className="text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" /> Baixar Novamente
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Alerta em caso de erro na geração */}
       {exportError && (
@@ -748,135 +838,124 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 4: APRESENTAÇÃO DOS RESULTADOS --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="4. Apresentação dos Resultados" className="pdf-block space-y-6 print:pt-6 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="4. Apresentação dos Resultados" className="pdf-block space-y-4 print:pt-6 page-break-before">
           {renderHeader(isQualitative ? "4. Resultados do Diagnóstico" : "4. Resultados Tabulados")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             4. Apresentação dos Resultados
           </h3>
-
-          {isQualitative ? (
-            <>
-              <p className="text-sm text-slate-700">
-                Abaixo estão detalhados os resultados descritivos obtidos através da avaliação qualitativa por setor. O diagnóstico baseou-se na observação de rotinas, no levantamento de campo e em entrevistas estruturadas coletivas e individuais com os colaboradores.
-              </p>
-
-              {report.sectors.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">Nenhum setor cadastrado no relatório.</p>
-              ) : (
-                <div className="space-y-8">
-                  {report.sectors.map((sector) => (
-                    <div key={sector.id} data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
-                      <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
-                        <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
-                        <div className="flex gap-4 text-xs font-semibold text-slate-600">
-                          <span>Trabalhadores Expostos: {sector.employeeCount}</span>
-                        </div>
-                      </div>
-
-                      {/* Bloco 1: O que foi avaliado */}
-                      <div className="space-y-1.5 text-left">
-                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">1. O que foi Avaliado / Escopo da Observação:</h4>
-                        <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                          {sector.qualitativeEvaluatedText ? (
-                            sector.qualitativeEvaluatedText
-                          ) : (
-                            <span className="text-slate-400 italic">Não preenchido.</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Bloco 2: Percepção do colaborador */}
-                      <div className="space-y-1.5 text-left">
-                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">2. Percepção dos Colaboradores (Diálogos/Entrevistas):</h4>
-                        <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                          {sector.qualitativePerceptionText ? (
-                            sector.qualitativePerceptionText
-                          ) : (
-                            <span className="text-slate-400 italic">Não preenchido.</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Bloco 3: Conclusão do setor */}
-                      <div className="space-y-1.5 text-left">
-                        <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">3. Conclusão e Parecer do Avaliador:</h4>
-                        <div className="p-3.5 bg-amber-50/20 rounded-lg border border-amber-100/50 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                          {sector.qualitativeConclusionText ? (
-                            sector.qualitativeConclusionText
-                          ) : (
-                            <span className="text-slate-400 italic">Não preenchido.</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-slate-700">
-                Abaixo estão detalhados os resultados numéricos médios tabulados por setor avaliado. Para cada setor, apresenta-se a pontuação obtida na escala COPSOQ II de 0,00 a 4,00 pontos.
-              </p>
-
-              {report.sectors.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">Nenhum dado setorial cadastrado no relatório.</p>
-              ) : (
-                <div className="space-y-8">
-                  {report.sectors.map((sector) => (
-                    <div key={sector.id} data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none break-inside-avoid print:break-inside-avoid">
-                      <div className="bg-slate-100 p-3 rounded-lg flex items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2">
-                        <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
-                      </div>
-
-                      <table className="w-full border-collapse border border-slate-200 text-xs">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
-                            <th className="p-2 border border-slate-200 text-left">Dimensão do COPSOQ II</th>
-                            <th className="p-2 border border-slate-200 text-center w-24">Tipo</th>
-                            <th className="p-2 border border-slate-200 text-center w-28">Pontuação</th>
-                            <th className="p-2 border border-slate-200 text-center w-36">Classificação Técnica</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                          {COPSOQ_DIMENSIONS.map((dim) => {
-                            const score = sector.scores?.[dim.key];
-                            const ratingInfo = getDimensionRating(score, dim.type);
-
-                            return (
-                              <tr key={dim.key} className="hover:bg-slate-50/50 print:hover:bg-transparent">
-                                <td className="p-2 border border-slate-200 font-medium">{dim.name}</td>
-                                <td className="p-2 border border-slate-200 text-center uppercase text-[9px] font-bold text-slate-400">
-                                  {dim.type === "positive" ? "Positiva" : "Negativa"}
-                                </td>
-                                <td className="p-2 border border-slate-200 text-center font-bold text-slate-800 font-mono">
-                                  {score !== undefined && score !== null ? score.toFixed(2) : "N/A"}
-                                </td>
-                                <td className={`p-2 border border-slate-200 text-center font-bold text-[10px] uppercase ${ratingInfo.bgClass}`}>
-                                  {ratingInfo.rating}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-
-                      {sector.generalAnalysis && (
-                        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-justify leading-relaxed print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
-                          <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">Análise Geral da Percepção dos Colaboradores:</strong>
-                          <span className="text-slate-700 italic">{sector.generalAnalysis}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+          <p className="text-sm text-slate-700">
+            {isQualitative
+              ? "Abaixo estão detalhados os resultados descritivos obtidos através da avaliação qualitativa por setor. O diagnóstico baseou-se na observação de rotinas, no levantamento de campo e em entrevistas estruturadas coletivas e individuais com os colaboradores."
+              : "Abaixo estão detalhados os resultados numéricos médios tabulados por setor avaliado. Para cada setor, apresenta-se a pontuação obtida na escala COPSOQ II de 0,00 a 4,00 pontos."}
+          </p>
+          {report.sectors.length === 0 && (
+            <p className="text-xs text-slate-400 italic">Nenhum setor cadastrado no relatório.</p>
           )}
         </div>
 
+        {/* Setores do Capítulo 4 */}
+        {report.sectors.length > 0 && (
+          <div className="space-y-6">
+            {isQualitative ? (
+              report.sectors.map((sector) => (
+                <div key={sector.id} data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
+                  <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
+                    <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
+                    <div className="flex gap-4 text-xs font-semibold text-slate-600">
+                      <span>Trabalhadores Expostos: {sector.employeeCount}</span>
+                    </div>
+                  </div>
+
+                  {/* Bloco 1: O que foi avaliado */}
+                  <div className="space-y-1.5 text-left">
+                    <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">1. O que foi Avaliado / Escopo da Observação:</h4>
+                    <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                      {sector.qualitativeEvaluatedText ? (
+                        sector.qualitativeEvaluatedText
+                      ) : (
+                        <span className="text-slate-400 italic">Não preenchido.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bloco 2: Percepção do colaborador */}
+                  <div className="space-y-1.5 text-left">
+                    <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">2. Percepção dos Colaboradores (Diálogos/Entrevistas):</h4>
+                    <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                      {sector.qualitativePerceptionText ? (
+                        sector.qualitativePerceptionText
+                      ) : (
+                        <span className="text-slate-400 italic">Não preenchido.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bloco 3: Conclusão do setor */}
+                  <div className="space-y-1.5 text-left">
+                    <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">3. Conclusão e Parecer do Avaliador:</h4>
+                    <div className="p-3.5 bg-amber-50/20 rounded-lg border border-amber-100/50 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
+                      {sector.qualitativeConclusionText ? (
+                        sector.qualitativeConclusionText
+                      ) : (
+                        <span className="text-slate-400 italic">Não preenchido.</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              report.sectors.map((sector) => (
+                <div key={sector.id} data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none break-inside-avoid print:break-inside-avoid">
+                  <div className="bg-slate-100 p-3 rounded-lg flex items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2">
+                    <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
+                  </div>
+
+                  <table className="w-full border-collapse border border-slate-200 text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+                        <th className="p-2 border border-slate-200 text-left">Dimensão do COPSOQ II</th>
+                        <th className="p-2 border border-slate-200 text-center w-24">Tipo</th>
+                        <th className="p-2 border border-slate-200 text-center w-28">Pontuação</th>
+                        <th className="p-2 border border-slate-200 text-center w-36">Classificação Técnica</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {COPSOQ_DIMENSIONS.map((dim) => {
+                        const score = sector.scores?.[dim.key];
+                        const ratingInfo = getDimensionRating(score, dim.type);
+
+                        return (
+                          <tr key={dim.key} className="hover:bg-slate-50/50 print:hover:bg-transparent">
+                            <td className="p-2 border border-slate-200 font-medium">{dim.name}</td>
+                            <td className="p-2 border border-slate-200 text-center uppercase text-[9px] font-bold text-slate-400">
+                              {dim.type === "positive" ? "Positiva" : "Negativa"}
+                            </td>
+                            <td className="p-2 border border-slate-200 text-center font-bold text-slate-800 font-mono">
+                              {score !== undefined && score !== null ? score.toFixed(2) : "N/A"}
+                            </td>
+                            <td className={`p-2 border border-slate-200 text-center font-bold text-[10px] uppercase ${ratingInfo.bgClass}`}>
+                              {ratingInfo.rating}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {sector.generalAnalysis && (
+                    <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs text-justify leading-relaxed print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                      <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">Análise Geral da Percepção dos Colaboradores:</strong>
+                      <span className="text-slate-700 italic">{sector.generalAnalysis}</span>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         {/* --- CAPÍTULO 5: ANÁLISE TÉCNICA DOS RISCOS --- */}
-        <div data-pdf-block="true" data-page-break="before" data-block-title="5. Análise Técnica dos Riscos e Investigação Qualitativa" className="pdf-block space-y-6 print:pt-6 page-break-before">
+        <div data-pdf-block="true" data-page-break="before" data-block-title="5. Análise Técnica dos Riscos e Investigação Qualitativa" className="pdf-block space-y-4 print:pt-6 page-break-before">
           {renderHeader("5. Análise de Campo e Devolutivas")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
             5. Análise Técnica dos Riscos e Investigação Qualitativa
@@ -884,72 +963,74 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           <p className="text-sm text-slate-700">
             Abaixo estão registradas as conclusões qualitativas das sessões de devolutiva mantidas com a liderança de cada setor. O escopo foca especificamente no cruzamento dos riscos percebidos desfavoráveis/moderados com o ambiente real de trabalho.
           </p>
-
-          {report.sectors.length === 0 ? (
+          {report.sectors.length === 0 && (
             <p className="text-xs text-slate-400 italic">Nenhum dado cadastrado.</p>
-          ) : (
-            <div className="space-y-6">
-              {report.sectors.map((sector) => {
-                // Get critical dimensions for this sector
-                const critical = COPSOQ_DIMENSIONS.map((d) => {
-                  const score = sector.scores?.[d.key];
-                  const rat = getDimensionRating(score, d.type);
-                  return { name: d.name, score: score ?? 0, rating: rat.rating };
-                }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado");
-
-                return (
-                  <div key={sector.id} data-pdf-block="true" data-block-title={`Devolutiva: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
-                    <h4 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-1.5 uppercase">
-                      Diagnóstico de Campo: {sector.name}
-                    </h4>
-
-                    <div className="flex flex-wrap gap-2 text-[10px] items-center">
-                      {isQualitative ? (
-                        <>
-                          <strong className="text-slate-500 uppercase tracking-wider">Metodologia:</strong>
-                          <span className="text-amber-800 font-semibold bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
-                            Avaliação de Fatores de Riscos Psicossociais Qualitativos (MPE)
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <strong className="text-slate-500 uppercase tracking-wider">Fatores Investigados:</strong>
-                          {critical.length === 0 ? (
-                            <span className="text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-                              Nenhum desvio detectado
-                            </span>
-                          ) : (
-                            critical.map((c, i) => (
-                              <span key={i} className={`px-2 py-0.5 rounded border font-semibold ${
-                                c.rating === "Desfavorável" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-amber-50 text-amber-800 border-amber-200"
-                              }`}>
-                                {c.name} ({c.score.toFixed(2)})
-                              </span>
-                            ))
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-xs text-justify leading-relaxed text-slate-700 whitespace-pre-wrap print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
-                      {sector.devolvedSynthesis ? (
-                        sector.devolvedSynthesis
-                      ) : (
-                        sector.qualitativeConclusionText ? (
-                          sector.qualitativeConclusionText
-                        ) : (
-                          <span className="text-slate-400 italic">
-                            Ainda não foi preenchido o relatório técnico de devolutiva ou conclusão para este setor.
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           )}
         </div>
+
+        {/* Setores do Capítulo 5 */}
+        {report.sectors.length > 0 && (
+          <div className="space-y-6">
+            {report.sectors.map((sector) => {
+              // Get critical dimensions for this sector
+              const critical = COPSOQ_DIMENSIONS.map((d) => {
+                const score = sector.scores?.[d.key];
+                const rat = getDimensionRating(score, d.type);
+                return { name: d.name, score: score ?? 0, rating: rat.rating };
+              }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado");
+
+              return (
+                <div key={sector.id} data-pdf-block="true" data-block-title={`Devolutiva: ${sector.name}`} className="pdf-block p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6 break-inside-avoid print:break-inside-avoid">
+                  <h4 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-1.5 uppercase">
+                    Diagnóstico de Campo: {sector.name}
+                  </h4>
+
+                  <div className="flex flex-wrap gap-2 text-[10px] items-center">
+                    {isQualitative ? (
+                      <>
+                        <strong className="text-slate-500 uppercase tracking-wider">Metodologia:</strong>
+                        <span className="text-amber-800 font-semibold bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+                          Avaliação de Fatores de Riscos Psicossociais Qualitativos (MPE)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <strong className="text-slate-500 uppercase tracking-wider">Fatores Investigados:</strong>
+                        {critical.length === 0 ? (
+                          <span className="text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                            Nenhum desvio detectado
+                          </span>
+                        ) : (
+                          critical.map((c, i) => (
+                            <span key={i} className={`px-2 py-0.5 rounded border font-semibold ${
+                              c.rating === "Desfavorável" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-amber-50 text-amber-800 border-amber-200"
+                            }`}>
+                              {c.name} ({c.score.toFixed(2)})
+                            </span>
+                          ))
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-xs text-justify leading-relaxed text-slate-700 whitespace-pre-wrap print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                    {sector.devolvedSynthesis ? (
+                      sector.devolvedSynthesis
+                    ) : (
+                      sector.qualitativeConclusionText ? (
+                        sector.qualitativeConclusionText
+                      ) : (
+                        <span className="text-slate-400 italic">
+                          Ainda não foi preenchido o relatório técnico de devolutiva ou conclusão para este setor.
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {report.risksRecognized !== false ? (
           <>
@@ -963,36 +1044,39 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 Abaixo estão estruturados de forma sistemática os riscos psicossociais evidenciados em campo, incluindo as fontes geradoras, as populações expostas, as medidas preventivas existentes e a respectiva avaliação de severidade e probabilidade através da matriz 5x5.
               </p>
 
-              {report.riskInventory.length === 0 ? (
+              {report.riskInventory.length === 0 && (
                 <p className="text-xs text-slate-400 italic py-6 text-center border border-dashed rounded-lg">
                   Nenhum risco registrado no inventário.
                 </p>
-              ) : (
-                <div className="space-y-8">
-                  {report.sectors.map((sector) => {
-                    const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
-                    if (sectorRisks.length === 0) return null;
+              )}
+            </div>
 
-                    return (
-                      <div key={sector.id} className="space-y-4">
-                        <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                            <h4 className="text-[10px] font-black uppercase tracking-wider">
-                              Setor / GHE: {sector.name}
-                            </h4>
-                          </div>
-                          <div className="text-[9px] font-bold text-slate-300 uppercase">
-                            {sector.employeeCount || 0} {(sector.employeeCount || 0) === 1 ? "colaborador exposto" : "colaboradores expostos"}
-                          </div>
+            {report.riskInventory.length > 0 && (
+              <div className="space-y-8">
+                {report.sectors.map((sector) => {
+                  const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
+                  if (sectorRisks.length === 0) return null;
+
+                  return (
+                    <div key={sector.id} className="space-y-4">
+                      <div data-pdf-block="true" data-block-title={`Setor: ${sector.name}`} className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                          <h4 className="text-[10px] font-black uppercase tracking-wider">
+                            Setor / GHE: {sector.name}
+                          </h4>
                         </div>
+                        <div className="text-[9px] font-bold text-slate-300 uppercase">
+                          {sector.employeeCount || 0} {(sector.employeeCount || 0) === 1 ? "colaborador exposto" : "colaboradores expostos"}
+                        </div>
+                      </div>
 
-                        <div className="space-y-4">
-                          {sectorRisks.map((item, index) => {
-                            const effectiveCount = sector.employeeCount || item.exposedCount || 1;
+                      <div className="space-y-4">
+                        {sectorRisks.map((item, index) => {
+                          const effectiveCount = sector.employeeCount || item.exposedCount || 1;
 
-                            return (
-                              <div key={item.id} className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
+                          return (
+                            <div key={item.id} data-pdf-block="true" data-block-title={`Inventário: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
                                 {/* Header */}
                                 <div className="bg-slate-100 border-b border-slate-300 px-4 py-2 flex flex-row justify-between items-center gap-2">
                                   <div className="flex items-center gap-2">
@@ -1170,7 +1254,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   {/* Fallback for unrecognized sector risks if any */}
                   {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
                     <div className="space-y-4">
-                      <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
+                      <div data-pdf-block="true" data-block-title="Setor não identificado" className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
@@ -1184,7 +1268,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                           .filter(item => !report.sectors.some(s => s.id === item.sectorId))
                           .map((item, index) => {
                             return (
-                              <div key={item.id} className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
+                              <div key={item.id} data-pdf-block="true" data-block-title={`Inventário: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
                                 {/* Header */}
                                 <div className="bg-slate-100 border-b border-slate-300 px-4 py-2 flex flex-row justify-between items-center gap-2">
                                   <div className="flex items-center gap-2">
@@ -1365,7 +1449,6 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   )}
                 </div>
               )}
-            </div>
 
             {/* --- CAPÍTULO 7: PLANO DE AÇÃO --- */}
             <div data-pdf-block="true" data-page-break="before" data-block-title="7. Cronograma e Plano de Ação" className="pdf-block space-y-4 print:pt-6 page-break-before">
@@ -1377,28 +1460,31 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 Com base no inventário técnico de riscos psicossociais, estabeleceram-se as seguintes ações integradas com objetivo, responsáveis, prioridade, prazos e indicadores de eficácia, conforme as diretrizes do PGR.
               </p>
 
-              {report.riskInventory.length === 0 ? (
+              {report.riskInventory.length === 0 && (
                 <p className="text-xs text-slate-400 italic py-6 text-center border border-dashed rounded-lg">
                   Nenhum plano de ação registrado.
                 </p>
-              ) : (
-                <div className="space-y-8">
-                  {report.sectors.map((sector) => {
-                    const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
-                    if (sectorRisks.length === 0) return null;
+              )}
+            </div>
 
-                    return (
-                      <div key={sector.id} className="space-y-4">
-                        <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                            <h4 className="text-[10px] font-black uppercase tracking-wider">
-                              Plano de Ação • Setor: {sector.name}
-                            </h4>
-                          </div>
+            {report.riskInventory.length > 0 && (
+              <div className="space-y-8">
+                {report.sectors.map((sector) => {
+                  const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
+                  if (sectorRisks.length === 0) return null;
+
+                  return (
+                    <div key={sector.id} className="space-y-4">
+                      <div data-pdf-block="true" data-block-title={`Plano de Ação: ${sector.name}`} className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print:bg-slate-900 print:text-white print-avoid-break-after">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                          <h4 className="text-[10px] font-black uppercase tracking-wider">
+                            Plano de Ação • Setor: {sector.name}
+                          </h4>
                         </div>
+                      </div>
 
-                        <div className="space-y-4">
+                      <div className="space-y-4">
                           {sectorRisks.map((item, idx) => {
                             return (
                               <div key={item.id} data-pdf-block="true" data-block-title={`Ação: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs break-inside-avoid print:break-inside-avoid print:border-slate-350">
@@ -1506,7 +1592,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   {/* Fallback for unrecognized sector actions */}
                   {report.riskInventory.filter(item => !report.sectors.some(s => s.id === item.sectorId)).length > 0 && (
                     <div className="space-y-4">
-                      <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
+                      <div data-pdf-block="true" data-block-title="Plano de Ação • Setor não identificado" className="pdf-block bg-slate-900 text-white px-4 py-2.5 rounded-xl border border-slate-850 flex items-center justify-between gap-4 print-avoid-break-after">
                         <div className="flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                           <h4 className="text-[10px] font-black uppercase tracking-wider">
@@ -1520,7 +1606,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                           .filter(item => !report.sectors.some(s => s.id === item.sectorId))
                           .map((item, idx) => {
                             return (
-                              <div key={item.id} className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs print:break-inside-avoid print:border-slate-350">
+                              <div key={item.id} data-pdf-block="true" data-block-title={`Ação: ${item.riskName}`} className="pdf-block border border-slate-300 rounded-2xl overflow-hidden shadow-xs print:shadow-none bg-white text-slate-800 text-xs break-inside-avoid print:break-inside-avoid print:border-slate-350">
                                 {/* Header do Card */}
                                 <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-300 flex flex-row items-center justify-between gap-3">
                                   <div className="space-y-1">
@@ -1622,7 +1708,6 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   )}
                 </div>
               )}
-            </div>
           </>
         ) : (
           <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-2 print:hidden">
