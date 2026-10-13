@@ -9,6 +9,8 @@ import { replaceTemplateVariables } from "./ChaptersEditor";
 import { Download, Loader2, AlertCircle, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock, ExternalLink, Printer, CheckCircle2 } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
 import { exportReportToPdf, openPdfViewerTab, triggerDirectDownload, getReportDefaultFileName } from "../utils/pdfExport";
+import { auth } from "../firebase";
+import { generateReportHtml } from "../utils/reportHtmlGenerator";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -168,35 +170,93 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   const [lastGeneratedFileName, setLastGeneratedFileName] = React.useState<string | null>(null);
   const [showCompletedModal, setShowCompletedModal] = React.useState(false);
 
+  const [generatedViewUrl, setGeneratedViewUrl] = React.useState<string | null>(null);
+
   const handleOpenPdfViewer = async () => {
     if (isExporting) return;
     setIsExporting(true);
     setExportError(null);
-    setExportProgressText("Iniciando formatação do laudo ABNT...");
-    setExportPercent(5);
+    setExportProgressText("Conectando ao endpoint de visualização do laudo...");
+    setExportPercent(15);
 
     try {
-      const result = await exportReportToPdf(
-        report,
-        (prog) => {
-          setExportProgressText(prog.message);
-          setExportPercent(prog.percent);
+      let idToken = "";
+      if (auth?.currentUser) {
+        try {
+          idToken = await auth.currentUser.getIdToken();
+        } catch {
+          // Continue without token if local
         }
-      );
+      }
+      setExportPercent(40);
+      setExportProgressText("Renderizando layout semântico com dados do cliente...");
 
-      if (!result.success || result.error) {
-        setExportError(result.error || "Não foi possível gerar o PDF.");
-      } else if (result.blob && result.blobUrl) {
-        setLastGeneratedPdfUrl(result.blobUrl);
-        setLastGeneratedBlob(result.blob);
-        setLastGeneratedFileName(result.fileName);
-        setShowCompletedModal(true);
+      let targetUrl = `/api/reports/${report.id}/view`;
 
-        // ONLY after 100% of the report is emitted: open the viewer in the new tab!
-        openPdfViewerTab(result.blob, result.fileName);
+      // 1. Register session on backend endpoint
+      try {
+        const res = await fetch("/api/reports/preview-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            report,
+            assessor: activeAssessor
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.viewUrl) {
+            targetUrl = data.viewUrl;
+          }
+        } else if (idToken) {
+          targetUrl = `/api/reports/${report.id}/view?token=${encodeURIComponent(idToken)}`;
+        }
+      } catch (endpointErr) {
+        console.warn("Endpoint call fallback:", endpointErr);
+        if (idToken) {
+          targetUrl = `/api/reports/${report.id}/view?token=${encodeURIComponent(idToken)}`;
+        }
+      }
+
+      setExportPercent(90);
+      setExportProgressText("Finalizando emissão do laudo técnico (100%)...");
+
+      // Small pause to guarantee smooth visual feedback to 100%
+      await new Promise(r => setTimeout(r, 200));
+      setExportPercent(100);
+      setGeneratedViewUrl(targetUrl);
+      setShowCompletedModal(true);
+
+      // Open in new tab after 100% emission
+      const win = window.open(targetUrl, "_blank");
+      if (!win) {
+        // Fallback for pop-up blockers: open via location or direct window
+        const fallbackWin = window.open("", "_blank");
+        if (fallbackWin) {
+          const html = generateReportHtml(report, activeAssessor, { showToolbar: true });
+          fallbackWin.document.open();
+          fallbackWin.document.write(html);
+          fallbackWin.document.close();
+        }
       }
     } catch (err: any) {
-      setExportError(err?.message || "Erro inesperado ao gerar a visualização do PDF.");
+      console.error("Erro ao abrir visualização:", err);
+      // Client-side fallback with semantic HTML
+      try {
+        const html = generateReportHtml(report, activeAssessor, { showToolbar: true });
+        const fallbackWin = window.open("", "_blank");
+        if (fallbackWin) {
+          fallbackWin.document.open();
+          fallbackWin.document.write(html);
+          fallbackWin.document.close();
+          setShowCompletedModal(true);
+        } else {
+          setExportError("O navegador bloqueou a abertura da nova guia. Por favor, autorize pop-ups para este site.");
+        }
+      } catch (renderErr: any) {
+        setExportError(renderErr?.message || "Erro inesperado ao gerar a visualização do laudo.");
+      }
     } finally {
       setIsExporting(false);
       setExportProgressText(null);
@@ -427,7 +487,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             ) : (
               <>
                 <ExternalLink className="w-4 h-4 text-white" />
-                <span>Visualizar PDF em Nova Guia</span>
+                <span>Visualizar Laudo (A4 Print / Nova Guia)</span>
               </>
             )}
           </button>
@@ -444,10 +504,10 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               </div>
               <div>
                 <h3 className="font-extrabold text-slate-900 text-base leading-tight">
-                  Emitindo Relatório Técnico em PDF
+                  Emitindo Laudo Técnico A4
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Enquadramento ABNT NBR 14724 • Sem páginas em branco
+                  Endpoint Seguro • HTML Semântico &amp; CSS Print • Sem páginas em branco
                 </p>
               </div>
             </div>
@@ -483,18 +543,20 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-extrabold text-slate-900 text-base">Relatório 100% Emitido!</h3>
-                <p className="text-xs text-slate-500 truncate max-w-[280px]">{lastGeneratedFileName}</p>
+                <h3 className="font-extrabold text-slate-900 text-base">Laudo 100% Emitido!</h3>
+                <p className="text-xs text-slate-500 truncate max-w-[280px]">{report.companyName}</p>
               </div>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              O laudo técnico foi renderizado com sucesso com paginação contínua, enquadramento ABNT e sem páginas em branco.
+              O laudo técnico foi estruturado com layout HTML semântico, tabelas limpas e regras de impressão (@media print) com cabeçalhos repetidos e sem páginas em branco.
             </p>
             <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  if (lastGeneratedBlob && lastGeneratedFileName) {
+                  if (generatedViewUrl) {
+                    window.open(generatedViewUrl, "_blank");
+                  } else if (lastGeneratedBlob && lastGeneratedFileName) {
                     openPdfViewerTab(lastGeneratedBlob, lastGeneratedFileName);
                   } else if (lastGeneratedPdfUrl) {
                     window.open(lastGeneratedPdfUrl, "_blank");
@@ -503,15 +565,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 <ExternalLink className="w-4 h-4" />
-                Visualizar em Nova Guia
+                Visualizar Laudo (A4 Print)
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (lastGeneratedBlob && lastGeneratedFileName) {
-                    triggerDirectDownload(lastGeneratedBlob, lastGeneratedFileName);
-                  }
-                }}
+                onClick={handleDirectDownload}
                 className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 <Download className="w-4 h-4" />
@@ -1330,7 +1388,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                       <span className="text-slate-850 font-bold text-xs">{item.uncertainty || "Certa"}</span>
                                     </div>
                                     <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs space-y-1 mt-2">
-                                      <span className="font-extrabold text-slate-600 block uppercase text-[9px] tracking-wider">Medida Preventiva Recomendada (PGR):</span>
+                                      <span className="font-extrabold text-slate-600 block uppercase text-[9px] tracking-wider">Recomendação Preventiva Proposta (PGR):</span>
                                       <p className="text-slate-700 leading-relaxed font-semibold italic">"{item.recommendation}"</p>
                                     </div>
                                   </div>
@@ -1523,7 +1581,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                       <span className="text-slate-850 font-bold text-xs">{item.uncertainty || "Certa"}</span>
                                     </div>
                                     <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs space-y-1 mt-2">
-                                      <span className="font-extrabold text-slate-600 block uppercase text-[9px] tracking-wider">Medida Preventiva Recomendada (PGR):</span>
+                                      <span className="font-extrabold text-slate-600 block uppercase text-[9px] tracking-wider">Recomendação Preventiva Proposta (PGR):</span>
                                       <p className="text-slate-700 leading-relaxed font-semibold italic">"{item.recommendation}"</p>
                                     </div>
                                   </div>
