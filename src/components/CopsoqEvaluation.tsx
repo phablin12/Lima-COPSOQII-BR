@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { AlertCircle, HelpCircle, Save, Sliders, Activity, BookOpen, ClipboardList, UserCheck, CheckCircle2 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
@@ -18,10 +18,24 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
     report.sectors.length > 0 ? report.sectors[0].id : ""
   );
 
+  const [inputStrings, setInputStrings] = useState<Record<string, string>>({});
+
   const isQualitative = report.methodology === "qualitative";
 
   // Sync selected sector if the previous selected one was deleted
   const currentSector = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
+
+  // Sync local input values whenever the active sector changes
+  useEffect(() => {
+    if (currentSector) {
+      const initialMap: Record<string, string> = {};
+      COPSOQ_DIMENSIONS.forEach((dim) => {
+        const val = currentSector.scores?.[dim.key];
+        initialMap[dim.key] = val !== undefined && val !== null ? String(val) : "";
+      });
+      setInputStrings(initialMap);
+    }
+  }, [currentSector?.id]);
 
   if (report.sectors.length === 0) {
     return (
@@ -64,6 +78,22 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
     onChange({ sectors: updatedSectors });
   };
 
+  const handleClearScore = (dimensionKey: string) => {
+    const updatedSectors = report.sectors.map((s) => {
+      if (s.id === currentSector.id) {
+        const newScores = { ...s.scores };
+        delete newScores[dimensionKey];
+        return {
+          ...s,
+          scores: newScores,
+        };
+      }
+      return s;
+    });
+
+    onChange({ sectors: updatedSectors });
+  };
+
   const handleQualitativeChange = (
     field: "qualitativeEvaluatedText" | "qualitativePerceptionText" | "qualitativeConclusionText" | "generalAnalysis",
     value: string
@@ -84,15 +114,16 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
   };
 
   const getStatusSummary = () => {
-    const summary = { favoravel: 0, moderada: 0, desfavoravel: 0 };
+    const summary = { favoravel: 0, moderada: 0, desfavoravel: 0, naoAvaliado: 0 };
     if (!currentSector) return summary;
 
     COPSOQ_DIMENSIONS.forEach((dim) => {
-      const score = currentSector.scores?.[dim.key] ?? 0;
+      const score = currentSector.scores?.[dim.key];
       const { rating } = getDimensionRating(score, dim.type);
       if (rating === "Favorável") summary.favoravel++;
       else if (rating === "Moderada") summary.moderada++;
       else if (rating === "Desfavorável") summary.desfavoravel++;
+      else summary.naoAvaliado++;
     });
 
     return summary;
@@ -244,8 +275,9 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
 
               <div className="space-y-4">
                 {COPSOQ_DIMENSIONS.map((dim) => {
-                  const score = currentSector.scores?.[dim.key] ?? 0;
+                  const score = currentSector.scores?.[dim.key];
                   const ratingObj = getDimensionRating(score, dim.type);
+                  const currentInputValue = inputStrings[dim.key] ?? (score !== undefined && score !== null ? String(score) : "");
 
                   return (
                     <div
@@ -266,17 +298,47 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
                       {/* Campo de Digitação */}
                       <div className="lg:col-span-3 flex items-center gap-3">
                         <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="4"
-                          required
-                          value={score === 0 ? "" : score}
+                          type="text"
+                          inputMode="decimal"
+                          value={currentInputValue}
                           onChange={(e) => {
-                            const val = parseFloat(e.target.value);
-                            handleScoreChange(dim.key, isNaN(val) ? 0 : val);
+                            const raw = e.target.value;
+                            setInputStrings((prev) => ({ ...prev, [dim.key]: raw }));
+
+                            const trimmed = raw.trim();
+                            if (trimmed === "") {
+                              handleClearScore(dim.key);
+                              return;
+                            }
+
+                            // Allow decimal numbers with dot or comma (e.g. 0, 0.1, 0,1, 0.05, 4.00)
+                            const normalized = trimmed.replace(",", ".");
+                            const val = parseFloat(normalized);
+                            if (!isNaN(val) && val >= 0 && val <= 4) {
+                              handleScoreChange(dim.key, val);
+                            }
                           }}
-                          placeholder="Pontuação (0.00 a 4.00)"
+                          onBlur={() => {
+                            const raw = inputStrings[dim.key] ?? "";
+                            const trimmed = raw.trim();
+                            if (trimmed === "") {
+                              handleClearScore(dim.key);
+                            } else {
+                              const normalized = trimmed.replace(",", ".");
+                              const val = parseFloat(normalized);
+                              if (!isNaN(val)) {
+                                const clamped = Math.min(4, Math.max(0, Math.round(val * 100) / 100));
+                                setInputStrings((prev) => ({ ...prev, [dim.key]: String(clamped) }));
+                                handleScoreChange(dim.key, clamped);
+                              } else {
+                                setInputStrings((prev) => ({
+                                  ...prev,
+                                  [dim.key]: score !== undefined && score !== null ? String(score) : "",
+                                }));
+                              }
+                            }
+                          }}
+                          placeholder="0,00 a 4,00"
                           className="w-full px-3 py-2 rounded-lg border border-slate-250 focus:ring-2 focus:ring-slate-450 focus:border-slate-450 outline-none text-sm font-semibold text-slate-800 bg-white placeholder:text-slate-350"
                         />
                         <span className="text-xs text-slate-400 font-bold shrink-0">/ 4.00</span>

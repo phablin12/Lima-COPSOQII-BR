@@ -621,7 +621,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
             </div>
 
             <div className="bg-slate-800/90 p-2 rounded-lg border border-slate-700 text-left">
-              <span className="text-[8px] uppercase font-bold text-slate-400 block">GHEs Mapeados</span>
+              <span className="text-[8px] uppercase font-bold text-slate-400 block">GES Mapeados</span>
               <span className="text-base font-black font-mono text-indigo-300">{overallMetrics.totalSectors}</span>
               <span className="text-[7.5px] text-slate-400 block">setores operacionais</span>
             </div>
@@ -665,7 +665,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                         <th className="p-1.5 border-b border-slate-700 w-[28%]">Empresa Cliente / CNPJ</th>
                         <th className="p-1.5 border-b border-slate-700 w-[18%]">Emissão / Período</th>
                         <th className="p-1.5 border-b border-slate-700 w-[14%]">Metodologia</th>
-                        <th className="p-1.5 border-b border-slate-700 text-center w-[8%]">GHEs</th>
+                        <th className="p-1.5 border-b border-slate-700 text-center w-[8%]">GES</th>
                         <th className="p-1.5 border-b border-slate-700 text-center w-[8%]">Vidas</th>
                         <th className="p-1.5 border-b border-slate-700 w-[14%]">Responsável Técnico</th>
                         <th className="p-1.5 border-b border-slate-700 text-center w-[10%]">Riscos</th>
@@ -711,7 +711,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                               )}
                             </td>
 
-                            {/* GHEs Count */}
+                            {/* GES Count */}
                             <td className="p-1.5 text-center font-mono font-black text-slate-800 text-[10px]">
                               {totalSectors}
                             </td>

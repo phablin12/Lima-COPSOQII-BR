@@ -411,8 +411,6 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         {/* --- PÁGINA 2: RESUMO E IDENTIFICAÇÃO DO ESCOPO --- */}
         {(() => {
           const totalEmployees = report.sectors.reduce((sum, s) => sum + (s.employeeCount || 0), 0);
-          const totalRespondents = report.sectors.reduce((sum, s) => sum + (s.respondentsCount || 0), 0);
-          const totalResponseRate = totalEmployees > 0 ? Math.round((totalRespondents / totalEmployees) * 100) : 0;
 
           return (
             <div className="min-h-[1050px] flex flex-col justify-between border-b-2 border-slate-200 pb-16 print:min-h-0 print:h-screen print:border-none print:pb-0 page-break-before page-break-after">
@@ -503,21 +501,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 </div>
 
                 {/* Escopo da Avaliação (Métricas Chave) */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Funcionários Avaliados</span>
                     <span className="text-2xl font-black text-slate-800 font-mono">{totalEmployees}</span>
-                    <span className="text-[10px] text-slate-500 block">Total no GHE</span>
+                    <span className="text-[10px] text-slate-500 block">Total no GES</span>
                   </div>
                   <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Setores Ativos</span>
                     <span className="text-2xl font-black text-slate-800 font-mono">{report.sectors.length}</span>
-                    <span className="text-[10px] text-slate-500 block">Setores Mapeados</span>
-                  </div>
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Taxa de Resposta</span>
-                    <span className="text-2xl font-black text-slate-800 font-mono">{totalResponseRate}%</span>
-                    <span className="text-[10px] text-slate-500 block">{totalRespondents} respostas</span>
+                    <span className="text-[10px] text-slate-500 block">Setores / GES Mapeados</span>
                   </div>
                 </div>
 
@@ -527,7 +520,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   <div className="flex flex-wrap gap-2">
                     {report.sectors.map((s) => (
                       <span key={s.id} className="inline-block bg-slate-50 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-medium">
-                        {s.name}: <strong className="font-extrabold text-slate-900 font-mono">{s.respondentsCount || 0}</strong> de <strong className="font-extrabold text-slate-900 font-mono">{s.employeeCount || 0}</strong> func. (<strong className="text-slate-800 font-bold font-mono">{s.employeeCount > 0 ? Math.round(((s.respondentsCount || 0) / s.employeeCount) * 100) : 0}%</strong>)
+                        {s.name}: <strong className="font-extrabold text-slate-900 font-mono">{s.employeeCount || 0}</strong> func.
                       </span>
                     ))}
                   </div>
@@ -810,7 +803,6 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                         <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
                         <div className="flex gap-4 text-xs font-semibold text-slate-600">
                           <span>Expostos: {sector.employeeCount} func.</span>
-                          <span>Respondentes: {sector.respondentsCount ?? 0} ({sector.employeeCount > 0 ? (((sector.respondentsCount ?? 0) / sector.employeeCount) * 100).toFixed(1) : 0}%)</span>
                         </div>
                       </div>
 
@@ -964,7 +956,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                             <h4 className="text-[10px] font-black uppercase tracking-wider">
-                              Setor / GHE: {sector.name}
+                              Setor / GES: {sector.name}
                             </h4>
                           </div>
                           <div className="text-[9px] font-bold text-slate-300 uppercase">
@@ -995,8 +987,8 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 {/* Row 2: Exposição */}
                                 <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-2 gap-2 text-left">
                                   <div>
-                                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                                    <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
+                                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GES)</span>
+                                    <span className="text-slate-800 font-semibold">{sector.employeeCount || item.exposedCount || 1} funcionários</span>
                                   </div>
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
@@ -1185,8 +1177,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 {/* Row 2: Exposição */}
                                 <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-2 gap-2 text-left">
                                   <div>
-                                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                                    <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
+                                    <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GES)</span>
+                                    <span className="text-slate-800 font-semibold">
+                                      {(() => {
+                                        const sec = report.sectors.find((s) => s.id === item.sectorId);
+                                        return sec?.employeeCount || item.exposedCount || 1;
+                                      })()} funcionários
+                                    </span>
                                   </div>
                                   <div>
                                     <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>

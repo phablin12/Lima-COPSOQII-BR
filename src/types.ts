@@ -9,7 +9,7 @@ export interface Sector {
   employeeCount: number;
   respondentsCount?: number; // Number of employees who responded
   risksRecognized?: boolean; // Whether the company/sector recognizes risks in the devolution
-  scores: Record<string, number>; // dimensionKey -> score (0 to 4)
+  scores: Record<string, number | undefined>; // dimensionKey -> score (0 to 4)
   devolvedSynthesis: string; // Synth for moderate/unfavorable risks during devolution with leaders
   generalAnalysis?: string; // Optional general analysis text
   qualitativeEvaluatedText?: string; // O que foi avaliado no ambiente
@@ -23,8 +23,26 @@ export interface CatalogRisk {
   source: string;
   possibleInjuries: string;
   defaultLevel: "Insignificante" | "Baixo" | "Moderado" | "Alto" | "Grave";
-  existingControls?: string; // Existing preventive controls
-  recommendation?: string; // Recommended controls
+  diseaseHistory?: string; // Histórico de doenças / afastamentos
+  existingControls?: string; // Medidas de controle existentes
+  
+  // Matrix 5x5 defaults
+  probability?: number; // 1 to 5
+  severity?: number; // 1 to 5
+  uncertainty?: "Certa" | "Incerta" | "Altamente Incerta";
+
+  // Recomendações e Cronograma de Ações
+  recommendation?: string; // Recomendação preventiva
+  priority?: "Baixa" | "Média" | "Alta";
+  responsible?: string; // Quem fará (ex: líderes, empresa, gestores)
+  status?: "Pendente" | "Em Andamento" | "Concluído";
+  deadline?: string; // Prazo estimado (padrão: "A definir pela empresa")
+  monitoring?: string; // Como acompanhar
+  measureResults?: string; // Como aferir resultados
+  actionObjective?: string; // Objetivo da ação
+  actionProposed?: string; // Ação proposta detalhada
+  periodicity?: string; // Periodicidade (padrão: "A definir pela empresa")
+  efficacyIndicator?: string; // Indicador de eficácia
 }
 
 export interface RiskInventoryItem {
@@ -211,13 +229,13 @@ export const COPSOQ_DIMENSIONS: DimensionDefinition[] = [
   }
 ];
 
-export const getDimensionRating = (score: number, type: "positive" | "negative" = "positive"): {
+export const getDimensionRating = (score: number | undefined | null, type: "positive" | "negative" = "positive"): {
   rating: "Favorável" | "Moderada" | "Desfavorável" | "Não Avaliado";
   colorClass: string;
   bgClass: string;
   textColor: string;
 } => {
-  if (score <= 0 || score === undefined) {
+  if (score === undefined || score === null || isNaN(score) || score < 0) {
     return {
       rating: "Não Avaliado",
       colorClass: "bg-slate-300",

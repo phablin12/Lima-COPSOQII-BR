@@ -85,7 +85,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
         colorClass: ratingInfo.colorClass,
         bgClass: ratingInfo.bgClass,
       };
-    }).filter((dim) => dim.rating !== "Favorável" && dim.rating !== "Não Avaliado" && dim.score > 0);
+    }).filter((dim) => dim.rating !== "Favorável" && dim.rating !== "Não Avaliado");
   };
 
   const criticalDimensions = currentSector ? getCriticalDimensions(currentSector) : [];

@@ -26,7 +26,9 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
   // Form Fields State
   const [customRiskName, setCustomRiskName] = useState("");
-  const [exposedCount, setExposedCount] = useState<number>(1);
+  const [exposedCount, setExposedCount] = useState<number>(() => {
+    return report.sectors.length > 0 ? (report.sectors[0].employeeCount || 1) : 1;
+  });
   const [sourcesField, setSourcesField] = useState("");
   const [possibleInjuries, setPossibleInjuries] = useState("");
   const [diseaseHistory, setDiseaseHistory] = useState("");
@@ -60,7 +62,8 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     setSelectedSectorId(item.sectorId);
     setSelectedCatalogRiskId("custom");
     setCustomRiskName(item.riskName);
-    setExposedCount(item.exposedCount);
+    const itemSec = report.sectors.find((s) => s.id === item.sectorId);
+    setExposedCount(itemSec?.employeeCount || item.exposedCount || 1);
     setSourcesField(item.sourcesField);
     setPossibleInjuries(item.possibleInjuries);
     setDiseaseHistory(item.diseaseHistory || "");
@@ -110,6 +113,8 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     setActionProposed("");
     setPeriodicity("Mensal");
     setEfficacyIndicator("");
+    const sect = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
+    setExposedCount(sect ? (sect.employeeCount || 1) : 1);
   };
 
   // Sync inputs when selected risk from catalog changes
@@ -128,11 +133,17 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     }
   }, [selectedCatalogRiskId, catalog]);
 
-  // Sync exposed employees when sector changes
+  // Sync exposed employees when sector changes or sectors load
   useEffect(() => {
-    const sect = report.sectors.find((s) => s.id === selectedSectorId);
-    if (sect) {
-      setExposedCount(sect.employeeCount);
+    if (report.sectors.length > 0) {
+      const sect = report.sectors.find((s) => s.id === selectedSectorId);
+      if (sect) {
+        setExposedCount(sect.employeeCount || 1);
+      } else {
+        const first = report.sectors[0];
+        setSelectedSectorId(first.id);
+        setExposedCount(first.employeeCount || 1);
+      }
     }
   }, [selectedSectorId, report.sectors]);
 
@@ -159,10 +170,13 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     // Calculate matrix details
     const matrixResult = getMatrixCell(probability, severity);
 
+    const targetSector = report.sectors.find((s) => s.id === selectedSectorId);
+    const finalExposedCount = targetSector ? (targetSector.employeeCount || 1) : Math.max(1, exposedCount);
+
     const updatedItemData = {
       sectorId: selectedSectorId,
       riskName: customRiskName.trim(),
-      exposedCount: Math.max(1, exposedCount),
+      exposedCount: finalExposedCount,
       type: "Psicossocial" as const,
       sourcesField: sourcesField.trim(),
       possibleInjuries: possibleInjuries.trim(),
@@ -265,6 +279,13 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
             if (editingItemId) {
               handleCancelEdit();
             } else {
+              if (!isAdding) {
+                const targetSector = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
+                if (targetSector) {
+                  setSelectedSectorId(targetSector.id);
+                  setExposedCount(targetSector.employeeCount || 1);
+                }
+              }
               setIsAdding(!isAdding);
             }
           }}
@@ -287,10 +308,16 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
             
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-4 space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Setor/GHE Afetado</label>
+                <label className="text-xs font-semibold text-slate-600">Setor/GES Afetado</label>
                 <SearchableSelect
                   value={selectedSectorId}
-                  onChange={(val) => setSelectedSectorId(val)}
+                  onChange={(val) => {
+                    setSelectedSectorId(val);
+                    const s = report.sectors.find((sec) => sec.id === val);
+                    if (s) {
+                      setExposedCount(s.employeeCount || 1);
+                    }
+                  }}
                   options={report.sectors.map((s) => ({
                     value: s.id,
                     label: s.name,
@@ -323,7 +350,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
               <div className="md:col-span-3 space-y-1">
                 <label className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                  Expostos (GHE)
+                  Expostos (GES)
                 </label>
                 <input
                   type="number"
@@ -732,8 +759,13 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   {/* Row 2: Exposição */}
                   <div className="border-b border-slate-300 px-4 py-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GHE)</span>
-                      <span className="text-slate-800 font-semibold">{item.exposedCount} funcionários</span>
+                      <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Trabalhadores Expostos (GES)</span>
+                      <span className="text-slate-800 font-semibold">
+                        {(() => {
+                          const itemSector = report.sectors.find((s) => s.id === item.sectorId);
+                          return itemSector?.employeeCount || item.exposedCount || 1;
+                        })()} funcionários
+                      </span>
                     </div>
                     <div>
                       <span className="font-extrabold text-slate-500 block text-[10px] uppercase tracking-wider">Frequência de Exposição</span>
