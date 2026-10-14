@@ -5,8 +5,9 @@
 
 import React, { useState } from "react";
 import { Report, Sector, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
-import { AlertTriangle, MessageSquare, ClipboardCheck, Users, HelpCircle } from "lucide-react";
+import { AlertTriangle, MessageSquare, ClipboardCheck, Users, HelpCircle, Sparkles, Loader2, Check, RefreshCw, Wand2 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
+import { generateSectorSynthesis } from "../aiService";
 
 interface TechnicalAnalysisProps {
   report: Report;
@@ -17,6 +18,12 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
   const [selectedSectorId, setSelectedSectorId] = useState<string>(
     report.sectors.length > 0 ? report.sectors[0].id : ""
   );
+
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSuccess, setAiSuccess] = useState(false);
+  const [showPromptNotes, setShowPromptNotes] = useState(false);
+  const [promptNotes, setPromptNotes] = useState("");
 
   const currentSector = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
 
@@ -85,10 +92,54 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
         colorClass: ratingInfo.colorClass,
         bgClass: ratingInfo.bgClass,
       };
-    }).filter((dim) => dim.rating !== "Favorável" && dim.rating !== "Não Avaliado");
+    }).filter((dim) => dim.rating !== "Favorável" && dim.rating !== "Não Avaliado" && dim.score > 0);
   };
 
   const criticalDimensions = currentSector ? getCriticalDimensions(currentSector) : [];
+
+  const handleGenerateAISynthesis = async (customInstructions?: string) => {
+    if (!currentSector) return;
+    setIsGeneratingAI(true);
+    setAiError(null);
+    setAiSuccess(false);
+
+    try {
+      const text = await generateSectorSynthesis({
+        sectorName: currentSector.name,
+        employeeCount: currentSector.employeeCount,
+        companyName: report.companyName,
+        companySector: report.companySector,
+        methodology: report.methodology,
+        criticalDimensions: criticalDimensions.map((d) => ({
+          key: d.key,
+          name: d.name,
+          score: d.score,
+          rating: d.rating,
+          type: d.type,
+        })),
+        qualitativeContext: {
+          evaluatedText: currentSector.qualitativeEvaluatedText,
+          perceptionText: currentSector.qualitativePerceptionText,
+        },
+        userInstructions: customInstructions ?? promptNotes,
+      });
+
+      if (report.methodology === "qualitative") {
+        handleQualitativeFieldChange("qualitativeConclusionText", text);
+      } else {
+        handleSynthesisChange(text);
+      }
+
+      setAiSuccess(true);
+      setShowPromptNotes(false);
+      setTimeout(() => setAiSuccess(false), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setAiError(err.message || "Erro ao conectar com a Inteligência Artificial.");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
 
   return (
     <div className="space-y-6" id="technical-analysis-container">
@@ -159,14 +210,36 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
 
           {/* Painel de Edição de Textos */}
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-8 space-y-6 text-left">
-            <div className="border-b border-slate-100 pb-3">
-              <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-slate-600" />
-                Elaboração Qualitativa: <span className="text-indigo-600 font-black">{currentSector.name}</span>
-              </h4>
-              <p className="text-xs text-slate-500 mt-1">
-                Utilize os campos abaixo para descrever o cenário real identificado durante as observações de campo e diálogos com o setor.
-              </p>
+            <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-slate-600" />
+                  Elaboração Qualitativa: <span className="text-indigo-600 font-black">{currentSector.name}</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Utilize os campos abaixo para descrever o cenário real identificado durante as observações de campo e diálogos com o setor.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={isGeneratingAI}
+                onClick={() => handleGenerateAISynthesis()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                title="Elaborar Parecer Técnico Conclusivo com Inteligência Artificial"
+              >
+                {isGeneratingAI ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Gerando Parecer...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Gerar Parecer com IA
+                  </>
+                )}
+              </button>
             </div>
 
             <div className="space-y-5">
@@ -264,7 +337,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
 
           {/* Síntese Diagnóstica / Devolutiva */}
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-7 space-y-6">
-            <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+            <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-slate-600" />
@@ -274,7 +347,76 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   Com base na reunião com os líderes do setor <strong>{currentSector.name}</strong>, registre abaixo quais foram as causas/percepções reais que justificam as notas do COPSOQ II.
                 </p>
               </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowPromptNotes(!showPromptNotes)}
+                  disabled={isGeneratingAI}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                  title="Adicionar instruções específicas para a IA"
+                >
+                  {showPromptNotes ? "Ocultar Instruções" : "Personalizar Prompt"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isGeneratingAI}
+                  onClick={() => handleGenerateAISynthesis()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  title="Gerar automaticamente a síntese técnica correlacionando as notas do setor com IA"
+                >
+                  {isGeneratingAI ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Gerando com IA...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Gerar Síntese com IA
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
+
+            {showPromptNotes && (
+              <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2 text-xs">
+                <label className="font-bold text-indigo-900 block">
+                  Instruções ou Observações Adicionais para a IA (Opcional):
+                </label>
+                <textarea
+                  value={promptNotes}
+                  onChange={(e) => setPromptNotes(e.target.value)}
+                  placeholder="Ex: Focar na recente reestruturação do setor e na falta de pessoal nos horários de pico..."
+                  rows={2}
+                  className="w-full p-2 bg-white rounded-lg border border-indigo-200 outline-none text-slate-800 text-xs"
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={isGeneratingAI}
+                    onClick={() => handleGenerateAISynthesis(promptNotes)}
+                    className="px-3 py-1 bg-indigo-600 text-white rounded font-bold text-xs hover:bg-indigo-700 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Wand2 className="w-3 h-3" /> Gerar com Estas Instruções
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {aiSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600" /> Síntese do setor gerada com sucesso pela Inteligência Artificial!
+              </div>
+            )}
+
+            {aiError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center justify-between">
+                <span>{aiError}</span>
+                <button onClick={() => setAiError(null)} className="text-rose-500 hover:text-rose-700 font-bold ml-2 cursor-pointer">✕</button>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div className="space-y-1">

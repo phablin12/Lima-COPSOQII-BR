@@ -1,307 +1,401 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import express, { Request, Response } from "express";
+import express from "express";
+import { createServer as createViteServer } from "vite";
+import { GoogleGenAI, Type } from "@google/genai";
 import path from "path";
 import { fileURLToPath } from "url";
-import { generateReportHtml } from "./src/utils/reportHtmlGenerator.js";
-import type { Report, Assessor } from "./src/types.js";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = parseInt(process.env.PORT || "3000", 10);
-const isProd = process.env.NODE_ENV === "production";
-const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || "relatorio-copsoqii-br-lima-eng";
+const app = express();
 
-// In-memory store for instantaneous preview sessions (TTL 1 hour)
-interface CachedSession {
-  report: Report;
-  assessor: Assessor;
-  timestamp: number;
-}
-const sessionStore = new Map<string, CachedSession>();
-
-// Cleanup stale sessions every 10 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of sessionStore.entries()) {
-    if (now - value.timestamp > 3600000) {
-      sessionStore.delete(key);
-    }
-  }
-}, 600000);
-
-// Helper to convert Firestore REST API response into a standard JavaScript object
-function convertFirestoreValue(val: any): any {
-  if (!val || typeof val !== "object") return val;
-  if ("stringValue" in val) return val.stringValue;
-  if ("integerValue" in val) return parseInt(val.integerValue, 10);
-  if ("doubleValue" in val) return parseFloat(val.doubleValue);
-  if ("booleanValue" in val) return val.booleanValue;
-  if ("nullValue" in val) return null;
-  if ("timestampValue" in val) return val.timestampValue;
-  if ("arrayValue" in val) {
-    return (val.arrayValue.values || []).map(convertFirestoreValue);
-  }
-  if ("mapValue" in val) {
-    const res: Record<string, any> = {};
-    const fields = val.mapValue.fields || {};
-    for (const key of Object.keys(fields)) {
-      res[key] = convertFirestoreValue(fields[key]);
-    }
-    return res;
-  }
-  return val;
+// Parse port from CLI args if provided (e.g. --port 3000), or fallback to process.env.PORT / 3000
+let port = Number(process.env.PORT) || 3000;
+const portArgIndex = process.argv.indexOf("--port");
+if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+  port = Number(process.argv[portArgIndex + 1]) || port;
 }
 
-function parseFirestoreDoc(doc: any): any {
-  if (!doc || !doc.fields) return null;
-  const res: Record<string, any> = {};
-  for (const key of Object.keys(doc.fields)) {
-    res[key] = convertFirestoreValue(doc.fields[key]);
+app.use(express.json({ limit: "10mb" }));
+
+// Initialize GoogleGenAI instance on the server
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      "User-Agent": "aistudio-build",
+    },
+  },
+});
+
+// Helper to query Gemini with preferred model (gemini-3.1-flash-lite / gemini-3.8-flash)
+async function callGemini(options: {
+  contents: any;
+  systemInstruction?: string;
+  responseMimeType?: string;
+  responseSchema?: any;
+}) {
+  const config: any = {};
+  if (options.systemInstruction) {
+    config.systemInstruction = options.systemInstruction;
   }
-  return res;
-}
-
-const defaultAssessor: Assessor = {
-  fantasyName: "LIMA ENGENHARIA E SEGURANÇA DO TRABALHO",
-  socialName: "LIMA ENGENHARIA E CONSULTORIA EM SST LTDA",
-  cnpj: "00.000.000/0001-00",
-  address: "Tangará da Serra - MT",
-  phone: "(65) 99999-9999",
-  logo: ""
-};
-
-async function fetchReportFromFirestore(reportId: string, idToken?: string): Promise<Report | null> {
-  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/reports/${encodeURIComponent(reportId)}`;
-  const headers: Record<string, string> = {};
-  if (idToken) {
-    headers["Authorization"] = `Bearer ${idToken}`;
+  if (options.responseMimeType) {
+    config.responseMimeType = options.responseMimeType;
+  }
+  if (options.responseSchema) {
+    config.responseSchema = options.responseSchema;
   }
 
-  const res = await fetch(url, { headers });
-  if (!res.ok) {
-    if (res.status === 404) return null;
-    throw new Error(`Firestore REST error: ${res.status} ${res.statusText}`);
-  }
-
-  const data = await res.json();
-  const reportObj = parseFirestoreDoc(data);
-  if (reportObj) {
-    reportObj.id = reportId;
-  }
-  return reportObj as Report;
-}
-
-async function fetchAssessorFromFirestore(idToken?: string): Promise<Assessor | null> {
+  // Use gemini-3.1-flash-lite for fast, high-reliability response
   try {
-    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/settings/assessor`;
-    const headers: Record<string, string> = {};
-    if (idToken) {
-      headers["Authorization"] = `Bearer ${idToken}`;
-    }
-
-    const res = await fetch(url, { headers });
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    return parseFirestoreDoc(data) as Assessor;
-  } catch {
-    return null;
+    return await ai.models.generateContent({
+      model: "gemini-3.1-flash-lite",
+      contents: options.contents,
+      config,
+    });
+  } catch (error: any) {
+    console.warn("Primary model attempt failed, trying gemini-3.8-flash:", error.message);
+    return await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: options.contents,
+      config,
+    });
   }
 }
 
-async function start() {
-  const app = express();
+// ---------------------------------------------------------------------------
+// 1. ENDPOINT: Síntese de Devolutiva / Investigação Qualitativa do Setor
+// ---------------------------------------------------------------------------
+app.post("/api/ai/sector-synthesis", async (req, res) => {
+  try {
+    const {
+      sectorName,
+      employeeCount,
+      companyName,
+      companySector,
+      methodology,
+      criticalDimensions,
+      qualitativeContext,
+      userInstructions,
+    } = req.body;
 
-  // Increase payload limit to support reports with images/logos
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+    const systemInstruction = `Você é um especialista sênior em Segurança e Saúde no Trabalho (SST), Ergonomia e Psicologia Organizacional do Trabalho no Brasil (em conformidade com a NR-01 - GRO/PGR, NR-17 e COPSOQ II - BR).
+Sua função é redigir um relato técnico aprofundado, coeso, profissional e humanizado da devolutiva técnica / investigação qualitativa de campo para o setor avaliado.
+O texto deve:
+1. Contextualizar a reunião de devolutiva com os líderes do setor e a dinâmica de trabalho.
+2. Identificar e correlacionar claramente as causas organizacionais que explicam os riscos ou pontuações do setor.
+3. Abordar aspectos como ritmo de trabalho, clareza de papéis, liderança, cobrança de metas, suporte social e exigências emocionais.
+4. Apresentar uma análise diagnóstica que subsidie o Inventário Geral de Riscos e o Plano de Ação.
+5. Manter tom estritamente técnico, imparcial, respeitoso e construtivo. Não use gírias ou clichês vazios. Escreva em parágrafos corridos bem articulados.`;
 
-  // =========================================================================
-  // BACKEND ENDPOINT DE VISUALIZAÇÃO PROTEGIDO
-  // =========================================================================
+    const prompt = `Empresa: ${companyName || "Empresa Avaliada"}
+Atividade/Ramo: ${companySector || "Não especificado"}
+Setor/GES Avaliado: ${sectorName || "Setor Operacional"}
+Colaboradores expostos no setor: ${employeeCount || 1}
+Metodologia utilizada: ${methodology === "qualitative" ? "Avaliação Qualitativa do Trabalho" : "COPSOQ II - BR (Quantitativa/Qualitativa)"}
 
-  /**
-   * Endpoint de Registro de Sessão Instantânea de Visualização
-   * POST /api/reports/preview-session
-   */
-  app.post("/api/reports/preview-session", (req: Request, res: Response) => {
-    try {
-      const { report, assessor } = req.body;
-      if (!report || !report.id) {
-        return res.status(400).json({ error: "Dados do relatório ausentes ou inválidos." });
-      }
+${
+  criticalDimensions && criticalDimensions.length > 0
+    ? `Dimensões com resultados que demandam atenção ou são críticas no COPSOQ II:
+${criticalDimensions.map((d: any) => `- ${d.name} (${d.type === "positive" ? "Dimensão Protetiva" : "Dimensão Saturadora"}): Pontuação ${d.score} - Classificação: ${d.rating}`).join("\n")}`
+    : "Não há dimensões com pontuação alarmante registrada até o momento; redija um diagnóstico preventivo amplo de manutenção do bem-estar e controle de sobrecarga."
+}
 
-      const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      sessionStore.set(sessionId, {
-        report,
-        assessor: assessor || defaultAssessor,
-        timestamp: Date.now()
-      });
+${
+  qualitativeContext?.evaluatedText
+    ? `Observações preliminares de campo: ${qualitativeContext.evaluatedText}`
+    : ""
+}
+${
+  qualitativeContext?.perceptionText
+    ? `Percepção relatada pelos colaboradores: ${qualitativeContext.perceptionText}`
+    : ""
+}
+${userInstructions ? `Instruções ou apontamentos adicionais do perito/avaliador: ${userInstructions}` : ""}
 
-      // Also cache by report ID as fallback
-      sessionStore.set(report.id, {
-        report,
-        assessor: assessor || defaultAssessor,
-        timestamp: Date.now()
-      });
+Redija a Síntese Técnica de Devolutiva do setor em 3 a 5 parágrafos técnicos detalhados e formais para compor o laudo oficial:`;
 
-      return res.json({
-        success: true,
-        sessionId,
-        viewUrl: `/api/reports/${report.id}/view?session=${sessionId}`
-      });
-    } catch (err: any) {
-      console.error("Erro ao registrar sessão de preview:", err);
-      return res.status(500).json({ error: err.message });
-    }
-  });
+    const response = await callGemini({
+      contents: prompt,
+      systemInstruction,
+    });
 
-  /**
-   * Endpoint de Renderização Direta (HTML string)
-   * POST /api/reports/render
-   */
-  app.post("/api/reports/render", (req: Request, res: Response) => {
-    try {
-      const { report, assessor, autoPrint } = req.body;
-      if (!report) {
-        return res.status(400).json({ error: "Dados do relatório ausentes." });
-      }
+    const synthesis = response.text?.trim() || "";
+    return res.json({ synthesis });
+  } catch (error: any) {
+    console.error("Error in /api/ai/sector-synthesis:", error);
+    return res.status(500).json({ error: error.message || "Erro ao gerar síntese do setor com IA." });
+  }
+});
 
-      const html = generateReportHtml(report, assessor || defaultAssessor, {
-        autoPrint: !!autoPrint,
-        showToolbar: true
-      });
+// ---------------------------------------------------------------------------
+// 2. ENDPOINT: Geração de Riscos Psicossociais para o Setor (Inventário GRO)
+// ---------------------------------------------------------------------------
+app.post("/api/ai/generate-risks", async (req, res) => {
+  try {
+    const {
+      sectorName,
+      sectorEmployees,
+      companyName,
+      companyActivity,
+      criticalDimensions,
+      sectorSynthesis,
+      count = 3,
+    } = req.body;
 
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      return res.send(html);
-    } catch (err: any) {
-      console.error("Erro na renderização HTML:", err);
-      return res.status(500).json({ error: err.message });
-    }
-  });
+    const systemInstruction = `Você é um engenheiro de segurança do trabalho e psicólogo organizacional especialista em inventários de riscos psicossociais (NR-01 GRO/PGR e Matriz de Riscos 5x5).
+Gere uma lista de ${count} riscos psicossociais rigorosamente técnicos e fundamentados para o setor informado.
+Para cada risco, defina com precisão técnica:
+- riskName: Nome técnico claro do risco psicossocial.
+- sourcesField: Perigos, fontes geradoras e circunstâncias organizacionais específicas.
+- possibleInjuries: Possíveis danos à saúde e agravos mentais/físicos (ex: Burnout, TAG, depressão, cefaleias tensionais, distúrbios osteomusculares por sobrecarga mental).
+- existingControls: Controles administrativos/organizacionais sugeridos como baseline ou existentes.
+- probability: Grau de probabilidade de 1 (Muito Baixa) a 5 (Muito Alta).
+- severity: Grau de severidade de 1 (Leve) a 5 (Catastrófica).
+- recommendation: Diretriz técnica de recomendação preventiva imediata.
+- actionObjective: Objetivo claro da medida a ser adotada no plano de ação.
+- actionProposed: Ação preventiva/corretiva concreta (5W2H) detalhando como implementar.
+- priority: "Alta", "Média" ou "Baixa".
+- periodicity: Frequência de monitoramento ("Mensal", "Bimestral", "Trimestral", "Semestral").
+- efficacyIndicator: Indicador ou métrica de eficácia (KPI).
+- deadline: Prazo sugerido de implantação (ex: "Mês 1 (Imediato)", "Mês 2", "Mês 3").`;
 
-  /**
-   * Endpoint Protegido de Visualização do Documento
-   * GET /api/reports/:id/view e GET /reports/:id/view
-   */
-  const handleReportView = async (req: Request, res: Response) => {
-    const reportId = req.params.id;
-    const sessionKey = (req.query.session as string) || reportId;
-    const authHeader = req.headers.authorization;
-    const tokenFromQuery = req.query.token as string;
-    const idToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : tokenFromQuery;
-    const autoPrint = req.query.print === "1" || req.query.autoprint === "true";
+    const prompt = `Empresa: ${companyName || "Empresa Avaliada"}
+Atividade Principal: ${companyActivity || "Geral"}
+Setor/GES: ${sectorName || "Setor Operacional"}
+Colaboradores Expostos: ${sectorEmployees || 1}
+${sectorSynthesis ? `Síntese / Devolutiva do setor: ${sectorSynthesis}` : ""}
+${
+  criticalDimensions && criticalDimensions.length > 0
+    ? `Dimensões críticas ou desfavoráveis no setor: ${criticalDimensions.map((d: any) => `${d.name} (${d.rating})`).join(", ")}`
+    : ""
+}
 
-    if (!reportId) {
-      return res.status(400).send("ID do documento não informado.");
-    }
+Gere uma lista de riscos psicossociais estruturados para o inventário do setor.`;
 
-    try {
-      let report: Report | null = null;
-      let assessor: Assessor = defaultAssessor;
-
-      // 1. Check if we have an active session or cached report in memory
-      if (sessionStore.has(sessionKey)) {
-        const cached = sessionStore.get(sessionKey)!;
-        report = cached.report;
-        assessor = cached.assessor || defaultAssessor;
-      } else if (sessionStore.has(reportId)) {
-        const cached = sessionStore.get(reportId)!;
-        report = cached.report;
-        assessor = cached.assessor || defaultAssessor;
-      }
-
-      // 2. If not found in cache, fetch directly from Firestore if token is provided
-      if (!report && idToken) {
-        try {
-          report = await fetchReportFromFirestore(reportId, idToken);
-          const customAssessor = await fetchAssessorFromFirestore(idToken);
-          if (customAssessor) {
-            assessor = customAssessor;
-          }
-        } catch (fetchErr: any) {
-          console.warn("Falha ao buscar do Firestore com token:", fetchErr.message);
-        }
-      }
-
-      // 3. If still not found and no auth credentials provided
-      if (!report) {
-        res.status(401);
-        res.setHeader("Content-Type", "text/html; charset=utf-8");
-        return res.send(`<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>Acesso Protegido • Diagnóstico de Riscos</title>
-  <style>
-    body { font-family: sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .card { background: #1e293b; padding: 32px; border-radius: 16px; max-width: 480px; text-align: center; border: 1px solid #334155; }
-    h2 { margin-bottom: 12px; color: #38bdf8; }
-    p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
-    .btn { display: inline-block; margin-top: 20px; background: #0284c7; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h2>Acesso Protegido ao Relatório</h2>
-    <p>O documento <strong>${escapeHtml(reportId)}</strong> requer autenticação do sistema para visualização dos dados.</p>
-    <p>Por favor, acesse o painel principal do sistema e clique em <strong>"Visualizar Laudo (A4 Print)"</strong> com sua sessão ativa.</p>
-    <a href="/" class="btn">Retornar ao Sistema</a>
-  </div>
-</body>
-</html>`);
-      }
-
-      // 4. Generate Semantic HTML with CSS Print rules
-      const html = generateReportHtml(report, assessor, {
-        autoPrint,
-        showToolbar: true
-      });
-
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      return res.send(html);
-    } catch (err: any) {
-      console.error("Erro ao gerar visualização do relatório:", err);
-      return res.status(500).send(`Erro interno ao gerar visualização: ${err.message}`);
-    }
-  };
-
-  app.get("/api/reports/:id/view", handleReportView);
-  app.get("/reports/:id/view", handleReportView);
-
-  // =========================================================================
-  // VITE / STATIC CLIENT INTEGRATION
-  // =========================================================================
-  if (!isProd) {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        host: "0.0.0.0",
-        port: PORT
+    const response = await callGemini({
+      contents: prompt,
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            riskName: { type: Type.STRING },
+            sourcesField: { type: Type.STRING },
+            possibleInjuries: { type: Type.STRING },
+            existingControls: { type: Type.STRING },
+            probability: { type: Type.INTEGER },
+            severity: { type: Type.INTEGER },
+            recommendation: { type: Type.STRING },
+            actionObjective: { type: Type.STRING },
+            actionProposed: { type: Type.STRING },
+            priority: { type: Type.STRING },
+            periodicity: { type: Type.STRING },
+            efficacyIndicator: { type: Type.STRING },
+            deadline: { type: Type.STRING },
+          },
+          required: [
+            "riskName",
+            "sourcesField",
+            "possibleInjuries",
+            "existingControls",
+            "probability",
+            "severity",
+            "recommendation",
+            "actionObjective",
+            "actionProposed",
+            "priority",
+            "periodicity",
+            "efficacyIndicator",
+            "deadline",
+          ],
+        },
       },
-      appType: "spa"
+    });
+
+    const parsed = JSON.parse(response.text?.trim() || "[]");
+    return res.json({ risks: parsed });
+  } catch (error: any) {
+    console.error("Error in /api/ai/generate-risks:", error);
+    return res.status(500).json({ error: error.message || "Erro ao gerar inventário de riscos com IA." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 3. ENDPOINT: Enriquecimento de Risco Único (Preenchimento Assistido de Risco)
+// ---------------------------------------------------------------------------
+app.post("/api/ai/enrich-risk", async (req, res) => {
+  try {
+    const { riskName, sectorName, companyName, companyActivity } = req.body;
+
+    if (!riskName || !riskName.trim()) {
+      return res.status(400).json({ error: "Nome do risco é obrigatório." });
+    }
+
+    const systemInstruction = `Você é um perito em Engenharia de Segurança e Psicologia Organizacional do Trabalho (NR-01 e COPSOQ II).
+Recebendo o nome de um risco psicossocial e o setor correspondente, elabore o preenchimento técnico completo de todos os campos da ficha de inventário e plano de ação.`;
+
+    const prompt = `Risco Psicossocial: "${riskName}"
+Setor / GES: "${sectorName || "Geral"}"
+Empresa: "${companyName || "Empresa"}"
+Ramo: "${companyActivity || "Comércio e Serviços"}"
+
+Elabore a caracterização técnica do risco e diretrizes de controle.`;
+
+    const response = await callGemini({
+      contents: prompt,
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          sourcesField: { type: Type.STRING, description: "Perigos, fontes e circunstâncias geradoras do risco." },
+          possibleInjuries: { type: Type.STRING, description: "Possíveis agravos, danos e repercussões psicossociais na saúde." },
+          existingControls: { type: Type.STRING, description: "Medidas organizacionais recomendadas ou verificadas." },
+          probability: { type: Type.INTEGER, description: "Probabilidade recomendada na matriz 5x5 (1 a 5)." },
+          severity: { type: Type.INTEGER, description: "Severidade recomendada na matriz 5x5 (1 a 5)." },
+          recommendation: { type: Type.STRING, description: "Diretriz preventiva recomendada para o laudo." },
+          actionObjective: { type: Type.STRING, description: "Objetivo no Plano de Ação." },
+          actionProposed: { type: Type.STRING, description: "Ação 5W2H proposta detalhando como mitigar o risco." },
+          priority: { type: Type.STRING, description: "'Alta', 'Média' ou 'Baixa'" },
+          periodicity: { type: Type.STRING, description: "Periodicidade de acompanhamento (ex: Mensal, Trimestral)" },
+          efficacyIndicator: { type: Type.STRING, description: "Indicador de eficácia / métrica de acompanhamento" },
+          deadline: { type: Type.STRING, description: "Prazo recomendado no cronograma (ex: Mês Corrente + 2)" },
+        },
+        required: [
+          "sourcesField",
+          "possibleInjuries",
+          "existingControls",
+          "probability",
+          "severity",
+          "recommendation",
+          "actionObjective",
+          "actionProposed",
+          "priority",
+          "periodicity",
+          "efficacyIndicator",
+          "deadline",
+        ],
+      },
+    });
+
+    const enriched = JSON.parse(response.text?.trim() || "{}");
+    return res.json({ enriched });
+  } catch (error: any) {
+    console.error("Error in /api/ai/enrich-risk:", error);
+    return res.status(500).json({ error: error.message || "Erro ao enriquecer dados do risco com IA." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 4. ENDPOINT: Cronograma e Plano de Ação Estruturado com IA
+// ---------------------------------------------------------------------------
+app.post("/api/ai/action-plan-schedule", async (req, res) => {
+  try {
+    const { companyName, companyActivity, items } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: "Nenhum item de risco fornecido." });
+    }
+
+    const systemInstruction = `Você é um consultor líder de Gestão de Riscos Ocupacionais (GRO/PGR) especialista na metodologia 5W2H e cronogramas de implantação de medidas preventivas psicossociais.
+Para cada risco fornecido, você deve estruturar o plano de ação e cronograma contendo:
+- id: O mesmo ID do risco recebido.
+- actionObjective: Objetivo conciso do plano de ação.
+- actionProposed: Ação preventiva/corretiva articulada no modelo 5W2H (o que será executado e como).
+- responsible: Cargo ou setor responsável técnico (ex: "Coordenação de RH e Gestores de Setor", "SESMT e Medicina do Trabalho", "Diretoria e Liderança Imediata").
+- priority: Prioridade ("Alta", "Média" ou "Baixa"), compatível com a gravidade do risco.
+- periodicity: Periodicidade do monitoramento ("Mensal", "Bimestral", "Trimestral", "Semestral").
+- deadline: Prazo realista no cronograma de 12 meses (escalonando ações: "Mês 1 (Imediato)", "Mês 2", "Mês 3", "Trimestre 2", "Semestre 2").
+- efficacyIndicator: Indicador objetivo de eficácia e acompanhamento contínuo.`;
+
+    const prompt = `Empresa: ${companyName || "Empresa"}
+Ramo: ${companyActivity || "Geral"}
+
+Riscos no inventário para elaboração do plano de ação e cronograma:
+${JSON.stringify(
+  items.map((i: any) => ({
+    id: i.id,
+    riskName: i.riskName,
+    sectorName: i.sectorName,
+    riskLevel: i.riskLevel,
+    riskScore: i.riskScore,
+    currentRecommendation: i.recommendation,
+  })),
+  null,
+  2
+)}
+
+Elabore o plano de ação e cronograma 5W2H para todos esses riscos:`;
+
+    const response = await callGemini({
+      contents: prompt,
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.STRING },
+            actionObjective: { type: Type.STRING },
+            actionProposed: { type: Type.STRING },
+            responsible: { type: Type.STRING },
+            priority: { type: Type.STRING },
+            periodicity: { type: Type.STRING },
+            deadline: { type: Type.STRING },
+            efficacyIndicator: { type: Type.STRING },
+          },
+          required: [
+            "id",
+            "actionObjective",
+            "actionProposed",
+            "responsible",
+            "priority",
+            "periodicity",
+            "deadline",
+            "efficacyIndicator",
+          ],
+        },
+      },
+    });
+
+    const plannedActions = JSON.parse(response.text?.trim() || "[]");
+    return res.json({ plannedActions });
+  } catch (error: any) {
+    console.error("Error in /api/ai/action-plan-schedule:", error);
+    return res.status(500).json({ error: error.message || "Erro ao gerar cronograma de ações com IA." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Server setup with Vite middleware (Dev) or Static files (Prod)
+// ---------------------------------------------------------------------------
+async function startServer() {
+  if (process.env.NODE_ENV === "production") {
+    app.use(express.static("dist"));
+    app.get("*", (req, res) => {
+      res.sendFile(path.resolve(__dirname, "dist", "index.html"));
+    });
+  } else {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.resolve(__dirname, "dist")));
-    app.get("*", (_req, res) => {
-      res.sendFile(path.resolve(__dirname, "dist/index.html"));
-    });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Servidor iniciado com sucesso na porta ${PORT} [${isProd ? "PROD" : "DEV"}]`);
-    console.log(`Endpoint de visualização ativo em /api/reports/:id/view`);
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Server listening on port ${port}`);
   });
 }
 
-start().catch((err) => {
-  console.error("Falha fatal ao iniciar o servidor:", err);
+startServer().catch((err) => {
+  console.error("Failed to start server:", err);
   process.exit(1);
 });
