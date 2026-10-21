@@ -17,8 +17,10 @@ interface RiskInventoryManagerProps {
 }
 
 export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ report, catalog, onChange }) => {
+  const recognizedSectors = report.sectors.filter((s) => s.risksRecognized !== false);
+
   const [selectedSectorId, setSelectedSectorId] = useState<string>(
-    report.sectors.length > 0 ? report.sectors[0].id : ""
+    recognizedSectors.length > 0 ? recognizedSectors[0].id : ""
   );
 
   const [selectedCatalogRiskId, setSelectedCatalogRiskId] = useState<string>(
@@ -28,7 +30,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
   // AI Modal and Generation States
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiTargetSectorId, setAiTargetSectorId] = useState<string>(
-    report.sectors.length > 0 ? report.sectors[0].id : ""
+    recognizedSectors.length > 0 ? recognizedSectors[0].id : ""
   );
   const [aiRiskCount, setAiRiskCount] = useState<number>(3);
   const [isGeneratingBatchAI, setIsGeneratingBatchAI] = useState(false);
@@ -152,12 +154,12 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
   // Sync exposed employees when sector changes or sectors load
   useEffect(() => {
-    if (report.sectors.length > 0) {
-      const sect = report.sectors.find((s) => s.id === selectedSectorId);
+    if (recognizedSectors.length > 0) {
+      const sect = recognizedSectors.find((s) => s.id === selectedSectorId);
       if (sect) {
         setExposedCount(sect.employeeCount || 1);
       } else {
-        const first = report.sectors[0];
+        const first = recognizedSectors[0];
         setSelectedSectorId(first.id);
         setExposedCount(first.employeeCount || 1);
       }
@@ -173,7 +175,23 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
         <div className="max-w-md mx-auto space-y-2">
           <h3 className="text-lg font-semibold text-slate-800">Crie Setores Primeiro</h3>
           <p className="text-sm text-slate-500">
-            É necessário cadastrar ao menos um setor na aba <strong>Informações Gerais</strong> antes de poder criar o inventário de riscos.
+            É necessário cadastrar ao menos um setor na aba <strong>1. Cadastro Geral</strong> antes de poder criar o inventário de riscos.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (recognizedSectors.length === 0) {
+    return (
+      <div className="bg-white p-8 rounded-2xl border border-slate-100 text-center space-y-4">
+        <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-8 h-8 text-slate-400" />
+        </div>
+        <div className="max-w-md mx-auto space-y-2">
+          <h3 className="text-lg font-semibold text-slate-800">Nenhum Setor com Riscos Reconhecidos</h3>
+          <p className="text-sm text-slate-500">
+            Todos os setores cadastrados possuem declaração de <strong>não reconhecimento de riscos psicossociais</strong>. O Inventário e o Cronograma estão desativados. Caso deseje incluir riscos para algum setor, marque "Reconhece Riscos: Sim" no cadastro do setor em <strong>1. Cadastro Geral</strong>.
           </p>
         </div>
       </div>
@@ -406,11 +424,11 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
           <button
             type="button"
             onClick={() => {
-              const defaultSector = selectedSectorId || (report.sectors[0]?.id ?? "");
+              const defaultSector = selectedSectorId || (recognizedSectors[0]?.id ?? "");
               setAiTargetSectorId(defaultSector);
               setShowAIModal(true);
             }}
-            disabled={report.sectors.length === 0}
+            disabled={recognizedSectors.length === 0}
             className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 px-4 py-2.5 rounded-lg transition-all cursor-pointer shadow-xs disabled:opacity-50"
             title="A IA analisa o setor, a síntese qualitativa e sugere riscos estruturados para o inventário"
           >
@@ -424,7 +442,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                 handleCancelEdit();
               } else {
                 if (!isAdding) {
-                  const targetSector = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
+                  const targetSector = recognizedSectors.find((s) => s.id === selectedSectorId) || recognizedSectors[0];
                   if (targetSector) {
                     setSelectedSectorId(targetSector.id);
                     setExposedCount(targetSector.employeeCount || 1);
@@ -458,15 +476,15 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                   value={selectedSectorId}
                   onChange={(val) => {
                     setSelectedSectorId(val);
-                    const s = report.sectors.find((sec) => sec.id === val);
+                    const s = recognizedSectors.find((sec) => sec.id === val);
                     if (s) {
                       setExposedCount(s.employeeCount || 1);
                     }
                   }}
-                  options={report.sectors.map((s) => ({
+                  options={recognizedSectors.map((s) => ({
                     value: s.id,
                     label: s.name,
-                    subLabel: s.description || undefined
+                    subLabel: `${s.employeeCount || 1} funcionários expostos`
                   }))}
                   placeholder="Selecione o setor..."
                   searchPlaceholder="Buscar setor..."
@@ -1138,15 +1156,15 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                       Setor / GES Alvo
                     </label>
                     <SearchableSelect
-                      value={aiTargetSectorId || (report.sectors[0]?.id ?? "")}
+                      value={aiTargetSectorId || (recognizedSectors[0]?.id ?? "")}
                       onChange={(val) => {
                         setAiTargetSectorId(val);
                         setBatchAiResults([]);
                       }}
-                      options={report.sectors.map((s) => ({
+                      options={recognizedSectors.map((s) => ({
                         value: s.id,
                         label: `${s.name} (${s.employeeCount || 0} func.)`,
-                        subLabel: s.description || undefined,
+                        subLabel: `${s.employeeCount || 1} colaboradores expostos`,
                       }))}
                       placeholder="Selecione o setor..."
                       searchPlaceholder="Buscar setor..."

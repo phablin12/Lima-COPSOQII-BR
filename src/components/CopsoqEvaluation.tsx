@@ -31,7 +31,8 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
       const initialMap: Record<string, string> = {};
       COPSOQ_DIMENSIONS.forEach((dim) => {
         const val = currentSector.scores?.[dim.key];
-        initialMap[dim.key] = val !== undefined && val !== null ? String(val) : "";
+        // Treat undefined, null, or legacy default 0 as blank so placeholder "0,00" shows as demonstration
+        initialMap[dim.key] = val !== undefined && val !== null && val !== 0 ? String(val) : "";
       });
       setInputStrings(initialMap);
     }
@@ -277,7 +278,7 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
                 {COPSOQ_DIMENSIONS.map((dim) => {
                   const score = currentSector.scores?.[dim.key];
                   const ratingObj = getDimensionRating(score, dim.type);
-                  const currentInputValue = inputStrings[dim.key] ?? (score !== undefined && score !== null ? String(score) : "");
+                  const currentInputValue = inputStrings[dim.key] ?? (score !== undefined && score !== null && score !== 0 ? String(score) : "");
 
                   return (
                     <div
@@ -301,6 +302,14 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
                           type="text"
                           inputMode="decimal"
                           value={currentInputValue}
+                          onFocus={(e) => {
+                            const val = e.target.value.trim();
+                            if (val === "" || val === "0" || val === "0.0" || val === "0.00" || val === "0,0" || val === "0,00") {
+                              setInputStrings((prev) => ({ ...prev, [dim.key]: "" }));
+                            } else {
+                              e.target.select();
+                            }
+                          }}
                           onChange={(e) => {
                             const raw = e.target.value;
                             setInputStrings((prev) => ({ ...prev, [dim.key]: raw }));
@@ -323,6 +332,7 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
                             const trimmed = raw.trim();
                             if (trimmed === "") {
                               handleClearScore(dim.key);
+                              setInputStrings((prev) => ({ ...prev, [dim.key]: "" }));
                             } else {
                               const normalized = trimmed.replace(",", ".");
                               const val = parseFloat(normalized);
@@ -331,15 +341,13 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
                                 setInputStrings((prev) => ({ ...prev, [dim.key]: String(clamped) }));
                                 handleScoreChange(dim.key, clamped);
                               } else {
-                                setInputStrings((prev) => ({
-                                  ...prev,
-                                  [dim.key]: score !== undefined && score !== null ? String(score) : "",
-                                }));
+                                handleClearScore(dim.key);
+                                setInputStrings((prev) => ({ ...prev, [dim.key]: "" }));
                               }
                             }
                           }}
-                          placeholder="0,00 a 4,00"
-                          className="w-full px-3 py-2 rounded-lg border border-slate-250 focus:ring-2 focus:ring-slate-450 focus:border-slate-450 outline-none text-sm font-semibold text-slate-800 bg-white placeholder:text-slate-350"
+                          placeholder="0,00"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-250 focus:ring-2 focus:ring-slate-450 focus:border-slate-450 outline-none text-sm font-semibold text-slate-800 bg-white placeholder:text-slate-400 placeholder:font-normal"
                         />
                         <span className="text-xs text-slate-400 font-bold shrink-0">/ 4.00</span>
                       </div>

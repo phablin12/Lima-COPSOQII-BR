@@ -121,6 +121,9 @@ interface ReportPrintPreviewProps {
 export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, assessor }) => {
   const activeAssessor = report.evaluator || assessor;
   const isQualitative = report.methodology === "qualitative";
+  const hasRecognizedRisks = report.sectors.length > 0
+    ? report.sectors.some((s) => s.risksRecognized !== false)
+    : (report.risksRecognized !== false);
 
   const getEmissionDateFormatted = () => {
     const months = [
@@ -629,7 +632,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 ))}
               </div>
 
-              {report.risksRecognized !== false && (
+              {hasRecognizedRisks && (
                 <>
                   {/* 6. Inventário de Riscos Psicossociais */}
                   <div className="space-y-1.5">
@@ -638,7 +641,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                       <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
                       <span className="text-slate-500 font-bold font-mono">08</span>
                     </div>
-                    {report.sectors.map((sector, index) => {
+                    {report.sectors.filter((s) => s.risksRecognized !== false).map((sector, index) => {
                       const hasRisks = report.riskInventory.some(r => r.sectorId === sector.id);
                       if (!hasRisks) return null;
                       return (
@@ -658,7 +661,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                       <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
                       <span className="text-slate-500 font-bold font-mono">09</span>
                     </div>
-                    {report.sectors.map((sector, index) => {
+                    {report.sectors.filter((s) => s.risksRecognized !== false).map((sector, index) => {
                       const hasActions = report.riskInventory.some(r => r.sectorId === sector.id);
                       if (!hasActions) return null;
                       return (
@@ -928,7 +931,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           )}
         </div>
 
-        {report.risksRecognized !== false ? (
+        {hasRecognizedRisks ? (
           <>
             {/* --- CAPÍTULO 6: INVENTÁRIO DOS RISCOS --- */}
             <div className="space-y-4 print:pt-12 page-break-before">
@@ -946,7 +949,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 </p>
               ) : (
                 <div className="space-y-8">
-                  {report.sectors.map((sector) => {
+                  {report.sectors.filter((s) => s.risksRecognized !== false).map((sector) => {
                     const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
                     if (sectorRisks.length === 0) return null;
 
@@ -1353,7 +1356,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 </p>
               ) : (
                 <div className="space-y-8">
-                  {report.sectors.map((sector) => {
+                  {report.sectors.filter((s) => s.risksRecognized !== false).map((sector) => {
                     const sectorRisks = report.riskInventory.filter(r => r.sectorId === sector.id);
                     if (sectorRisks.length === 0) return null;
 
@@ -1618,7 +1621,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("8. Considerações Finais")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-            {report.risksRecognized !== false ? "8. Considerações Finais" : "6. Considerações Finais"}
+            {hasRecognizedRisks ? "8. Considerações Finais" : "6. Considerações Finais"}
           </h3>
           {renderIndentedText(report.finalConsiderations)}
         </div>
@@ -1627,7 +1630,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("9. Referências")}
           <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-            {report.risksRecognized !== false ? "9. Referências Bibliográficas" : "7. Referências Bibliográficas"}
+            {hasRecognizedRisks ? "9. Referências Bibliográficas" : "7. Referências Bibliográficas"}
           </h3>
           <div className="text-xs font-mono">
             {renderIndentedText(report.chapters.referencias)}

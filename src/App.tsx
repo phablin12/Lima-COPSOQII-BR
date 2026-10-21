@@ -917,7 +917,12 @@ export default function App() {
           <div className="p-4 space-y-6 overflow-y-auto">
             
             {/* Se houver laudo ativo (Editando Laudo), mostra as etapas integradas no sidebar */}
-            {currentReport ? (
+            {currentReport ? (() => {
+              const hasRecognizedRisks = currentReport.sectors.length > 0
+                ? currentReport.sectors.some((s) => s.risksRecognized !== false)
+                : (currentReport.risksRecognized !== false);
+
+              return (
               <div className="space-y-4">
                 {/* Cartão de Identificação do Laudo */}
                 <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
@@ -973,8 +978,8 @@ export default function App() {
                     {currentReport.methodology === "qualitative" ? "2. Investigação Qualitativa" : "3. Devolutivas"}
                   </button>
 
-                  {/* Se a empresa declarar que NÃO reconhece os riscos (risksRecognized === false), ocultamos essas duas abas do editor */}
-                  {currentReport.risksRecognized !== false && (
+                  {/* Se nenhum setor reconhece riscos, ocultamos as abas do Inventário e Plano de Ação */}
+                  {hasRecognizedRisks && (
                     <>
                       <button
                         onClick={() => handleNavClick(() => setActiveTab("inventario"))}
@@ -1006,8 +1011,8 @@ export default function App() {
                   >
                     <BookOpenCheck className="w-4 h-4 shrink-0 text-slate-450" />
                     {currentReport.methodology === "qualitative"
-                      ? (currentReport.risksRecognized !== false ? "5. Texto Capítulos" : "3. Texto Capítulos")
-                      : (currentReport.risksRecognized !== false ? "6. Texto Capítulos" : "4. Texto Capítulos")
+                      ? (hasRecognizedRisks ? "5. Texto Capítulos" : "3. Texto Capítulos")
+                      : (hasRecognizedRisks ? "6. Texto Capítulos" : "4. Texto Capítulos")
                     }
                   </button>
 
@@ -1019,13 +1024,14 @@ export default function App() {
                   >
                     <FileText className="w-4 h-4 shrink-0 text-slate-450" />
                     {currentReport.methodology === "qualitative"
-                      ? (currentReport.risksRecognized !== false ? "6. Visualizar Laudo" : "4. Visualizar Laudo")
-                      : (currentReport.risksRecognized !== false ? "7. Visualizar Laudo" : "5. Visualizar Laudo")
+                      ? (hasRecognizedRisks ? "6. Visualizar Laudo" : "4. Visualizar Laudo")
+                      : (hasRecognizedRisks ? "7. Visualizar Laudo" : "5. Visualizar Laudo")
                     }
                   </button>
                 </div>
               </div>
-            ) : (
+              );
+            })() : (
               /* Se não houver laudo selecionado (Menu Início), mostra o menu administrativo */
               <div className="space-y-6">
                 

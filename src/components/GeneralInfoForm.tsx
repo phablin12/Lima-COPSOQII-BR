@@ -105,23 +105,16 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
       name: newSectorName.trim(),
       employeeCount: Math.max(1, empCount),
       risksRecognized: newSectorRecognized,
-      scores: {
-        influencia: 0,
-        significado: 0,
-        relacoes: 0,
-        lideranca: 0,
-        satisfacao: 0,
-        valores: 0,
-        saude: 0,
-        demandas: 0,
-        conflitos: 0,
-        burnout: 0,
-      },
+      scores: {},
       devolvedSynthesis: "",
     };
 
+    const updatedSectors = [...report.sectors, newSector];
+    const hasAnyRecognized = updatedSectors.some((s) => s.risksRecognized !== false);
+
     onChange({
-      sectors: [...report.sectors, newSector],
+      sectors: updatedSectors,
+      risksRecognized: hasAnyRecognized,
     });
 
     setNewSectorName("");
@@ -132,9 +125,11 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
   const handleRemoveSector = (id: string) => {
     const updatedSectors = report.sectors.filter((s) => s.id !== id);
     const updatedInventory = report.riskInventory.filter((item) => item.sectorId !== id);
+    const hasAnyRecognized = updatedSectors.length > 0 ? updatedSectors.some((s) => s.risksRecognized !== false) : true;
     onChange({
       sectors: updatedSectors,
       riskInventory: updatedInventory,
+      risksRecognized: hasAnyRecognized,
     });
   };
 
@@ -162,20 +157,28 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
       return s;
     });
 
-    // Synchronize risk inventory items that belong to this sector
-    const updatedInventory = (report.riskInventory || []).map((item) => {
-      if (item.sectorId === id) {
-        return {
-          ...item,
-          exposedCount: finalCount,
-        };
-      }
-      return item;
-    });
+    // Synchronize risk inventory items that belong to this sector (or remove them if risks are not recognized)
+    const updatedInventory = (report.riskInventory || [])
+      .filter((item) => {
+        if (item.sectorId === id && !editingRecognized) return false;
+        return true;
+      })
+      .map((item) => {
+        if (item.sectorId === id) {
+          return {
+            ...item,
+            exposedCount: finalCount,
+          };
+        }
+        return item;
+      });
+
+    const hasAnyRecognized = updatedSectors.some((s) => s.risksRecognized !== false);
 
     onChange({
       sectors: updatedSectors,
       riskInventory: updatedInventory,
+      risksRecognized: hasAnyRecognized,
     });
     setEditingSectorId(null);
   };
@@ -317,41 +320,6 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
         </div>
       </div>
 
-      {/* Reconhecimento de Riscos */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-          <ShieldAlert className="w-5 h-5 text-slate-600" />
-          Reconhecimento de Riscos Psicossociais
-        </h3>
-        <p className="text-xs text-slate-500">
-          Indique se a organização reconhece a existência de fatores de riscos psicossociais no ambiente de trabalho. Caso declare que <strong>não reconhece</strong>, os capítulos de Inventário de Riscos (GRO) e Plano de Ação (Cronograma) serão omitidos do laudo final.
-        </p>
-        <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-150">
-          <button
-            type="button"
-            onClick={() => {
-              const newValue = report.risksRecognized === false ? true : false;
-              onChange({ risksRecognized: newValue });
-            }}
-            className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 focus:outline-none shrink-0 ${
-              report.risksRecognized !== false ? "bg-slate-800 justify-end" : "bg-slate-200 justify-start"
-            }`}
-          >
-            <span className="bg-white w-5 h-5 rounded-full shadow-md transition-transform duration-300" />
-          </button>
-          <div className="text-xs text-left">
-            <span className="font-extrabold text-slate-800 block">
-              {report.risksRecognized !== false ? "Sim, existem riscos a serem mitigados (Recomendado)" : "Não foram reconhecidos riscos psicossociais organizacionais"}
-            </span>
-            <span className="text-[11px] text-slate-500 block mt-0.5">
-              {report.risksRecognized !== false 
-                ? "O laudo incluirá as fases de Inventário de Riscos e Plano de Ação Integrado."
-                : "Os capítulos de Inventário e Plano de Ação serão ocultados para foco exclusivo nas diretrizes gerais e cultura organizativa."
-              }
-            </span>
-          </div>
-        </div>
-      </div>
 
       {/* Dados da Empresa */}
       <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
@@ -697,7 +665,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             Setores, Funções ou Grupos de Exposição Similar (GES)
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            Cadastre os setores ou grupos de exposição similar (GES) que participaram da avaliação psicossocial, especificando a quantidade de funcionários no setor.
+            Cadastre os setores ou grupos de exposição similar (GES) participantes, a quantidade de trabalhadores e se há reconhecimento de riscos psicossociais. As etapas de Inventário de Riscos (GRO) e Cronograma serão direcionadas automaticamente aos setores com riscos reconhecidos.
           </p>
         </div>
 
@@ -801,7 +769,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                         />
                       ) : (
                         <span className="text-slate-700 text-sm bg-slate-100 px-3 py-1 rounded-full font-mono font-semibold">
-                          {sector.employeeCount} colaboradores
+                          {sector.employeeCount}
                         </span>
                       )}
                     </td>
