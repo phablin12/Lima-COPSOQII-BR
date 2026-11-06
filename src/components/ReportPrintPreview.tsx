@@ -4,8 +4,9 @@
  */
 
 import React from "react";
-import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
+import { Report, CustomChapter, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { replaceTemplateVariables } from "./ChaptersEditor";
+import { getFullChapterTitle, getChapterLevel, detectParentSection } from "../chapterHierarchy";
 import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
 
@@ -237,6 +238,50 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
       </div>
     </div>
   );
+
+  const getCustomChaptersFor = (section: "introducao" | "fundamentacao" | "metodologia" | "consideracoes" | "referencias" | "end") => {
+    return (report.customChapters || []).filter((ch) => detectParentSection(ch) === section);
+  };
+
+  const renderCustomChapterItem = (ch: CustomChapter) => {
+    const level = getChapterLevel(ch);
+    const title = getFullChapterTitle(ch);
+
+    if (level === 1) {
+      return (
+        <div key={ch.id} className="space-y-4 print:pt-12 page-break-before">
+          {renderHeader(title)}
+          <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+            {title}
+          </h3>
+          {renderIndentedText(ch.text)}
+        </div>
+      );
+    }
+
+    if (level === 2) {
+      return (
+        <div key={ch.id} className="space-y-3 pt-6 border-t border-slate-200">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-5 bg-indigo-600 rounded"></div>
+            <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
+              {title}
+            </h4>
+          </div>
+          {renderIndentedText(ch.text)}
+        </div>
+      );
+    }
+
+    return (
+      <div key={ch.id} className="space-y-2 pt-4 pl-4 border-l-2 border-indigo-200">
+        <h5 className="text-sm font-bold text-slate-800 tracking-wide">
+          {title}
+        </h5>
+        {renderIndentedText(ch.text)}
+      </div>
+    );
+  };
 
   const getSectorName = (sectorId: string) => {
     const s = report.sectors.find((sect) => sect.id === sectorId);
@@ -580,24 +625,51 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
             <div className="space-y-4 text-xs">
               {/* 1. Introdução */}
-              <div className="flex items-end gap-2">
-                <span className="font-bold text-slate-850">1. INTRODUÇÃO</span>
-                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">03</span>
+              <div className="space-y-1.5">
+                <div className="flex items-end gap-2">
+                  <span className="font-bold text-slate-850">1. INTRODUÇÃO</span>
+                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                  <span className="text-slate-500 font-bold font-mono">03</span>
+                </div>
+                {getCustomChaptersFor("introducao").map((ch) => (
+                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                    <span className="text-slate-400 font-medium font-mono">03</span>
+                  </div>
+                ))}
               </div>
 
               {/* 2. Fundamentação Teórica */}
-              <div className="flex items-end gap-2">
-                <span className="font-bold text-slate-850">2. FUNDAMENTAÇÃO TEÓRICA</span>
-                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">04</span>
+              <div className="space-y-1.5">
+                <div className="flex items-end gap-2">
+                  <span className="font-bold text-slate-850">2. FUNDAMENTAÇÃO TEÓRICA</span>
+                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                  <span className="text-slate-500 font-bold font-mono">04</span>
+                </div>
+                {getCustomChaptersFor("fundamentacao").map((ch) => (
+                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                    <span className="text-slate-400 font-medium font-mono">04</span>
+                  </div>
+                ))}
               </div>
 
               {/* 3. Metodologia de Avaliação */}
-              <div className="flex items-end gap-2">
-                <span className="font-bold text-slate-850">3. METODOLOGIA DE AVALIAÇÃO</span>
-                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">05</span>
+              <div className="space-y-1.5">
+                <div className="flex items-end gap-2">
+                  <span className="font-bold text-slate-850">3. METODOLOGIA DE AVALIAÇÃO</span>
+                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                  <span className="text-slate-500 font-bold font-mono">05</span>
+                </div>
+                {getCustomChaptersFor("metodologia").map((ch) => (
+                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                    <span className="text-slate-400 font-medium font-mono">05</span>
+                  </div>
+                ))}
               </div>
 
               {/* 4. Apresentação dos Resultados */}
@@ -677,18 +749,45 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               )}
 
               {/* 8. Considerações Finais */}
-              <div className="flex items-end gap-2">
-                <span className="font-bold text-slate-850">8. CONSIDERAÇÕES FINAIS</span>
-                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">10</span>
+              <div className="space-y-1.5">
+                <div className="flex items-end gap-2">
+                  <span className="font-bold text-slate-850">{hasRecognizedRisks ? "8. CONSIDERAÇÕES FINAIS" : "6. CONSIDERAÇÕES FINAIS"}</span>
+                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                  <span className="text-slate-500 font-bold font-mono">10</span>
+                </div>
+                {getCustomChaptersFor("consideracoes").map((ch) => (
+                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                    <span className="text-slate-400 font-medium font-mono">10</span>
+                  </div>
+                ))}
               </div>
 
               {/* 9. Referências Bibliográficas */}
-              <div className="flex items-end gap-2">
-                <span className="font-bold text-slate-850">9. REFERÊNCIAS BIBLIOGRÁFICAS</span>
-                <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                <span className="text-slate-500 font-bold font-mono">11</span>
+              <div className="space-y-1.5">
+                <div className="flex items-end gap-2">
+                  <span className="font-bold text-slate-850">{hasRecognizedRisks ? "9. REFERÊNCIAS BIBLIOGRÁFICAS" : "7. REFERÊNCIAS BIBLIOGRÁFICAS"}</span>
+                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                  <span className="text-slate-500 font-bold font-mono">11</span>
+                </div>
+                {getCustomChaptersFor("referencias").map((ch) => (
+                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                    <span className="text-slate-400 font-medium font-mono">11</span>
+                  </div>
+                ))}
               </div>
+
+              {/* Capítulos Personalizados Standalone / Finais (e.g. 10. Anexos) */}
+              {getCustomChaptersFor("end").map((ch) => (
+                <div key={ch.id} className="flex items-end gap-2">
+                  <span className="font-bold text-slate-850 uppercase">{getFullChapterTitle(ch)}</span>
+                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                  <span className="text-slate-500 font-bold font-mono">--</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -704,6 +803,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             1. Introdução
           </h3>
           {renderIndentedText(report.chapters.introducao)}
+          {getCustomChaptersFor("introducao").map(renderCustomChapterItem)}
         </div>
 
         {/* --- CAPÍTULO 2: FUNDAMENTAÇÃO --- */}
@@ -713,6 +813,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             2. Fundamentação Teórica
           </h3>
           {renderIndentedText(report.chapters.fundamentacao)}
+          {getCustomChaptersFor("fundamentacao").map(renderCustomChapterItem)}
         </div>
 
         {/* --- CAPÍTULO 3: METODOLOGIA --- */}
@@ -722,6 +823,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             3. Metodologia de Avaliação
           </h3>
           {renderIndentedText(report.chapters.metodologia)}
+          {getCustomChaptersFor("metodologia").map(renderCustomChapterItem)}
         </div>
 
         {/* --- CAPÍTULO 4: APRESENTAÇÃO DOS RESULTADOS --- */}
@@ -1606,17 +1708,6 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           </div>
         )}
 
-        {/* --- CAPÍTULOS PERSONALIZADOS --- */}
-        {report.customChapters && report.customChapters.map((ch) => (
-          <div key={ch.id} className="space-y-4 print:pt-12 page-break-before">
-            {renderHeader(ch.title)}
-            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-              {ch.title}
-            </h3>
-            {renderIndentedText(ch.text)}
-          </div>
-        ))}
-
         {/* --- CAPÍTULO 8: CONSIDERAÇÕES FINAIS --- */}
         <div className="space-y-4 print:pt-12 page-break-before">
           {renderHeader("8. Considerações Finais")}
@@ -1624,6 +1715,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             {hasRecognizedRisks ? "8. Considerações Finais" : "6. Considerações Finais"}
           </h3>
           {renderIndentedText(report.finalConsiderations)}
+          {getCustomChaptersFor("consideracoes").map(renderCustomChapterItem)}
         </div>
 
         {/* --- CAPÍTULO 9: REFERÊNCIAS --- */}
@@ -1635,7 +1727,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           <div className="text-xs font-mono">
             {renderIndentedText(report.chapters.referencias)}
           </div>
+          {getCustomChaptersFor("referencias").map(renderCustomChapterItem)}
         </div>
+
+        {/* --- CAPÍTULOS PERSONALIZADOS FINAIS / ANEXOS --- */}
+        {getCustomChaptersFor("end").map(renderCustomChapterItem)}
 
         {/* --- ASSINATURAS DO PROFISSIONAL DE SST --- */}
         <div className="pt-20 space-y-10 print:pt-24 page-break-inside-avoid">

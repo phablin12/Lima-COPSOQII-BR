@@ -31,17 +31,17 @@ import {
   FileSpreadsheet, 
   ClipboardList, 
   BookOpenCheck, 
-  FileText,
-  Check,
-  UserCheck,
-  Building2,
-  LayoutDashboard,
-  Menu,
-  X,
-  LogOut,
-  FolderHeart,
-  Cloud,
-  CloudOff,
+  FileText, 
+  Check, 
+  UserCheck, 
+  Building2, 
+  LayoutDashboard, 
+  Menu, 
+  X, 
+  LogOut, 
+  FolderHeart, 
+  Cloud, 
+  CloudOff, 
   ShieldCheck
 } from "lucide-react";
 import { 
@@ -955,28 +955,40 @@ export default function App() {
                     1. Cadastro Geral
                   </button>
 
-                  {/* Apenas mostra Notas COPSOQ se não for metodologia qualitativa */}
-                  {currentReport.methodology !== "qualitative" && (
+                  {/* Metodologia Quantitativa (COPSOQ II) */}
+                  {currentReport.methodology !== "qualitative" ? (
+                    <>
+                      <button
+                        onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
+                          activeTab === "copsoq" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                        }`}
+                      >
+                        <Sliders className="w-4 h-4 shrink-0 text-slate-450" />
+                        2. Pontuação COPSOQ II
+                      </button>
+
+                      <button
+                        onClick={() => handleNavClick(() => setActiveTab("devolutivas"))}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
+                          activeTab === "devolutivas" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                        }`}
+                      >
+                        <MessageSquare className="w-4 h-4 shrink-0 text-slate-450" />
+                        3. Devolutivas
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
+                      onClick={() => handleNavClick(() => setActiveTab("devolutivas"))}
                       className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                        activeTab === "copsoq" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                        activeTab === "devolutivas" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                       }`}
                     >
-                      <Sliders className="w-4 h-4 shrink-0 text-slate-450" />
-                      2. Notas COPSOQ II
+                      <MessageSquare className="w-4 h-4 shrink-0 text-slate-450" />
+                      2. Investigação Qualitativa
                     </button>
                   )}
-
-                  <button
-                    onClick={() => handleNavClick(() => setActiveTab("devolutivas"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      activeTab === "devolutivas" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <MessageSquare className="w-4 h-4 shrink-0 text-slate-450" />
-                    {currentReport.methodology === "qualitative" ? "2. Investigação Qualitativa" : "3. Devolutivas"}
-                  </button>
 
                   {/* Se nenhum setor reconhece riscos, ocultamos as abas do Inventário e Plano de Ação */}
                   {hasRecognizedRisks && (
@@ -1052,10 +1064,10 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Seção 2: Documentos */}
+                {/* Seção 2: Documentos e Avaliações */}
                 <div className="space-y-1">
                   <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
-                    Relatórios
+                    Avaliações & Laudos
                   </span>
 
                   <button
@@ -1065,7 +1077,7 @@ export default function App() {
                     }`}
                   >
                     <FileText className="w-4 h-4 shrink-0 text-slate-450" />
-                    Relatórios
+                    Relatórios / Laudos
                   </button>
                 </div>
 
@@ -1183,7 +1195,7 @@ export default function App() {
           </div>
 
           {/* Saved Status Indicators */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Firebase Sync Indicator */}
             <div className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs ${
               syncState === "synced" 

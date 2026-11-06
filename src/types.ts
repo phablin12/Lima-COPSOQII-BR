@@ -85,6 +85,9 @@ export interface CustomChapter {
   title: string;
   text: string;
   order: number;
+  number?: string; // e.g. "2.2", "2.3", "2.3.1", "10", "Anexo I"
+  parentChapterId?: string; // e.g. "introducao", "fundamentacao", "metodologia", "consideracoes", "referencias", "end"
+  level?: number; // 1: chapter, 2: section (2.2), 3: subsection (2.3.1)
 }
 
 export interface ReportChapters {
@@ -294,3 +297,5 @@ export const getDimensionRating = (score: number | undefined | null, type: "posi
     }
   }
 };
+
+
