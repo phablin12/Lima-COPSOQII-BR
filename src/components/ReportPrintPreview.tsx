@@ -239,6 +239,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     </div>
   );
 
+  const isChapterExcluded = (chapterId: string): boolean => {
+    return (report.excludedChapters || []).includes(chapterId);
+  };
+
+  const getChapterHeading = (id: string, defaultTitle: string): string => {
+    return report.chapterTitles?.[id] || defaultTitle;
+  };
+
   const getCustomChaptersFor = (section: "introducao" | "fundamentacao" | "metodologia" | "consideracoes" | "referencias" | "end") => {
     return (report.customChapters || []).filter((ch) => detectParentSection(ch) === section);
   };
@@ -625,52 +633,58 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
             <div className="space-y-4 text-xs">
               {/* 1. Introdução */}
-              <div className="space-y-1.5">
-                <div className="flex items-end gap-2">
-                  <span className="font-bold text-slate-850">1. INTRODUÇÃO</span>
-                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">03</span>
-                </div>
-                {getCustomChaptersFor("introducao").map((ch) => (
-                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
-                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
-                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">03</span>
+              {!isChapterExcluded("introducao") && (
+                <div className="space-y-1.5">
+                  <div className="flex items-end gap-2">
+                    <span className="font-bold text-slate-850 uppercase">{getChapterHeading("introducao", "1. INTRODUÇÃO")}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                    <span className="text-slate-500 font-bold font-mono">03</span>
                   </div>
-                ))}
-              </div>
+                  {getCustomChaptersFor("introducao").map((ch) => (
+                    <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                      <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                      <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                      <span className="text-slate-400 font-medium font-mono">03</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* 2. Fundamentação Teórica */}
-              <div className="space-y-1.5">
-                <div className="flex items-end gap-2">
-                  <span className="font-bold text-slate-850">2. FUNDAMENTAÇÃO TEÓRICA</span>
-                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">04</span>
-                </div>
-                {getCustomChaptersFor("fundamentacao").map((ch) => (
-                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
-                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
-                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">04</span>
+              {!isChapterExcluded("fundamentacao") && (
+                <div className="space-y-1.5">
+                  <div className="flex items-end gap-2">
+                    <span className="font-bold text-slate-850 uppercase">{getChapterHeading("fundamentacao", "2. FUNDAMENTAÇÃO TEÓRICA")}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                    <span className="text-slate-500 font-bold font-mono">04</span>
                   </div>
-                ))}
-              </div>
+                  {getCustomChaptersFor("fundamentacao").map((ch) => (
+                    <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                      <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                      <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                      <span className="text-slate-400 font-medium font-mono">04</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* 3. Metodologia de Avaliação */}
-              <div className="space-y-1.5">
-                <div className="flex items-end gap-2">
-                  <span className="font-bold text-slate-850">3. METODOLOGIA DE AVALIAÇÃO</span>
-                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">05</span>
-                </div>
-                {getCustomChaptersFor("metodologia").map((ch) => (
-                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
-                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
-                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">05</span>
+              {!isChapterExcluded("metodologia") && (
+                <div className="space-y-1.5">
+                  <div className="flex items-end gap-2">
+                    <span className="font-bold text-slate-850 uppercase">{getChapterHeading("metodologia", "3. METODOLOGIA DE AVALIAÇÃO")}</span>
+                    <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                    <span className="text-slate-500 font-bold font-mono">05</span>
                   </div>
-                ))}
-              </div>
+                  {getCustomChaptersFor("metodologia").map((ch) => (
+                    <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                      <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                      <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                      <span className="text-slate-400 font-medium font-mono">05</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* 4. Apresentação dos Resultados */}
               <div className="space-y-1.5">
@@ -749,36 +763,44 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               )}
 
               {/* 8. Considerações Finais */}
-              <div className="space-y-1.5">
-                <div className="flex items-end gap-2">
-                  <span className="font-bold text-slate-850">{hasRecognizedRisks ? "8. CONSIDERAÇÕES FINAIS" : "6. CONSIDERAÇÕES FINAIS"}</span>
-                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">10</span>
-                </div>
-                {getCustomChaptersFor("consideracoes").map((ch) => (
-                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
-                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
-                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">10</span>
+              {!isChapterExcluded("consideracoes") && (
+                <div className="space-y-1.5">
+                  <div className="flex items-end gap-2">
+                    <span className="font-bold text-slate-850 uppercase">
+                      {getChapterHeading("consideracoes", hasRecognizedRisks ? "8. CONSIDERAÇÕES FINAIS" : "6. CONSIDERAÇÕES FINAIS")}
+                    </span>
+                    <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                    <span className="text-slate-500 font-bold font-mono">10</span>
                   </div>
-                ))}
-              </div>
+                  {getCustomChaptersFor("consideracoes").map((ch) => (
+                    <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                      <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                      <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                      <span className="text-slate-400 font-medium font-mono">10</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* 9. Referências Bibliográficas */}
-              <div className="space-y-1.5">
-                <div className="flex items-end gap-2">
-                  <span className="font-bold text-slate-850">{hasRecognizedRisks ? "9. REFERÊNCIAS BIBLIOGRÁFICAS" : "7. REFERÊNCIAS BIBLIOGRÁFICAS"}</span>
-                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                  <span className="text-slate-500 font-bold font-mono">11</span>
-                </div>
-                {getCustomChaptersFor("referencias").map((ch) => (
-                  <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
-                    <span className="font-medium">{getFullChapterTitle(ch)}</span>
-                    <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                    <span className="text-slate-400 font-medium font-mono">11</span>
+              {!isChapterExcluded("referencias") && (
+                <div className="space-y-1.5">
+                  <div className="flex items-end gap-2">
+                    <span className="font-bold text-slate-850 uppercase">
+                      {getChapterHeading("referencias", hasRecognizedRisks ? "9. REFERÊNCIAS BIBLIOGRÁFICAS" : "7. REFERÊNCIAS BIBLIOGRÁFICAS")}
+                    </span>
+                    <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                    <span className="text-slate-500 font-bold font-mono">11</span>
                   </div>
-                ))}
-              </div>
+                  {getCustomChaptersFor("referencias").map((ch) => (
+                    <div key={ch.id} className={`flex items-end gap-2 text-[11px] text-slate-600 ${getChapterLevel(ch) >= 3 ? "pl-8" : "pl-6"}`}>
+                      <span className="font-medium">{getFullChapterTitle(ch)}</span>
+                      <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                      <span className="text-slate-400 font-medium font-mono">11</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Capítulos Personalizados Standalone / Finais (e.g. 10. Anexos) */}
               {getCustomChaptersFor("end").map((ch) => (
@@ -797,34 +819,40 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         </div>
 
         {/* --- CAPÍTULO 1: INTRODUÇÃO --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
-          {renderHeader("1. Introdução")}
-          <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-            1. Introdução
-          </h3>
-          {renderIndentedText(report.chapters.introducao)}
-          {getCustomChaptersFor("introducao").map(renderCustomChapterItem)}
-        </div>
+        {!isChapterExcluded("introducao") && (
+          <div className="space-y-4 print:pt-12 page-break-before">
+            {renderHeader(getChapterHeading("introducao", "1. Introdução"))}
+            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+              {getChapterHeading("introducao", "1. Introdução")}
+            </h3>
+            {renderIndentedText(report.chapters.introducao)}
+            {getCustomChaptersFor("introducao").map(renderCustomChapterItem)}
+          </div>
+        )}
 
         {/* --- CAPÍTULO 2: FUNDAMENTAÇÃO --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
-          {renderHeader("2. Fundamentação Teórica")}
-          <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-            2. Fundamentação Teórica
-          </h3>
-          {renderIndentedText(report.chapters.fundamentacao)}
-          {getCustomChaptersFor("fundamentacao").map(renderCustomChapterItem)}
-        </div>
+        {!isChapterExcluded("fundamentacao") && (
+          <div className="space-y-4 print:pt-12 page-break-before">
+            {renderHeader(getChapterHeading("fundamentacao", "2. Fundamentação Teórica"))}
+            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+              {getChapterHeading("fundamentacao", "2. Fundamentação Teórica")}
+            </h3>
+            {renderIndentedText(report.chapters.fundamentacao)}
+            {getCustomChaptersFor("fundamentacao").map(renderCustomChapterItem)}
+          </div>
+        )}
 
         {/* --- CAPÍTULO 3: METODOLOGIA --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
-          {renderHeader("3. Metodologia de Avaliação")}
-          <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-            3. Metodologia de Avaliação
-          </h3>
-          {renderIndentedText(report.chapters.metodologia)}
-          {getCustomChaptersFor("metodologia").map(renderCustomChapterItem)}
-        </div>
+        {!isChapterExcluded("metodologia") && (
+          <div className="space-y-4 print:pt-12 page-break-before">
+            {renderHeader(getChapterHeading("metodologia", "3. Metodologia de Avaliação"))}
+            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+              {getChapterHeading("metodologia", "3. Metodologia de Avaliação")}
+            </h3>
+            {renderIndentedText(report.chapters.metodologia)}
+            {getCustomChaptersFor("metodologia").map(renderCustomChapterItem)}
+          </div>
+        )}
 
         {/* --- CAPÍTULO 4: APRESENTAÇÃO DOS RESULTADOS --- */}
         <div className="space-y-6 print:pt-12 page-break-before">
@@ -1709,26 +1737,30 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         )}
 
         {/* --- CAPÍTULO 8: CONSIDERAÇÕES FINAIS --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
-          {renderHeader("8. Considerações Finais")}
-          <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-            {hasRecognizedRisks ? "8. Considerações Finais" : "6. Considerações Finais"}
-          </h3>
-          {renderIndentedText(report.finalConsiderations)}
-          {getCustomChaptersFor("consideracoes").map(renderCustomChapterItem)}
-        </div>
+        {!isChapterExcluded("consideracoes") && (
+          <div className="space-y-4 print:pt-12 page-break-before">
+            {renderHeader(getChapterHeading("consideracoes", "8. Considerações Finais"))}
+            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+              {getChapterHeading("consideracoes", hasRecognizedRisks ? "8. Considerações Finais" : "6. Considerações Finais")}
+            </h3>
+            {renderIndentedText(report.finalConsiderations)}
+            {getCustomChaptersFor("consideracoes").map(renderCustomChapterItem)}
+          </div>
+        )}
 
         {/* --- CAPÍTULO 9: REFERÊNCIAS --- */}
-        <div className="space-y-4 print:pt-12 page-break-before">
-          {renderHeader("9. Referências")}
-          <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-            {hasRecognizedRisks ? "9. Referências Bibliográficas" : "7. Referências Bibliográficas"}
-          </h3>
-          <div className="text-xs font-mono">
-            {renderIndentedText(report.chapters.referencias)}
+        {!isChapterExcluded("referencias") && (
+          <div className="space-y-4 print:pt-12 page-break-before">
+            {renderHeader(getChapterHeading("referencias", "9. Referências"))}
+            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+              {getChapterHeading("referencias", hasRecognizedRisks ? "9. Referências Bibliográficas" : "7. Referências Bibliográficas")}
+            </h3>
+            <div className="text-xs font-mono">
+              {renderIndentedText(report.chapters.referencias)}
+            </div>
+            {getCustomChaptersFor("referencias").map(renderCustomChapterItem)}
           </div>
-          {getCustomChaptersFor("referencias").map(renderCustomChapterItem)}
-        </div>
+        )}
 
         {/* --- CAPÍTULOS PERSONALIZADOS FINAIS / ANEXOS --- */}
         {getCustomChaptersFor("end").map(renderCustomChapterItem)}

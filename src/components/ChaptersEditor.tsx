@@ -23,11 +23,14 @@ import {
   X,
   Layers,
   CornerDownRight,
-  FileText
+  FileText,
+  RotateCcw,
+  AlertTriangle
 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
 import {
   STANDARD_CHAPTERS,
+  getStandardChapterTitle,
   getFullChapterTitle,
   getChapterLevel,
   detectParentSection,
@@ -108,8 +111,12 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   const [createNumber, setCreateNumber] = useState<string>("2.2");
   const [createTitle, setCreateTitle] = useState<string>("");
 
-  // Custom chapter editing (number & title) modal/inline state
+  // Deletion modal state
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string; isStandard: boolean } | null>(null);
+
+  // Chapter editing (number & title) modal/inline state
   const [isEditingMeta, setIsEditingMeta] = useState(false);
+  const [editingTargetChapterId, setEditingTargetChapterId] = useState<string | null>(null);
   const [editingNumberValue, setEditingNumberValue] = useState("");
   const [editingTitleValue, setEditingTitleValue] = useState("");
 
@@ -121,6 +128,10 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const customChaptersList = report.customChapters || [];
+
+  const isChapterExcluded = (chapterId: string): boolean => {
+    return (report.excludedChapters || []).includes(chapterId);
+  };
 
   const getChapterValue = (chapterId: string): string => {
     if (chapterId === "consideracoes") {
@@ -162,7 +173,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
 
   const getChapterTitle = (chapterId: string): string => {
     const std = STANDARD_CHAPTERS.find(s => s.id === chapterId);
-    if (std) return std.label;
+    if (std) return getStandardChapterTitle(std, report.chapterTitles);
 
     const custom = customChaptersList.find(c => c.id === chapterId);
     if (custom) return getFullChapterTitle(custom);
@@ -272,36 +283,95 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     setActiveTab("edit");
   };
 
-  // Delete active Custom Chapter
-  const handleDeleteCustomChapter = (chapterId: string) => {
-    const ch = customChaptersList.find(c => c.id === chapterId);
-    const title = ch ? getFullChapterTitle(ch) : "este capítulo";
-    if (!window.confirm(`Deseja realmente excluir "${title}"? Esta ação removerá este conteúdo do laudo.`)) return;
-    
-    const updatedCustoms = customChaptersList.filter(c => c.id !== chapterId);
-    onChange({ customChapters: updatedCustoms });
-    setActiveChapterId("introducao");
+  // Request delete for standard or custom chapter
+  const handleRequestDelete = (chapterId: string, title: string, isStandard: boolean) => {
+    setDeleteTarget({ id: chapterId, title, isStandard });
   };
 
-  // Start editing metadata (number & title)
-  const handleStartEditingMeta = () => {
-    const custom = customChaptersList.find(c => c.id === activeChapterId);
-    if (!custom) return;
-    setEditingNumberValue(custom.number || "");
-    setEditingTitleValue(custom.title || "");
-    setIsEditingMeta(true);
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    const { id, isStandard } = deleteTarget;
+
+    if (isStandard) {
+      const updatedExcluded = Array.from(new Set([...(report.excludedChapters || []), id]));
+      onChange({ excludedChapters: updatedExcluded });
+
+      if (activeChapterId === id) {
+        const nextStd = STANDARD_CHAPTERS.find(s => !updatedExcluded.includes(s.id));
+        if (nextStd) {
+          setActiveChapterId(nextStd.id);
+        } else if (customChaptersList.length > 0) {
+          setActiveChapterId(customChaptersList[0].id);
+        }
+      }
+    } else {
+      const updatedCustoms = customChaptersList.filter(c => c.id !== id);
+      onChange({ customChapters: updatedCustoms });
+
+      if (activeChapterId === id) {
+        const nextStd = STANDARD_CHAPTERS.find(s => !isChapterExcluded(s.id));
+        if (nextStd) {
+          setActiveChapterId(nextStd.id);
+        } else if (updatedCustoms.length > 0) {
+          setActiveChapterId(updatedCustoms[0].id);
+        }
+      }
+    }
+
+    setDeleteTarget(null);
+  };
+
+  const handleRestoreStandardChapter = (chapterId: string) => {
+    const updated = (report.excludedChapters || []).filter(id => id !== chapterId);
+    onChange({ excludedChapters: updated });
+    setActiveChapterId(chapterId);
+  };
+
+  // Start editing metadata (number & title for custom, title for standard)
+  const handleStartEditingMeta = (targetId?: string) => {
+    const chId = targetId || activeChapterId;
+    setEditingTargetChapterId(chId);
+
+    const std = STANDARD_CHAPTERS.find(s => s.id === chId);
+    if (std) {
+      setEditingNumberValue(std.number);
+      setEditingTitleValue(report.chapterTitles?.[std.id] || std.label);
+      setIsEditingMeta(true);
+      return;
+    }
+
+    const custom = customChaptersList.find(c => c.id === chId);
+    if (custom) {
+      setEditingNumberValue(custom.number || "");
+      setEditingTitleValue(custom.title || "");
+      setIsEditingMeta(true);
+      return;
+    }
   };
 
   const handleSaveMeta = () => {
-    const cleanNum = editingNumberValue.trim();
+    const targetId = editingTargetChapterId || activeChapterId;
     const cleanTitle = editingTitleValue.trim();
     if (!cleanTitle) return;
 
+    const std = STANDARD_CHAPTERS.find(s => s.id === targetId);
+    if (std) {
+      onChange({
+        chapterTitles: {
+          ...(report.chapterTitles || {}),
+          [std.id]: cleanTitle,
+        },
+      });
+      setIsEditingMeta(false);
+      return;
+    }
+
+    const cleanNum = editingNumberValue.trim();
     const level = getChapterLevel({ number: cleanNum });
     const parentSection = detectParentSection({ number: cleanNum });
 
     const updatedCustoms = customChaptersList.map(c => {
-      if (c.id === activeChapterId) {
+      if (c.id === targetId) {
         return {
           ...c,
           number: cleanNum,
@@ -544,7 +614,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
               <span className="text-[10px] text-slate-400">Arraste os itens para reordenar</span>
             </div>
             <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
-              {STANDARD_CHAPTERS.length + customChaptersList.length} itens
+              {STANDARD_CHAPTERS.filter(s => !isChapterExcluded(s.id)).length + customChaptersList.length} itens
             </span>
           </div>
 
@@ -585,6 +655,35 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
             )}
           </div>
 
+          {/* Lista de Capítulos Oficiais Excluídos (com opção de Restaurar) */}
+          {STANDARD_CHAPTERS.filter(s => isChapterExcluded(s.id)).length > 0 && (
+            <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                <div className="flex items-center gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Capítulos Ocultados ({STANDARD_CHAPTERS.filter(s => isChapterExcluded(s.id)).length})</span>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {STANDARD_CHAPTERS.filter(s => isChapterExcluded(s.id)).map((std) => (
+                  <div key={std.id} className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-amber-200 text-xs shadow-2xs">
+                    <span className="truncate text-slate-700 font-medium">
+                      {getStandardChapterTitle(std, report.chapterTitles)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRestoreStandardChapter(std.id)}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-md text-[10px] font-bold transition shrink-0 cursor-pointer"
+                      title="Restaurar este capítulo ao laudo"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Restaurar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Botão de Adição Rápida */}
           <button
             type="button"
@@ -599,21 +698,30 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
         <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-150 shadow-xs space-y-6">
           <div className="border-b border-slate-100 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1 min-w-0 flex-1">
-              {/* Header do capítulo ativo com edição de título/número se for custom */}
-              {activeCustomChapter && isEditingMeta ? (
+              {/* Header do capítulo ativo com edição de título/número */}
+              {isEditingMeta ? (
                 <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="w-28 space-y-0.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Número</label>
-                    <input
-                      type="text"
-                      value={editingNumberValue}
-                      onChange={(e) => setEditingNumberValue(e.target.value)}
-                      placeholder="Ex: 2.2"
-                      className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white font-mono font-bold"
-                    />
-                  </div>
+                  {activeCustomChapter ? (
+                    <div className="w-28 space-y-0.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Número</label>
+                      <input
+                        type="text"
+                        value={editingNumberValue}
+                        onChange={(e) => setEditingNumberValue(e.target.value)}
+                        placeholder="Ex: 2.2"
+                        className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white font-mono font-bold"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-20 space-y-0.5">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Capítulo</label>
+                      <div className="px-2.5 py-1 text-xs bg-slate-200/80 rounded-lg font-mono font-bold text-slate-700 text-center">
+                        {editingNumberValue || "•"}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-[200px] space-y-0.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Título da Seção</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Título do Capítulo / Seção</label>
                     <input
                       type="text"
                       value={editingTitleValue}
@@ -646,26 +754,30 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
                       {getChapterTitle(activeChapterId)}
                     </h4>
 
-                    {activeCustomChapter && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={handleStartEditingMeta}
-                          className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition cursor-pointer"
-                          title="Alterar número e título da seção"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCustomChapter(activeChapterId)}
-                          className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition cursor-pointer ml-1"
-                          title="Excluir este capítulo do laudo"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
+                    {/* Botões Universais de Edição e Exclusão no Capítulo Ativo */}
+                    <div className="flex items-center gap-1.5 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStartEditingMeta(activeChapterId)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                        title="Alterar título deste capítulo"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Editar Nome</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isStd = STANDARD_CHAPTERS.some(s => s.id === activeChapterId);
+                          handleRequestDelete(activeChapterId, getChapterTitle(activeChapterId), isStd);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition cursor-pointer"
+                        title="Excluir este capítulo do laudo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Excluir Capítulo</span>
+                      </button>
+                    </div>
                   </div>
 
                   {activeCustomChapter && (
@@ -1004,13 +1116,98 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
           </div>
         </div>
       )}
+      {/* Modal de Confirmação de Exclusão de Capítulo */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-rose-50/60">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-rose-100 text-rose-700 rounded-xl">
+                  <Trash2 className="w-5 h-5" />
+                </span>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm sm:text-base">
+                    Excluir Capítulo do Laudo
+                  </h4>
+                  <span className="text-[11px] text-rose-700 font-semibold">
+                    Confirmação de exclusão
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Tem certeza que deseja excluir o capítulo <strong className="text-slate-900">"{deleteTarget.title}"</strong>?
+              </p>
+              {deleteTarget.isStandard ? (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                  <span className="font-bold block flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Capítulo Oficial do Laudo
+                  </span>
+                  <p className="text-[11px] leading-relaxed">
+                    Este capítulo será ocultado da emissão impressa, do sumário e da edição. Caso precise utilizá-lo novamente, você poderá restaurá-lo a qualquer momento na seção inferior do menu.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
+                  <span className="font-bold text-slate-700 block">Capítulo Personalizado:</span>
+                  <p className="text-[11px] leading-relaxed">
+                    O texto redigido e a numeração desta seção serão removidos do laudo.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                Sim, Excluir Capítulo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
   // Helper to render a standard chapter row with its custom children
   function renderStandardSection(sectionId: string, std: { id: string; label: string; number: string }) {
-    const isActive = activeChapterId === sectionId;
+    const isExcluded = isChapterExcluded(sectionId);
     const subchapters = getSubchaptersForSection(sectionId);
+
+    // If this standard chapter is excluded
+    if (isExcluded) {
+      if (subchapters.length === 0) return null;
+      return (
+        <div key={sectionId} className="space-y-1 pl-2">
+          {subchapters.map((ch) => renderCustomChapterItem(ch))}
+        </div>
+      );
+    }
+
+    const isActive = activeChapterId === sectionId;
+    const currentTitle = report.chapterTitles?.[std.id] || std.label;
+    const displayTitle = currentTitle.replace(/^\d+\.\s*/, "");
 
     return (
       <div key={sectionId} className="space-y-1">
@@ -1019,22 +1216,61 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
             setActiveChapterId(sectionId);
             setIsEditingMeta(false);
           }}
-          className={`w-full text-left px-3 py-2 text-xs rounded-xl transition-all flex items-center justify-between group cursor-pointer ${
+          className={`w-full text-left px-2.5 py-2 text-xs rounded-xl transition-all flex items-center justify-between group cursor-pointer ${
             isActive
               ? "bg-slate-900 text-white font-bold shadow-xs"
               : "text-slate-700 hover:bg-slate-50 font-semibold"
           }`}
         >
-          <div className="flex items-center gap-2 truncate">
+          <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
+            {/* Botão de Excluir / Lixeira À FRENTE do nome do capítulo */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRequestDelete(sectionId, currentTitle, true);
+              }}
+              className={`p-1 rounded-md transition shrink-0 ${
+                isActive 
+                  ? "text-rose-300 hover:text-white hover:bg-white/20" 
+                  : "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+              }`}
+              title="Excluir este capítulo do laudo"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Badge do Número */}
             <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-mono font-bold shrink-0 ${
               isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
             }`}>
               {std.number}
             </span>
-            <span className="truncate">{std.label.replace(/^\d+\.\s*/, "")}</span>
+
+            {/* Nome do Capítulo */}
+            <span className="truncate flex-1 font-semibold" title={currentTitle}>
+              {displayTitle}
+            </span>
+
+            {/* Botão de Editar Título */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStartEditingMeta(sectionId);
+              }}
+              className={`p-1 rounded-md transition shrink-0 ${
+                isActive 
+                  ? "text-slate-300 hover:text-white hover:bg-white/20" 
+                  : "text-slate-400 hover:text-slate-800 hover:bg-slate-150"
+              }`}
+              title="Editar título do capítulo"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0 ml-1">
             {/* Botão de adicionar continuação direta */}
             <button
               type="button"
@@ -1042,7 +1278,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
                 e.stopPropagation();
                 handleOpenCreateModal(sectionId);
               }}
-              className={`p-1 rounded-md transition opacity-0 group-hover:opacity-100 ${
+              className={`p-1 rounded-md transition ${
                 isActive ? "text-amber-300 hover:bg-white/20" : "text-slate-400 hover:text-slate-800 hover:bg-slate-150"
               }`}
               title={`Adicionar continuação ao capítulo ${std.number} (ex: ${std.number}.2)`}
@@ -1083,8 +1319,8 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
           setActiveChapterId(ch.id);
           setIsEditingMeta(false);
         }}
-        className={`w-full text-left py-1.5 px-2.5 text-xs rounded-xl transition-all flex items-center justify-between group cursor-pointer relative select-none ${
-          level >= 3 ? "ml-4 pl-3 border-l-2 border-purple-300" : level === 2 ? "ml-2 pl-3 border-l-2 border-indigo-300" : ""
+        className={`w-full text-left py-1.5 px-2 text-xs rounded-xl transition-all flex items-center justify-between group cursor-pointer relative select-none ${
+          level >= 3 ? "ml-3 pl-2.5 border-l-2 border-purple-300" : level === 2 ? "ml-1.5 pl-2.5 border-l-2 border-indigo-300" : ""
         } ${
           isActive
             ? "bg-slate-900 text-white font-bold shadow-xs"
@@ -1095,7 +1331,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
           isDragOver && dropPosition === "after" ? "border-b-2 border-indigo-600 bg-indigo-50/50" : ""
         }`}
       >
-        <div className="flex items-center gap-2 truncate min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
           {/* Grip Icon para Drag and Drop */}
           <GripVertical
             className={`w-3.5 h-3.5 shrink-0 cursor-grab active:cursor-grabbing ${
@@ -1103,6 +1339,23 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
             }`}
             title="Clique e arraste para reordenar"
           />
+
+          {/* Botão de Excluir / Lixeira À FRENTE do nome do capítulo */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRequestDelete(ch.id, getFullChapterTitle(ch), false);
+            }}
+            className={`p-1 rounded-md transition shrink-0 ${
+              isActive 
+                ? "text-rose-300 hover:text-white hover:bg-white/20" 
+                : "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+            }`}
+            title="Excluir este capítulo do laudo"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
 
           {/* Badge do Número (ex: 2.2, 2.3, 2.3.1) */}
           <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 ${
@@ -1117,9 +1370,27 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
             {ch.number || "•"}
           </span>
 
-          <span className="truncate" title={getFullChapterTitle(ch)}>
+          {/* Título do Capítulo */}
+          <span className="truncate flex-1" title={getFullChapterTitle(ch)}>
             {ch.title}
           </span>
+
+          {/* Botão de Editar Título */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleStartEditingMeta(ch.id);
+            }}
+            className={`p-1 rounded-md transition shrink-0 ${
+              isActive 
+                ? "text-slate-300 hover:text-white hover:bg-white/20" 
+                : "text-slate-400 hover:text-slate-800 hover:bg-slate-150"
+            }`}
+            title="Editar número e título da seção"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {/* Ações Rápidas no Hover: Mover e Subseção */}

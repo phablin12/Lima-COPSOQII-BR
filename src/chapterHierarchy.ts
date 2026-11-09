@@ -46,6 +46,19 @@ export const STANDARD_CHAPTERS: StandardChapterDefinition[] = [
 ];
 
 /**
+ * Returns the effective title of a standard chapter, respecting custom title overrides
+ */
+export const getStandardChapterTitle = (
+  std: StandardChapterDefinition,
+  customTitles?: Record<string, string>
+): string => {
+  if (customTitles && customTitles[std.id]) {
+    return customTitles[std.id];
+  }
+  return std.label;
+};
+
+/**
  * Returns clean full chapter title with number prefix (without duplicates)
  */
 export const getFullChapterTitle = (ch: { number?: string; title: string }): string => {
