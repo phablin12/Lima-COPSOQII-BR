@@ -155,6 +155,7 @@ export interface Report {
   customChapters?: CustomChapter[];
   chapterTitles?: Record<string, string>; // Custom edited titles for standard chapters (e.g. { introducao: "1. Introdução Geral" })
   excludedChapters?: string[]; // IDs of chapters excluded/deleted from the report (standard or custom)
+  chaptersOrder?: string[]; // Unified ordering of chapters (standard + custom)
   paragraphIndent?: "none" | "medium" | "large"; // paragraph indentation control
   risksRecognized?: boolean; // Whether the company recognizes the risks (influences chapter 6 & 7 rendering)
   hideChapter5?: boolean; // Whether to hide Chapter 5 in the final report

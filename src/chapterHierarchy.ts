@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CustomChapter } from "./types";
+import { CustomChapter, Report } from "./types";
 
 export interface StandardChapterDefinition {
   id: string;
@@ -45,6 +45,41 @@ export const STANDARD_CHAPTERS: StandardChapterDefinition[] = [
   },
 ];
 
+export const STANDARD_CHAPTER_DEFAULTS: Record<string, { title: string; tip: string }> = {
+  introducao: {
+    title: "Introdução",
+    tip: "Apresente o escopo e justificativa legal do documento (NR-01, PGR, e GRO). Descreva o contexto de saúde mental da empresa avaliada.",
+  },
+  fundamentacao: {
+    title: "Fundamentação Teórica",
+    tip: "Cite os modelos científicos de estresse laboral, como o Modelo Demanda-Controle (Karasek) ou Desequilíbrio Esforço-Recompensa (Siegrist).",
+  },
+  metodologia: {
+    title: "Metodologia de Avaliação",
+    tip: "Explique o Copenhagen Psychosocial Questionnaire (COPSOQ II) e como os escores variam de 0 a 4 com pontos de corte técnicos.",
+  },
+  "fases-automaticas": {
+    title: "Fases Automáticas Tabuladas",
+    tip: "Resultados, Devolutivas, Inventário GRO e Cronograma de Ações tabulados automaticamente.",
+  },
+  consideracoes: {
+    title: "Considerações Finais",
+    tip: "Conclua resumindo a importância do engajamento de líderes, periodicidade sugerida de reavaliação (12 a 24 meses) e integração ao PGR.",
+  },
+  referencias: {
+    title: "Referências Bibliográficas",
+    tip: "Liste as normas regulamentadoras federais, leis trabalhistas e artigos de referência científica utilizados na elaboração.",
+  },
+};
+
+/**
+ * Removes any leading numbers or dashes from a title string (e.g. "1. Introdução" -> "Introdução", "2.2 - Burnout" -> "Burnout")
+ */
+export const cleanChapterTitle = (rawTitle?: string): string => {
+  if (!rawTitle) return "";
+  return rawTitle.replace(/^\d+(\.\d+)*\s*[-.:)]\s*/, "").trim();
+};
+
 /**
  * Returns the effective title of a standard chapter, respecting custom title overrides
  */
@@ -67,19 +102,13 @@ export const getFullChapterTitle = (ch: { number?: string; title: string }): str
   if (!num) return rawTitle || "Capítulo sem título";
   if (!rawTitle) return num;
 
-  // If title already starts with the number (e.g. "2.2 - " or "2.2. " or "2.2 "), return as is
-  const escapedNum = num.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`^${escapedNum}\\s*[-.]?\\s*`, "i");
-  if (regex.test(rawTitle)) {
-    return rawTitle;
-  }
-
-  return `${num}. ${rawTitle}`;
+  const clean = cleanChapterTitle(rawTitle);
+  return `${num}. ${clean || rawTitle}`;
 };
 
 /**
  * Returns level of hierarchy:
- * 1 = Main chapter (e.g. 1, 2, 10, Anexo)
+ * 1 = Main chapter (e.g. 1, 2, 10)
  * 2 = Section / continuation (e.g. 2.2, 2.3, 1.1)
  * 3 = Subsection (e.g. 2.3.1, 2.2.1)
  * 4 = Sub-subsection (e.g. 2.3.1.1)
@@ -89,7 +118,6 @@ export const getChapterLevel = (ch: { level?: number; number?: string }): number
   const num = (ch.number || "").trim();
   if (!num) return 1;
 
-  // Count dots in numbers like "2.3.1"
   const cleanDots = num.replace(/[^0-9.]/g, "");
   const dotCount = (cleanDots.match(/\./g) || []).length;
   if (dotCount === 0) return 1;
@@ -155,6 +183,333 @@ export const compareChapterNumbers = (numA?: string, numB?: string): number => {
 };
 
 /**
+ * Unified representation of any chapter in the document
+ */
+export interface UnifiedChapter {
+  id: string;
+  type: "standard" | "custom" | "phases";
+  baseId?: string;
+  number: string; // Dynamically computed sequential number: "1", "2", "2.1", "8", etc.
+  title: string; // Clean title without hardcoded number
+  fullTitle: string; // Formatted title e.g. "1. Introdução"
+  level: number; // 1 = main, 2 = sub, 3 = sub-sub
+  parentChapterId?: string;
+  isExcluded: boolean;
+  order: number;
+  tip?: string;
+  text?: string;
+}
+
+/**
+ * Builds the unified, linearly ordered chapter list with dynamic sequential numbers.
+ * If a chapter is moved, all numbers automatically recalculate dynamically.
+ */
+export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
+  const excluded = report.excludedChapters || [];
+  const customChapters = report.customChapters || [];
+  const customTitles = report.chapterTitles || {};
+
+  // Default main chapters order
+  const defaultMainOrder = [
+    "introducao",
+    "fundamentacao",
+    "metodologia",
+    "fases-automaticas",
+    "consideracoes",
+    "referencias",
+  ];
+
+  // Retrieve or initialize saved linear order
+  let activeOrder: string[] = [];
+  if (report.chaptersOrder && report.chaptersOrder.length > 0) {
+    activeOrder = [...report.chaptersOrder];
+  } else {
+    activeOrder = [...defaultMainOrder];
+  }
+
+  // Ensure all standard chapters and phases are in activeOrder
+  defaultMainOrder.forEach((id) => {
+    if (!activeOrder.includes(id)) {
+      activeOrder.push(id);
+    }
+  });
+
+  // Ensure all custom chapters are in activeOrder
+  customChapters.forEach((c) => {
+    if (!activeOrder.includes(c.id)) {
+      // If it has a parent, try to insert right after parent or siblings
+      if (c.parentChapterId && activeOrder.includes(c.parentChapterId)) {
+        const parentIdx = activeOrder.indexOf(c.parentChapterId);
+        // Find last child of this parent already in activeOrder
+        let insertIdx = parentIdx + 1;
+        while (
+          insertIdx < activeOrder.length &&
+          customChapters.some((sib) => sib.id === activeOrder[insertIdx] && sib.parentChapterId === c.parentChapterId)
+        ) {
+          insertIdx++;
+        }
+        activeOrder.splice(insertIdx, 0, c.id);
+      } else {
+        activeOrder.push(c.id);
+      }
+    }
+  });
+
+  // Separate main items from subchapters to establish parent-child relationships
+  // Subchapters are custom chapters that have a parentChapterId OR level >= 2
+  const customMap = new Map<string, CustomChapter>();
+  customChapters.forEach((c) => customMap.set(c.id, c));
+
+  // Determine hierarchy level and parent for each chapter in activeOrder
+  const itemsMeta: {
+    id: string;
+    type: "standard" | "custom" | "phases";
+    level: number;
+    parentChapterId?: string;
+    title: string;
+    tip?: string;
+    text?: string;
+    isExcluded: boolean;
+  }[] = [];
+
+  activeOrder.forEach((id) => {
+    if (id === "fases-automaticas") {
+      itemsMeta.push({
+        id,
+        type: "phases",
+        level: 1,
+        title: "Fases Automáticas Tabuladas",
+        tip: STANDARD_CHAPTER_DEFAULTS["fases-automaticas"].tip,
+        isExcluded: false,
+      });
+      return;
+    }
+
+    if (["introducao", "fundamentacao", "metodologia", "consideracoes", "referencias"].includes(id)) {
+      const def = STANDARD_CHAPTER_DEFAULTS[id];
+      const titleOverride = customTitles[id];
+      const clean = cleanChapterTitle(titleOverride || def.title);
+      itemsMeta.push({
+        id,
+        type: "standard",
+        level: 1,
+        title: clean || def.title,
+        tip: def.tip,
+        isExcluded: excluded.includes(id),
+      });
+      return;
+    }
+
+    // Custom chapter
+    const custom = customMap.get(id);
+    if (custom) {
+      const lvl = custom.level || (custom.parentChapterId ? 2 : 1);
+      const clean = cleanChapterTitle(custom.title);
+      itemsMeta.push({
+        id: custom.id,
+        type: "custom",
+        level: lvl,
+        parentChapterId: custom.parentChapterId,
+        title: clean || custom.title,
+        text: custom.text,
+        tip: lvl >= 2 ? `Subseção técnica vinculada.` : "Capítulo personalizado do laudo.",
+        isExcluded: excluded.includes(custom.id),
+      });
+    }
+  });
+
+  // Calculate dynamic sequential numbering
+  let mainNumber = 1;
+  const parentNumberMap = new Map<string, string>();
+  const parentChildCount = new Map<string, number>();
+
+  const result: UnifiedChapter[] = [];
+
+  // Automated phases size
+  const hasRisks = report.risksRecognized !== false;
+  const phasesCount = hasRisks ? 4 : 2;
+
+  itemsMeta.forEach((item, index) => {
+    let dynamicNumber = "";
+
+    if (item.type === "phases") {
+      const startNum = mainNumber;
+      const endNum = mainNumber + phasesCount - 1;
+      dynamicNumber = `${startNum}–${endNum}`;
+      mainNumber += phasesCount;
+
+      result.push({
+        id: item.id,
+        type: item.type,
+        number: dynamicNumber,
+        title: item.title,
+        fullTitle: `${dynamicNumber}. ${item.title}`,
+        level: 1,
+        isExcluded: false,
+        order: (index + 1) * 10,
+        tip: item.tip,
+      });
+      return;
+    }
+
+    if (item.level === 1) {
+      // Main chapter
+      if (!item.isExcluded) {
+        dynamicNumber = String(mainNumber);
+        parentNumberMap.set(item.id, dynamicNumber);
+        mainNumber += 1;
+      } else {
+        dynamicNumber = "—";
+      }
+
+      result.push({
+        id: item.id,
+        type: item.type,
+        baseId: item.type === "standard" ? item.id : undefined,
+        number: dynamicNumber,
+        title: item.title,
+        fullTitle: item.isExcluded ? item.title : `${dynamicNumber}. ${item.title}`,
+        level: 1,
+        isExcluded: item.isExcluded,
+        order: (index + 1) * 10,
+        tip: item.tip,
+        text: item.text,
+      });
+    } else {
+      // Subchapter (level 2 or 3)
+      // Find parent's dynamic number
+      let parentNum = "1";
+      if (item.parentChapterId && parentNumberMap.has(item.parentChapterId)) {
+        parentNum = parentNumberMap.get(item.parentChapterId)!;
+      } else {
+        // Fallback: use previous level 1 chapter
+        const prevMain = [...result].reverse().find((r) => r.level === 1 && !r.isExcluded);
+        parentNum = prevMain ? prevMain.number : "1";
+      }
+
+      const childKey = item.parentChapterId || parentNum;
+      const curCount = (parentChildCount.get(childKey) || 0) + 1;
+      parentChildCount.set(childKey, curCount);
+
+      if (item.level === 3) {
+        dynamicNumber = `${parentNum}.${curCount}`;
+      } else {
+        dynamicNumber = `${parentNum}.${curCount}`;
+      }
+      parentNumberMap.set(item.id, dynamicNumber);
+
+      result.push({
+        id: item.id,
+        type: item.type,
+        number: item.isExcluded ? "—" : dynamicNumber,
+        title: item.title,
+        fullTitle: item.isExcluded ? item.title : `${dynamicNumber}. ${item.title}`,
+        level: item.level,
+        parentChapterId: item.parentChapterId,
+        isExcluded: item.isExcluded,
+        order: (index + 1) * 10,
+        tip: item.tip,
+        text: item.text,
+      });
+    }
+  });
+
+  return result;
+};
+
+/**
+ * Reorders chapters based on drag-and-drop and returns updated state with synchronized numbers
+ */
+export const reorderUnifiedChapters = (
+  report: Report,
+  sourceId: string,
+  targetId: string,
+  position: "before" | "after"
+): {
+  chaptersOrder: string[];
+  customChapters: CustomChapter[];
+} => {
+  const currentList = getUnifiedChapters(report);
+  const currentIds = currentList.map((c) => c.id);
+
+  if (!currentIds.includes(sourceId) || !currentIds.includes(targetId) || sourceId === targetId) {
+    return {
+      chaptersOrder: currentIds,
+      customChapters: report.customChapters || [],
+    };
+  }
+
+  // Remove source
+  const filtered = currentIds.filter((id) => id !== sourceId);
+  const targetIdx = filtered.indexOf(targetId);
+
+  const insertIdx = position === "before" ? targetIdx : targetIdx + 1;
+  filtered.splice(insertIdx, 0, sourceId);
+
+  // If a custom chapter was dragged under or adjacent to a parent, update its parentChapterId if appropriate
+  const customChaptersList = [...(report.customChapters || [])];
+  const sourceCustomIdx = customChaptersList.findIndex((c) => c.id === sourceId);
+
+  // Re-generate list to synchronize numbers
+  const updatedReport: Report = {
+    ...report,
+    chaptersOrder: filtered,
+  };
+
+  const renumberedList = getUnifiedChapters(updatedReport);
+  const renumberedMap = new Map<string, string>();
+  renumberedList.forEach((c) => renumberedMap.set(c.id, c.number));
+
+  const syncedCustoms = customChaptersList.map((ch, idx) => {
+    const dynNumber = renumberedMap.get(ch.id) || ch.number;
+    return {
+      ...ch,
+      number: dynNumber,
+      order: (idx + 1) * 10,
+    };
+  });
+
+  return {
+    chaptersOrder: filtered,
+    customChapters: syncedCustoms,
+  };
+};
+
+/**
+ * Moves a chapter one position up or down in the unified order
+ */
+export const moveChapterUpDown = (
+  report: Report,
+  chapterId: string,
+  direction: "up" | "down"
+): {
+  chaptersOrder: string[];
+  customChapters: CustomChapter[];
+} => {
+  const currentList = getUnifiedChapters(report);
+  const currentIds = currentList.map((c) => c.id);
+  const index = currentIds.indexOf(chapterId);
+  if (index === -1) {
+    return {
+      chaptersOrder: currentIds,
+      customChapters: report.customChapters || [],
+    };
+  }
+
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= currentIds.length) {
+    return {
+      chaptersOrder: currentIds,
+      customChapters: report.customChapters || [],
+    };
+  }
+
+  const targetId = currentIds[targetIndex];
+  const pos = direction === "up" ? "before" : "after";
+  return reorderUnifiedChapters(report, chapterId, targetId, pos);
+};
+
+/**
  * Automatically suggests the next logical continuation number based on existing chapters
  */
 export const suggestNextNumber = (
@@ -163,7 +518,6 @@ export const suggestNextNumber = (
   type: "continuation" | "main" = "continuation"
 ): string => {
   if (type === "main") {
-    // Find highest main chapter number
     let maxMain = 9;
     customChapters.forEach((c) => {
       const segs = parseNumberSegments(c.number);
@@ -174,7 +528,6 @@ export const suggestNextNumber = (
     return String(maxMain + 1);
   }
 
-  // If continuation of a standard chapter or existing custom chapter
   let prefix = "2";
   if (parentTarget === "introducao" || parentTarget === "1") prefix = "1";
   else if (parentTarget === "fundamentacao" || parentTarget === "2") prefix = "2";
@@ -184,7 +537,6 @@ export const suggestNextNumber = (
   else if (parentTarget.startsWith("custom-")) {
     const parentCh = customChapters.find((c) => c.id === parentTarget);
     if (parentCh?.number) {
-      // Sub-branching: e.g. parent is "2.2", children will be "2.2.1", "2.2.2"
       const subPrefix = parentCh.number;
       let maxChild = 0;
       customChapters.forEach((c) => {
@@ -200,7 +552,6 @@ export const suggestNextNumber = (
     }
   }
 
-  // Find all existing subchapters for this prefix (e.g. 2.1, 2.2, 2.3)
   const existingSubNums: number[] = [];
   customChapters.forEach((c) => {
     const num = (c.number || "").trim();
@@ -213,8 +564,6 @@ export const suggestNextNumber = (
   });
 
   if (existingSubNums.length === 0) {
-    // For chapter 2 (Fundamentação Teórica), the main standard chapter text is 2,
-    // so the next subsection is usually 2.2 or 2.1.
     return prefix === "2" ? "2.2" : `${prefix}.1`;
   }
 
