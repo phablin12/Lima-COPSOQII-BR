@@ -313,7 +313,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             <div>
               <span className="font-extrabold text-slate-800 text-sm block">Avaliação Qualitativa (Micro e Pequenas)</span>
               <span className="text-[11px] text-slate-500 leading-normal block mt-1">
-                Método descritivo-qualitativo via entrevistas estruturadas por setor. Perfeito para micro, pequenas e médias empresas que buscam um laudo simplificado e humano.
+                Método qualitativo direto focado em micro e pequenas empresas (MPE) e no Gerenciamento de Riscos Ocupacionais (GRO/NR-01), direcionando a avaliação diretamente para o Inventário de Riscos e Plano de Ação.
               </span>
             </div>
           </label>

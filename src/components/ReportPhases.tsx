@@ -43,85 +43,24 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
   renderHeader,
 }) => {
   const phasesStart = parseInt(ch.number.split("–")[0], 10) || 4;
+  const inventoryChapterNum = isQualitative ? phasesStart : phasesStart + 2;
+  const actionPlanChapterNum = isQualitative ? phasesStart + 1 : phasesStart + 3;
 
   return (
     <React.Fragment key={ch.id}>
-      {/* --- FASE 1: APRESENTAÇÃO DOS RESULTADOS --- */}
-      <div
-        data-print-section="true"
-        data-print-page-target="fases-resultados"
-        className="space-y-6 print:pt-12 page-break-before"
-      >
-        {renderHeader(isQualitative ? `${phasesStart}. Resultados do Diagnóstico` : `${phasesStart}. Resultados Tabulados`)}
-        <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-          {phasesStart}. Apresentação dos Resultados
-        </h3>
+      {!isQualitative && (
+        <>
+          {/* --- FASE 1: APRESENTAÇÃO DOS RESULTADOS (COPSOQ) --- */}
+          <div
+            data-print-section="true"
+            data-print-page-target="fases-resultados"
+            className="space-y-6 print:pt-12 page-break-before"
+          >
+            {renderHeader(`${phasesStart}. Resultados Tabulados`)}
+            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+              {phasesStart}. Apresentação dos Resultados
+            </h3>
 
-        {isQualitative ? (
-          <>
-            <p className="text-sm text-slate-700">
-              Abaixo estão detalhados os resultados descritivos obtidos através da avaliação qualitativa por setor. O diagnóstico baseou-se na observação de rotinas, no levantamento de campo e em entrevistas estruturadas coletivas e individuais com os colaboradores.
-            </p>
-
-            {report.sectors.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Nenhum setor cadastrado no relatório.</p>
-            ) : (
-              <div className="space-y-8">
-                {report.sectors.map((sector) => (
-                  <div
-                    key={sector.id}
-                    data-print-subpage-target={`sector-result-${sector.id}`}
-                    className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6"
-                  >
-                    <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
-                      <span className="font-extrabold text-sm text-slate-900 uppercase">Setor: {sector.name}</span>
-                      <div className="flex gap-4 text-xs font-semibold text-slate-600">
-                        <span>Trabalhadores Expostos: {sector.employeeCount}</span>
-                      </div>
-                    </div>
-
-                    {/* Bloco 1: O que foi avaliado */}
-                    <div className="space-y-1.5 text-left">
-                      <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">1. O que foi Avaliado / Escopo da Observação:</h4>
-                      <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                        {sector.qualitativeEvaluatedText ? (
-                          sector.qualitativeEvaluatedText
-                        ) : (
-                          <span className="text-slate-400 italic">Não preenchido.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Bloco 2: Percepção do colaborador */}
-                    <div className="space-y-1.5 text-left">
-                      <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">2. Percepção dos Colaboradores (Diálogos/Entrevistas):</h4>
-                      <div className="p-3.5 bg-slate-50/50 rounded-lg border border-slate-150 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                        {sector.qualitativePerceptionText ? (
-                          sector.qualitativePerceptionText
-                        ) : (
-                          <span className="text-slate-400 italic">Não preenchido.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Bloco 3: Conclusão do setor */}
-                    <div className="space-y-1.5 text-left">
-                      <h4 className="font-extrabold text-[10px] text-slate-500 uppercase tracking-wider">3. Conclusão e Parecer do Avaliador:</h4>
-                      <div className="p-3.5 bg-amber-50/20 rounded-lg border border-amber-100/50 text-xs text-slate-700 text-justify leading-relaxed print:bg-white">
-                        {sector.qualitativeConclusionText ? (
-                          sector.qualitativeConclusionText
-                        ) : (
-                          <span className="text-slate-400 italic">Não preenchido.</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <>
             <p className="text-sm text-slate-700">
               Abaixo estão detalhados os resultados numéricos médios tabulados por setor avaliado. Para cada setor, apresenta-se a pontuação obtida na escala COPSOQ II de 0,00 a 4,00 pontos.
             </p>
@@ -185,55 +124,44 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
                 ))}
               </div>
             )}
-          </>
-        )}
-      </div>
+          </div>
 
-      {/* --- FASE 2: ANÁLISE TÉCNICA DOS RISCOS E INVESTIGAÇÃO QUALITATIVA --- */}
-      <div
-        data-print-section="true"
-        data-print-page-target="fases-devolutivas"
-        className="space-y-6 print:pt-12 page-break-before"
-      >
-        {renderHeader(`${phasesStart + 1}. Análise de Campo e Devolutivas`)}
-        <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-          {phasesStart + 1}. Análise Técnica dos Riscos e Investigação Qualitativa
-        </h3>
-        <p className="text-sm text-slate-700">
-          Abaixo estão registradas as conclusões qualitativas das sessões de devolutiva mantidas com a liderança de cada setor. O escopo foca especificamente no cruzamento dos riscos percebidos desfavoráveis/moderados com o ambiente real de trabalho.
-        </p>
+          {/* --- FASE 2: ANÁLISE TÉCNICA DOS RISCOS E DEVOLUTIVAS --- */}
+          <div
+            data-print-section="true"
+            data-print-page-target="fases-devolutivas"
+            className="space-y-6 print:pt-12 page-break-before"
+          >
+            {renderHeader(`${phasesStart + 1}. Análise de Campo e Devolutivas`)}
+            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+              {phasesStart + 1}. Análise Técnica dos Riscos e Devolutivas
+            </h3>
+            <p className="text-sm text-slate-700">
+              Abaixo estão registradas as conclusões qualitativas das sessões de devolutiva mantidas com a liderança de cada setor. O escopo foca especificamente no cruzamento dos riscos percebidos desfavoráveis/moderados com o ambiente real de trabalho.
+            </p>
 
-        {report.sectors.length === 0 ? (
-          <p className="text-xs text-slate-400 italic">Nenhum dado cadastrado.</p>
-        ) : (
-          <div className="space-y-6">
-            {report.sectors.map((sector) => {
-              const critical = COPSOQ_DIMENSIONS.map((d) => {
-                const score = sector.scores?.[d.key] ?? 0.0;
-                const rat = getDimensionRating(score, d.type);
-                return { name: d.name, score, rating: rat.rating };
-              }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score > 0);
+            {report.sectors.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">Nenhum dado cadastrado.</p>
+            ) : (
+              <div className="space-y-6">
+                {report.sectors.map((sector) => {
+                  const critical = COPSOQ_DIMENSIONS.map((d) => {
+                    const score = sector.scores?.[d.key] ?? 0.0;
+                    const rat = getDimensionRating(score, d.type);
+                    return { name: d.name, score, rating: rat.rating };
+                  }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score > 0);
 
-              return (
-                <div
-                  key={sector.id}
-                  data-print-subpage-target={`sector-devolutiva-${sector.id}`}
-                  className="p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6"
-                >
-                  <h4 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-1.5 uppercase">
-                    Diagnóstico de Campo: {sector.name}
-                  </h4>
+                  return (
+                    <div
+                      key={sector.id}
+                      data-print-subpage-target={`sector-devolutiva-${sector.id}`}
+                      className="p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6"
+                    >
+                      <h4 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-1.5 uppercase">
+                        Diagnóstico de Campo: {sector.name}
+                      </h4>
 
-                  <div className="flex flex-wrap gap-2 text-[10px] items-center">
-                    {isQualitative ? (
-                      <>
-                        <strong className="text-slate-500 uppercase tracking-wider">Metodologia:</strong>
-                        <span className="text-amber-800 font-semibold bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
-                          Avaliação de Fatores de Riscos Psicossociais Qualitativos (MPE)
-                        </span>
-                      </>
-                    ) : (
-                      <>
+                      <div className="flex flex-wrap gap-2 text-[10px] items-center">
                         <strong className="text-slate-500 uppercase tracking-wider">Fatores Investigados:</strong>
                         {critical.length === 0 ? (
                           <span className="text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
@@ -248,42 +176,38 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
                             </span>
                           ))
                         )}
-                      </>
-                    )}
-                  </div>
+                      </div>
 
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-xs text-justify leading-relaxed text-slate-700 whitespace-pre-wrap print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
-                    {sector.devolvedSynthesis ? (
-                      sector.devolvedSynthesis
-                    ) : (
-                      sector.qualitativeConclusionText ? (
-                        sector.qualitativeConclusionText
-                      ) : (
-                        <span className="text-slate-400 italic">
-                          Ainda não foi preenchido o relatório técnico de devolutiva ou conclusão para este setor.
-                        </span>
-                      )
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-xs text-justify leading-relaxed text-slate-700 whitespace-pre-wrap print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                        {sector.devolvedSynthesis ? (
+                          sector.devolvedSynthesis
+                        ) : (
+                          <span className="text-slate-400 italic">
+                            Ainda não foi preenchido o relatório técnico de devolutiva para este setor.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
-      {/* --- FASES 3 E 4: INVENTÁRIO E PLANO DE AÇÃO --- */}
+      {/* --- INVENTÁRIO E PLANO DE AÇÃO --- */}
       {hasRecognizedRisks ? (
         <>
-          {/* --- FASE 3: INVENTÁRIO DOS RISCOS --- */}
+          {/* --- INVENTÁRIO DOS RISCOS --- */}
           <div
             data-print-section="true"
             data-print-page-target="fases-inventario"
             className="space-y-4 print:pt-12 page-break-before"
           >
-            {renderHeader(`${phasesStart + 2}. Inventário de Riscos GRO`)}
+            {renderHeader(`${inventoryChapterNum}. Inventário de Riscos GRO`)}
             <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-              {phasesStart + 2}. Inventário de Riscos Psicossociais
+              {inventoryChapterNum}. Inventário de Riscos Psicossociais
             </h3>
             <p className="text-sm text-slate-700">
               Abaixo estão estruturados de forma sistemática os riscos psicossociais evidenciados em campo, incluindo as fontes geradoras, as populações expostas, as medidas preventivas existentes e a respectiva avaliação de severidade e probabilidade através da matriz 5x5.
@@ -531,9 +455,9 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
             data-print-page-target="fases-cronograma"
             className="space-y-4 print:pt-12 page-break-before"
           >
-            {renderHeader(`${phasesStart + 3}. Cronograma e Plano de Ação`)}
+            {renderHeader(`${actionPlanChapterNum}. Cronograma e Plano de Ação`)}
             <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-              {phasesStart + 3}. Cronograma e Plano de Ação
+              {actionPlanChapterNum}. Cronograma e Plano de Ação
             </h3>
             <p className="text-sm text-slate-700">
               Com base no inventário técnico de riscos psicossociais, estabeleceram-se as seguintes ações integradas com objetivo, responsáveis, prioridade, prazos e indicadores de eficácia, conforme as diretrizes do PGR.

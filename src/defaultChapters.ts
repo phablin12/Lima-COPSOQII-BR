@@ -40,16 +40,15 @@ Após o processamento estatístico preliminar das avaliações dos funcionários
 5. COSTA, C. O. et al. Copenhagen Psychosocial Questionnaire (COPSOQ II) na realidade brasileira: validade de constructo e confiabilidade. Revista de Saúde Pública, 2020.`
 };
 
-export const DEFAULT_QUALITATIVE_METODOLOGIA = `Para o mapeamento dos fatores de risco psicossocial, utilizou-se a Metodologia de Avaliação Qualitativa de Fatores Psicossociais, focada nas particularidades de micro e pequenas empresas (MPE). O objetivo é identificar e descrever a percepção do trabalhador em relação ao seu ambiente laboral de forma direta e descritiva.
+export const DEFAULT_QUALITATIVE_METODOLOGIA = `Para o mapeamento dos fatores de risco psicossocial, utilizou-se a Metodologia de Avaliação Qualitativa de Fatores Psicossociais, estruturada com base nas diretrizes da NR-01 (GRO/PGR) e na ABNT ISO 45003. Esta abordagem é voltada para a caracterização objetiva dos postos de trabalho e organização laboral em micro e pequenas empresas (MPE).
 
-A coleta de dados foi realizada através de entrevistas individuais semiestruturadas com os colaboradores do setor, observação ativa em campo das rotinas laborais e reuniões de diagnóstico. A investigação considerou aspectos centrais do trabalho, tais como:
-1. Demandas e ritmo de trabalho (sobrecarga de tarefas, cobranças);
-2. Autonomia e possibilidades de desenvolvimento (margem de decisão, uso de habilidades);
-3. Relações interpessoais e suporte social (apoio de colegas e chefia imediata);
-4. Interface trabalho-família (equilíbrio entre demandas profissionais e vida pessoal);
-5. Reconhecimento, recompensas e clareza de papéis organizacionais.
+O levantamento considerou a observação ativa das rotinas operacionais, a análise ergonômico-organizacional e a verificação das condições de trabalho nos setores mapeados, abrangendo:
+1. Demandas e ritmo de trabalho (sobrecarga de tarefas, prazos, exigências de produtividade);
+2. Autonomia e organização (controle sobre o próprio trabalho, pausas e distribuição de funções);
+3. Relações socioprofissionais e suporte da liderança;
+4. Condições do ambiente físico e organizacional do trabalho.
 
-Os achados foram compilados e sintetizados em termos do que foi avaliado no ambiente de trabalho, as percepções subjetivas manifestadas pelos colaboradores e as conclusões técnicas para fins de subsidiar o Programa de Gerenciamento de Riscos (PGR) sob os termos da Norma Regulamentadora nº 01 (NR-01).`;
+Os fatores de risco identificados foram enquadrados diretamente na Matriz de Avaliação de Riscos (5x5), fundamentando o Inventário de Riscos GRO e subsidiando a elaboração do Cronograma e Plano de Ação Preventivo do PGR.`;
 
 export const DEFAULT_FINAL_CONSIDERATIONS = `A partir do diagnóstico psicossocial delineado neste relatório, conclui-se que o gerenciamento adequado dos riscos psicossociais na empresa representa não apenas uma exigência de conformidade legal com o GRO/PGR (NR-01), mas um pilar estratégico para a sustentabilidade organizacional.
 

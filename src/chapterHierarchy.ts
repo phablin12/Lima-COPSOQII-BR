@@ -327,27 +327,49 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
 
   // Automated phases size
   const hasRisks = report.risksRecognized !== false;
-  const phasesCount = hasRisks ? 4 : 2;
+  const isQualitative = report.methodology === "qualitative";
+  const phasesCount = isQualitative ? (hasRisks ? 2 : 0) : (hasRisks ? 4 : 2);
 
   itemsMeta.forEach((item, index) => {
     let dynamicNumber = "";
 
     if (item.type === "phases") {
+      if (phasesCount === 0) {
+        result.push({
+          id: item.id,
+          type: item.type,
+          number: "—",
+          title: "Fases Omitidas (Sem Riscos)",
+          fullTitle: "Fases Omitidas (Sem Riscos)",
+          level: 1,
+          isExcluded: true,
+          order: (index + 1) * 10,
+          tip: "A empresa declarou não reconhecer riscos psicossociais nesta avaliação. Capítulos de riscos omitidos.",
+        });
+        return;
+      }
+
       const startNum = mainNumber;
       const endNum = mainNumber + phasesCount - 1;
-      dynamicNumber = `${startNum}–${endNum}`;
+      dynamicNumber = startNum === endNum ? String(startNum) : `${startNum}–${endNum}`;
       mainNumber += phasesCount;
+
+      const title = isQualitative
+        ? "Inventário de Riscos e Plano de Ação"
+        : item.title;
 
       result.push({
         id: item.id,
         type: item.type,
         number: dynamicNumber,
-        title: item.title,
-        fullTitle: `${dynamicNumber}. ${item.title}`,
+        title,
+        fullTitle: `${dynamicNumber}. ${title}`,
         level: 1,
         isExcluded: false,
         order: (index + 1) * 10,
-        tip: item.tip,
+        tip: isQualitative
+          ? "Inventário de Riscos GRO e Cronograma de Ações gerados para os setores com riscos."
+          : item.tip,
       });
       return;
     }

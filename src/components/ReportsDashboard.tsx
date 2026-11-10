@@ -508,9 +508,9 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                     </div>
                   ) : (
                     <div>
-                      <span className="font-extrabold text-slate-800 block text-xs">💬 Avaliação Qualitativa</span>
+                      <span className="font-extrabold text-slate-800 block text-xs">📋 Avaliação Qualitativa MPE</span>
                       <p className="text-slate-500 text-[10.5px]">
-                        Especial para micro/pequenas empresas. Substitui as estatísticas quantitativas por análises de entrevistas individuais/coletivas e de observação de campo.
+                        Especial para micro/pequenas empresas. Mapeamento direto dos fatores psicossociais focado no Inventário de Riscos GRO e no Plano de Ação.
                       </p>
                     </div>
                   )}

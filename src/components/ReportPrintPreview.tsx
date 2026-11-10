@@ -831,13 +831,77 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 .map((ch) => {
                   if (ch.type === "phases") {
                     const phasesStart = parseInt(ch.number.split("–")[0], 10) || 4;
+
+                    if (isQualitative) {
+                      if (!hasRecognizedRisks) return null;
+                      return (
+                        <React.Fragment key={ch.id}>
+                          {/* Phase 1 for Qualitative: Inventário de Riscos */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-end gap-2">
+                              <span className="font-bold text-slate-850 uppercase">
+                                {phasesStart}. INVENTÁRIO DE RISCOS PSICOSSOCIAIS
+                              </span>
+                              <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                              <span className="text-slate-500 font-bold font-mono">
+                                {formatPage(pageMap["fases-inventario"])}
+                              </span>
+                            </div>
+                            {report.sectors.filter((s) => s.risksRecognized !== false).map((sector, index) => {
+                              const hasRisks = report.riskInventory.some((r) => r.sectorId === sector.id);
+                              if (!hasRisks) return null;
+                              return (
+                                <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                                  <span className="font-medium">
+                                    {phasesStart}.{index + 1}. Riscos de {sector.name}
+                                  </span>
+                                  <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                                  <span className="text-slate-400 font-medium font-mono">
+                                    {formatPage(pageMap[`sector-inventory-${sector.id}`] || pageMap["fases-inventario"])}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Phase 2 for Qualitative: Cronograma e Plano de Ação */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-end gap-2">
+                              <span className="font-bold text-slate-850 uppercase">
+                                {phasesStart + 1}. CRONOGRAMA E PLANO DE AÇÃO
+                              </span>
+                              <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                              <span className="text-slate-500 font-bold font-mono">
+                                {formatPage(pageMap["fases-cronograma"])}
+                              </span>
+                            </div>
+                            {report.sectors.filter((s) => s.risksRecognized !== false).map((sector, index) => {
+                              const hasActions = report.riskInventory.some((r) => r.sectorId === sector.id);
+                              if (!hasActions) return null;
+                              return (
+                                <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                                  <span className="font-medium">
+                                    {phasesStart + 1}.{index + 1}. Ações de {sector.name}
+                                  </span>
+                                  <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                                  <span className="text-slate-400 font-medium font-mono">
+                                    {formatPage(pageMap[`sector-action-${sector.id}`] || pageMap["fases-cronograma"])}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </React.Fragment>
+                      );
+                    }
+
                     return (
                       <React.Fragment key={ch.id}>
                         {/* Phase 1: Resultados */}
                         <div className="space-y-1.5">
                           <div className="flex items-end gap-2">
                             <span className="font-bold text-slate-850 uppercase">
-                              {phasesStart}. {isQualitative ? "RESULTADOS DO DIAGNÓSTICO" : "APRESENTAÇÃO DOS RESULTADOS"}
+                              {phasesStart}. APRESENTAÇÃO DOS RESULTADOS
                             </span>
                             <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
                             <span className="text-slate-500 font-bold font-mono">

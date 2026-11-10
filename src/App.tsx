@@ -956,7 +956,7 @@ export default function App() {
                   </button>
 
                   {/* Metodologia Quantitativa (COPSOQ II) */}
-                  {currentReport.methodology !== "qualitative" ? (
+                  {currentReport.methodology !== "qualitative" && (
                     <>
                       <button
                         onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
@@ -978,16 +978,6 @@ export default function App() {
                         3. Devolutivas
                       </button>
                     </>
-                  ) : (
-                    <button
-                      onClick={() => handleNavClick(() => setActiveTab("devolutivas"))}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                        activeTab === "devolutivas" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                      }`}
-                    >
-                      <MessageSquare className="w-4 h-4 shrink-0 text-slate-450" />
-                      2. Investigação Qualitativa
-                    </button>
                   )}
 
                   {/* Se nenhum setor reconhece riscos, ocultamos as abas do Inventário e Plano de Ação */}
@@ -1000,7 +990,7 @@ export default function App() {
                         }`}
                       >
                         <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-450" />
-                        {currentReport.methodology === "qualitative" ? "3. Inventário (GRO)" : "4. Inventário (GRO)"}
+                        {currentReport.methodology === "qualitative" ? "2. Inventário (GRO)" : "4. Inventário (GRO)"}
                       </button>
 
                       <button
@@ -1010,7 +1000,7 @@ export default function App() {
                         }`}
                       >
                         <ClipboardList className="w-4 h-4 shrink-0 text-slate-450" />
-                        {currentReport.methodology === "qualitative" ? "4. Plano de Ação" : "5. Plano de Ação"}
+                        {currentReport.methodology === "qualitative" ? "3. Plano de Ação" : "5. Plano de Ação"}
                       </button>
                     </>
                   )}
@@ -1023,7 +1013,7 @@ export default function App() {
                   >
                     <BookOpenCheck className="w-4 h-4 shrink-0 text-slate-450" />
                     {currentReport.methodology === "qualitative"
-                      ? (hasRecognizedRisks ? "5. Texto Capítulos" : "3. Texto Capítulos")
+                      ? (hasRecognizedRisks ? "4. Texto Capítulos" : "2. Texto Capítulos")
                       : (hasRecognizedRisks ? "6. Texto Capítulos" : "4. Texto Capítulos")
                     }
                   </button>
@@ -1036,7 +1026,7 @@ export default function App() {
                   >
                     <FileText className="w-4 h-4 shrink-0 text-slate-450" />
                     {currentReport.methodology === "qualitative"
-                      ? (hasRecognizedRisks ? "6. Visualizar Laudo" : "4. Visualizar Laudo")
+                      ? (hasRecognizedRisks ? "5. Visualizar Laudo" : "3. Visualizar Laudo")
                       : (hasRecognizedRisks ? "7. Visualizar Laudo" : "5. Visualizar Laudo")
                     }
                   </button>
@@ -1296,53 +1286,65 @@ export default function App() {
             <div className="space-y-6">
               
               {/* Workspace Tab Render */}
-              <div className="min-h-[500px]">
-                {activeTab === "cadastro" && (
-                  <GeneralInfoForm
-                    report={currentReport}
-                    onChange={handleUpdateCurrentReport}
-                    companies={companies}
-                    professionals={professionals}
-                    evaluators={evaluators}
-                    defaultAssessor={assessor}
-                  />
-                )}
-                {activeTab === "copsoq" && (
-                  <CopsoqEvaluation
-                    report={currentReport}
-                    onChange={handleUpdateCurrentReport}
-                  />
-                )}
-                {activeTab === "devolutivas" && (
-                  <TechnicalAnalysis
-                    report={currentReport}
-                    onChange={handleUpdateCurrentReport}
-                  />
-                )}
-                {activeTab === "inventario" && (
-                  <RiskInventoryManager
-                    report={currentReport}
-                    catalog={globalCatalog}
-                    onChange={handleUpdateCurrentReport}
-                  />
-                )}
-                {activeTab === "plano" && (
-                  <ActionPlanManager
-                    report={currentReport}
-                    onChange={handleUpdateCurrentReport}
-                  />
-                )}
-                {activeTab === "capitulos" && (
-                  <ChaptersEditor
-                    report={currentReport}
-                    onChange={handleUpdateCurrentReport}
-                    assessor={assessor}
-                  />
-                )}
-                {activeTab === "visualizar" && (
-                  <ReportPrintPreview report={currentReport} assessor={assessor} />
-                )}
-              </div>
+              {(() => {
+                const isQualitative = currentReport.methodology === "qualitative";
+                const hasRecognizedRisks = currentReport.sectors.length > 0
+                  ? currentReport.sectors.some((s) => s.risksRecognized !== false)
+                  : (currentReport.risksRecognized !== false);
+                const effectiveTab = isQualitative && (activeTab === "copsoq" || activeTab === "devolutivas")
+                  ? (hasRecognizedRisks ? "inventario" : "cadastro")
+                  : activeTab;
+
+                return (
+                  <div className="min-h-[500px]">
+                    {effectiveTab === "cadastro" && (
+                      <GeneralInfoForm
+                        report={currentReport}
+                        onChange={handleUpdateCurrentReport}
+                        companies={companies}
+                        professionals={professionals}
+                        evaluators={evaluators}
+                        defaultAssessor={assessor}
+                      />
+                    )}
+                    {effectiveTab === "copsoq" && !isQualitative && (
+                      <CopsoqEvaluation
+                        report={currentReport}
+                        onChange={handleUpdateCurrentReport}
+                      />
+                    )}
+                    {effectiveTab === "devolutivas" && !isQualitative && (
+                      <TechnicalAnalysis
+                        report={currentReport}
+                        onChange={handleUpdateCurrentReport}
+                      />
+                    )}
+                    {effectiveTab === "inventario" && (
+                      <RiskInventoryManager
+                        report={currentReport}
+                        catalog={globalCatalog}
+                        onChange={handleUpdateCurrentReport}
+                      />
+                    )}
+                    {effectiveTab === "plano" && (
+                      <ActionPlanManager
+                        report={currentReport}
+                        onChange={handleUpdateCurrentReport}
+                      />
+                    )}
+                    {effectiveTab === "capitulos" && (
+                      <ChaptersEditor
+                        report={currentReport}
+                        onChange={handleUpdateCurrentReport}
+                        assessor={assessor}
+                      />
+                    )}
+                    {effectiveTab === "visualizar" && (
+                      <ReportPrintPreview report={currentReport} assessor={assessor} />
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </main>
