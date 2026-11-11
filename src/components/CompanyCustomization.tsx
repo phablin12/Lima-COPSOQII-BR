@@ -528,7 +528,13 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                 <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                   {logo ? (
                     <div className="relative w-28 h-28 border border-slate-250 bg-white rounded-2xl overflow-hidden flex items-center justify-center group shadow-xs">
-                      <img src={logo} alt="Logo" className="max-w-full max-h-full object-contain p-2" />
+                      <img 
+                        src={logo} 
+                        alt="Logo" 
+                        className="max-w-full max-h-full object-contain p-2" 
+                        loading="eager"
+                        decoding="sync"
+                      />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button
                           type="button"

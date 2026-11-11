@@ -26,13 +26,19 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load custom logo from localStorage if available
+  // Load custom logo from localStorage immediately if available
   const [customLogo] = useState<string>(() => {
     try {
+      const fastLogo = localStorage.getItem("sst_fast_assessor_logo");
+      if (fastLogo && fastLogo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+        return fastLogo;
+      }
       const stored = localStorage.getItem("sst_psicossocial_assessor");
       if (stored) {
         const parsed = JSON.parse(stored);
-        return parsed.logo || "";
+        if (parsed.logo && parsed.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+          return parsed.logo;
+        }
       }
     } catch (err) {
       console.error("Erro ao carregar logotipo personalizado para a tela de login:", err);
@@ -87,7 +93,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <div className="text-center space-y-3">
           {customLogo ? (
             <div className="mx-auto w-20 h-20 border border-slate-200 rounded-2xl p-2 bg-white flex items-center justify-center shadow-xs">
-              <img src={customLogo} alt="Logo Lima Engenharia" className="max-w-full max-h-full object-contain" />
+              <img 
+                src={customLogo} 
+                alt="Logo Lima Engenharia" 
+                className="max-w-full max-h-full object-contain" 
+                loading="eager"
+                decoding="sync"
+              />
             </div>
           ) : (
             <div className="mx-auto w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center shadow-md shadow-slate-900/10">

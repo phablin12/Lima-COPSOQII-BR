@@ -791,7 +791,13 @@ export const EvaluatorsRegistry: React.FC<EvaluatorsRegistryProps> = ({
                     {/* Logomarca */}
                     <div className="w-14 h-14 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
                       {ev.logo ? (
-                        <img src={ev.logo} alt="Logo" className="max-w-full max-h-full object-contain p-1" />
+                        <img 
+                          src={ev.logo} 
+                          alt="Logo" 
+                          className="max-w-full max-h-full object-contain p-1" 
+                          loading="eager"
+                          decoding="sync"
+                        />
                       ) : (
                         <Building className="w-6 h-6 text-slate-300" />
                       )}

@@ -42,8 +42,18 @@ export function compressImage(
           // Draw image onto canvas
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Export as JPEG with chosen quality
-          resolve(canvas.toDataURL("image/jpeg", quality));
+          // Export with high-performance webp or png/jpeg
+          const isTransparent = file.type === "image/png" || file.type === "image/webp";
+          let dataUrl = "";
+          try {
+            dataUrl = canvas.toDataURL(isTransparent ? "image/webp" : "image/jpeg", quality);
+            if (!dataUrl.startsWith("data:image/webp") && isTransparent) {
+              dataUrl = canvas.toDataURL("image/png");
+            }
+          } catch {
+            dataUrl = canvas.toDataURL("image/jpeg", quality);
+          }
+          resolve(dataUrl);
         } else {
           resolve(e.target?.result as string);
         }
@@ -73,7 +83,7 @@ export function compressBase64Image(
   base64Str: string,
   maxWidth: number,
   maxHeight: number,
-  quality: number = 0.75
+  quality: number = 0.8
 ): Promise<string> {
   return new Promise((resolve) => {
     if (!base64Str || !base64Str.startsWith("data:image")) {
@@ -103,7 +113,17 @@ export function compressBase64Image(
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+        const isPng = base64Str.startsWith("data:image/png");
+        let dataUrl = "";
+        try {
+          dataUrl = canvas.toDataURL(isPng ? "image/webp" : "image/jpeg", quality);
+          if (!dataUrl.startsWith("data:image/webp") && isPng) {
+            dataUrl = canvas.toDataURL("image/png");
+          }
+        } catch {
+          dataUrl = canvas.toDataURL("image/jpeg", quality);
+        }
+        resolve(dataUrl);
       } else {
         resolve(base64Str);
       }

@@ -57,18 +57,28 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
   const [pdfPreviewMode, setPdfPreviewMode] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
+  const effectiveLogo = useMemo(() => {
+    if (assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      return assessor.logo;
+    }
+    try {
+      const fast = localStorage.getItem("sst_fast_assessor_logo");
+      if (fast && fast !== "[OMITTED_IMAGE_FOR_CACHE]") return fast;
+    } catch (e) {}
+    return "";
+  }, [assessor.logo]);
+
   // Check valid logo string
   const hasValidLogo = useMemo(() => {
-    if (!assessor.logo) return false;
+    if (!effectiveLogo) return false;
     if (logoError) return false;
-    if (assessor.logo === "[OMITTED_IMAGE_FOR_CACHE]") return false;
     return (
-      assessor.logo.startsWith("data:image/") || 
-      assessor.logo.startsWith("http://") || 
-      assessor.logo.startsWith("https://") ||
-      assessor.logo.startsWith("blob:")
+      effectiveLogo.startsWith("data:image/") || 
+      effectiveLogo.startsWith("http://") || 
+      effectiveLogo.startsWith("https://") ||
+      effectiveLogo.startsWith("blob:")
     );
-  }, [assessor.logo, logoError]);
+  }, [effectiveLogo, logoError]);
 
   // --- MONTH NAMES HELPER ---
   const monthNames = useMemo(() => [
@@ -545,10 +555,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
           <div className="flex items-center gap-4">
             {hasValidLogo ? (
               <img 
-                src={assessor.logo} 
+                src={effectiveLogo} 
                 alt="Logo da Assessoria" 
                 onError={() => setLogoError(true)}
                 className="w-16 h-16 object-contain rounded-lg border border-slate-200 p-1 shrink-0 bg-white"
+                loading="eager"
+                decoding="sync"
               />
             ) : (
               <div className="w-14 h-14 bg-slate-900 text-amber-300 rounded-lg flex items-center justify-center font-black text-lg shrink-0 border border-slate-700 shadow-xs">

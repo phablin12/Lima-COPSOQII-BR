@@ -85,9 +85,18 @@ import { Login } from "./components/Login";
 function pruneLargeStrings(obj: any, keyName?: string): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === "string") {
-    // Preserve logos, favicons, cover images, signatures, and small images up to 500KB
-    const isBrandKey = keyName === "logo" || keyName === "favicon" || keyName === "defaultCoverImage" || keyName === "signatureUrl";
-    if (isBrandKey && obj.length < 700000) {
+    // Preserve logos, favicons, cover images, signatures, and small images up to 1.5MB
+    const isBrandKey = 
+      keyName === "logo" || 
+      keyName === "companyLogo" || 
+      keyName === "clientLogo" || 
+      keyName === "editLogo" || 
+      keyName === "evaluatorLogo" || 
+      keyName === "favicon" || 
+      keyName === "defaultCoverImage" || 
+      keyName === "signatureUrl";
+
+    if (isBrandKey && obj.length < 1500000) {
       return obj;
     }
     if (obj.length > 50000 || (obj.startsWith("data:image/") && !isBrandKey) || (obj.includes(";base64,") && !isBrandKey)) {
@@ -370,6 +379,7 @@ export default function App() {
   const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">("synced");
   
   // Assessing Company details
+  // Assessing Company details with instant lazy initialization from localStorage
   const [assessor, setAssessor] = useState<{
     fantasyName: string;
     socialName: string;
@@ -394,31 +404,62 @@ export default function App() {
     legalResponsibleCpf?: string;
     defaultChapters?: ReportChapters;
     defaultFinalConsiderations?: string;
-  }>({
-    fantasyName: "Lima engenharia e assessoria em segurança do trabalho",
-    socialName: "E. L. de Jesus – Segurança",
-    cnpj: "18.195.986/0001-68",
-    address: "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT",
-    phone: "65 99998-0418",
-    logo: "",
-    favicon: "",
-    siteName: "SST Psicossocial",
-    defaultCoverImage: "",
-    email: "contato@limasst.com.br",
-    website: "www.limasst.com.br",
-    technicalResponsible: "Eng. Edimilson Lima",
-    technicalResponsibleReg: "CREA-MT 123456",
-    stateReg: "",
-    municipalReg: "",
-    cep: "78300-000",
-    neighborhood: "Centro",
-    city: "Tangará da Serra",
-    state: "MT",
-    legalResponsible: "Edimilson Lima",
-    legalResponsibleCpf: "123.456.789-00",
-    defaultChapters: { ...DEFAULT_CHAPTERS },
-    defaultFinalConsiderations: DEFAULT_FINAL_CONSIDERATIONS
+  }>(() => {
+    const fallback = {
+      fantasyName: "Lima engenharia e assessoria em segurança do trabalho",
+      socialName: "E. L. de Jesus – Segurança",
+      cnpj: "18.195.986/0001-68",
+      address: "Av. Mato grosso, 108-W, Centro, Tangará da Serra – MT",
+      phone: "65 99998-0418",
+      logo: "",
+      favicon: "",
+      siteName: "SST Psicossocial",
+      defaultCoverImage: "",
+      email: "contato@limasst.com.br",
+      website: "www.limasst.com.br",
+      technicalResponsible: "Eng. Edimilson Lima",
+      technicalResponsibleReg: "CREA-MT 123456",
+      stateReg: "",
+      municipalReg: "",
+      cep: "78300-000",
+      neighborhood: "Centro",
+      city: "Tangará da Serra",
+      state: "MT",
+      legalResponsible: "Edimilson Lima",
+      legalResponsibleCpf: "123.456.789-00",
+      defaultChapters: { ...DEFAULT_CHAPTERS },
+      defaultFinalConsiderations: DEFAULT_FINAL_CONSIDERATIONS
+    };
+
+    try {
+      const fastLogo = localStorage.getItem("sst_fast_assessor_logo");
+      const stored = localStorage.getItem("sst_psicossocial_assessor");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (fastLogo && (!parsed.logo || parsed.logo === "[OMITTED_IMAGE_FOR_CACHE]")) {
+          parsed.logo = fastLogo;
+        }
+        return { ...fallback, ...parsed };
+      }
+      if (fastLogo) {
+        return { ...fallback, logo: fastLogo };
+      }
+    } catch (e) {
+      console.error("Erro ao ler assessor do localStorage no boot inicial:", e);
+    }
+    return fallback;
   });
+
+  // Preload assessor logo into browser memory cache immediately for zero latency decoding
+  useEffect(() => {
+    if (assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      try {
+        localStorage.setItem("sst_fast_assessor_logo", assessor.logo);
+      } catch (e) {}
+      const img = new Image();
+      img.src = assessor.logo;
+    }
+  }, [assessor.logo]);
 
   // Dynamic Browser tab title and favicon sync
   useEffect(() => {
@@ -765,6 +806,11 @@ export default function App() {
 
         if (docSnap.exists()) {
           const data = docSnap.data() as typeof assessor;
+          if (data.logo && data.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+            try {
+              localStorage.setItem("sst_fast_assessor_logo", data.logo);
+            } catch (e) {}
+          }
           setAssessor(data);
           localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(data));
         } else {
@@ -867,6 +913,11 @@ export default function App() {
 
   // 1d. Helper to persist assessor company info
   const handleUpdateAssessor = async (newAssessor: typeof assessor) => {
+    if (newAssessor.logo && newAssessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      try {
+        localStorage.setItem("sst_fast_assessor_logo", newAssessor.logo);
+      } catch (e) {}
+    }
     setAssessor(newAssessor);
     try {
       localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(newAssessor));
@@ -1070,9 +1121,15 @@ export default function App() {
         <div className="flex flex-col">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {assessor.logo ? (
+              {assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]" ? (
                 <div className="w-10 h-10 border border-slate-200 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0">
-                  <img src={assessor.logo} alt="Logo" className="max-w-full max-h-full object-contain" />
+                  <img 
+                    src={assessor.logo} 
+                    alt="Logo" 
+                    className="max-w-full max-h-full object-contain" 
+                    loading="eager"
+                    decoding="sync"
+                  />
                 </div>
               ) : (
                 <div className="w-10 h-10 bg-slate-50 text-slate-700 rounded-xl flex items-center justify-center border border-slate-200 shadow-xs shrink-0">

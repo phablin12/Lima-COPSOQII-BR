@@ -353,6 +353,8 @@ export const CompaniesRegistry: React.FC<CompaniesRegistryProps> = ({
                         alt={company.name}
                         className="max-w-full max-h-full object-contain"
                         referrerPolicy="no-referrer"
+                        loading="eager"
+                        decoding="sync"
                       />
                     ) : (
                       <Building className="w-6 h-6 text-slate-400" />

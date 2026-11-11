@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Report, CustomChapter, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { replaceTemplateVariables } from "./ChaptersEditor";
 import {
@@ -130,6 +130,55 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   const hasRecognizedRisks = report.sectors.length > 0
     ? report.sectors.some((s) => s.risksRecognized !== false)
     : (report.risksRecognized !== false);
+
+  // Instant logo resolvers to eliminate slow loading and cache misses
+  const resolvedAssessorLogo = useMemo(() => {
+    const raw = activeAssessor.logo;
+    if (raw && raw !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      return raw;
+    }
+    try {
+      const fastLogo = localStorage.getItem("sst_fast_assessor_logo");
+      if (fastLogo && fastLogo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+        return fastLogo;
+      }
+    } catch (e) {}
+    return "";
+  }, [activeAssessor.logo]);
+
+  const resolvedCompanyLogo = useMemo(() => {
+    const raw = report.companyLogo;
+    if (raw && raw !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      return raw;
+    }
+    try {
+      const storedCompanies = localStorage.getItem("sst_psicossocial_companies");
+      if (storedCompanies) {
+        const companies = JSON.parse(storedCompanies);
+        const match = companies.find((c: any) => 
+          (c.cnpj && c.cnpj === report.companyCnpj) || 
+          (c.fantasyName && c.fantasyName.toLowerCase() === (report.companyName || "").toLowerCase()) ||
+          (c.name && c.name.toLowerCase() === (report.companyName || "").toLowerCase())
+        );
+        if (match && match.logo && match.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+          return match.logo;
+        }
+      }
+    } catch (e) {}
+    return "";
+  }, [report.companyLogo, report.companyCnpj, report.companyName]);
+
+  // Preload logos into memory cache
+  useEffect(() => {
+    if (resolvedAssessorLogo) {
+      const img = new Image();
+      img.src = resolvedAssessorLogo;
+    }
+    if (resolvedCompanyLogo) {
+      const img = new Image();
+      img.src = resolvedCompanyLogo;
+    }
+  }, [resolvedAssessorLogo, resolvedCompanyLogo]);
 
   const docContainerRef = useRef<HTMLDivElement>(null);
   const [pageMap, setPageMap] = useState<Record<string, number>>({});
@@ -291,12 +340,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     <div className="border-b border-slate-200 pb-3 mb-6 flex items-center justify-between gap-4 print:flex print-avoid-break-after">
       <div className="flex items-center gap-3">
         {/* Assessora Logo */}
-        {activeAssessor.logo ? (
+        {resolvedAssessorLogo ? (
           <img 
-            src={activeAssessor.logo} 
+            src={resolvedAssessorLogo} 
             alt="Logo Assessora" 
             className="h-14 max-w-[180px] object-contain" 
             referrerPolicy="no-referrer"
+            loading="eager"
+            decoding="sync"
           />
         ) : (
           <div className="h-10 px-3 bg-slate-100 flex items-center justify-center rounded text-[9px] font-black text-slate-500 uppercase tracking-wider border border-slate-200">
@@ -305,17 +356,19 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         )}
         
         {/* Divider if both exist */}
-        {activeAssessor.logo && report.companyLogo && (
+        {resolvedAssessorLogo && resolvedCompanyLogo && (
           <div className="h-12 w-[1px] bg-slate-300" />
         )}
 
         {/* Cliente Logo */}
-        {report.companyLogo && (
+        {resolvedCompanyLogo && (
           <img 
-            src={report.companyLogo} 
+            src={resolvedCompanyLogo} 
             alt="Logo Cliente" 
             className="h-14 max-w-[180px] object-contain" 
             referrerPolicy="no-referrer"
+            loading="eager"
+            decoding="sync"
           />
         )}
       </div>
@@ -641,8 +694,15 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               <div className="text-xs pt-3 border-t border-slate-200 space-y-1">
                 <span className="text-slate-400 block font-medium uppercase tracking-wider text-[9px]">Empresa Avaliadora:</span>
                 <div className="flex items-start gap-3">
-                  {activeAssessor.logo && (
-                    <img src={activeAssessor.logo} alt="Logo Assessora" className="h-8 max-w-[80px] object-contain border border-slate-200 rounded p-0.5 bg-white shrink-0" referrerPolicy="no-referrer" />
+                  {resolvedAssessorLogo && (
+                    <img 
+                      src={resolvedAssessorLogo} 
+                      alt="Logo Assessora" 
+                      className="h-8 max-w-[80px] object-contain border border-slate-200 rounded p-0.5 bg-white shrink-0" 
+                      referrerPolicy="no-referrer"
+                      loading="eager"
+                      decoding="sync"
+                    />
                   )}
                   <div>
                     <span className="font-extrabold text-slate-800 block">{activeAssessor.fantasyName || "Lima engenharia e assessoria em segurança do trabalho"}</span>
@@ -666,12 +726,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
               <div className="my-auto space-y-8 max-w-2xl mx-auto w-full">
                 {/* Logo do Cliente Destacada no Centro */}
                 <div className="text-center space-y-4">
-                  {report.companyLogo ? (
+                  {resolvedCompanyLogo ? (
                     <img
-                      src={report.companyLogo}
+                      src={resolvedCompanyLogo}
                       alt="Logo Cliente"
                       className="h-24 max-w-[240px] object-contain mx-auto mb-2"
                       referrerPolicy="no-referrer"
+                      loading="eager"
+                      decoding="sync"
                     />
                   ) : (
                     <div className="w-16 h-16 bg-slate-100 flex items-center justify-center rounded-2xl mx-auto mb-2 text-slate-400 font-bold border border-slate-200">
@@ -781,12 +843,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 </span>
                 <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6 text-xs">
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
-                    {activeAssessor.logo ? (
+                    {resolvedAssessorLogo ? (
                       <img
-                        src={activeAssessor.logo}
+                        src={resolvedAssessorLogo}
                         alt="Logo Assessora"
                         className="h-12 max-w-[140px] object-contain border border-slate-150 rounded-lg p-1 bg-white shrink-0"
                         referrerPolicy="no-referrer"
+                        loading="eager"
+                        decoding="sync"
                       />
                     ) : (
                       <div className="h-10 px-3 bg-slate-100 flex items-center justify-center rounded-lg text-[9px] font-black text-slate-500 uppercase tracking-wider border border-slate-200 shrink-0">
