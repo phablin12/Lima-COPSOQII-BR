@@ -20,6 +20,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { compressImage } from "../imageUtils";
+import { saveImageToCache, removeImageFromCache } from "../imageStore";
 import { ReportChapters } from "../types";
 import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS } from "../defaultChapters";
 
@@ -128,6 +129,7 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
       try {
         const compressed = await compressImage(file, 300, 300, 0.8);
         setLogo(compressed);
+        saveImageToCache("assessor_logo", compressed);
       } catch (err) {
         console.error("Erro ao processar logo:", err);
       }
@@ -152,6 +154,7 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
       try {
         const compressed = await compressImage(file, 1200, 1200, 0.75);
         setDefaultCoverImage(compressed);
+        saveImageToCache("cover_image", compressed);
       } catch (err) {
         console.error("Erro ao processar imagem de capa:", err);
       }
@@ -538,7 +541,7 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button
                           type="button"
-                          onClick={() => setLogo("")}
+                          onClick={() => { setLogo(""); removeImageFromCache("assessor_logo"); }}
                           className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black cursor-pointer uppercase tracking-wider flex items-center gap-1 transition"
                         >
                           <Trash2 className="w-3.5 h-3.5" /> Remover
@@ -634,11 +637,17 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
                 <div className="flex flex-col gap-3">
                   {defaultCoverImage ? (
                     <div className="relative w-full h-36 border border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center group shadow-2xs">
-                      <img src={defaultCoverImage} alt="Capa Padrão" className="w-full h-full object-cover" />
+                      <img 
+                        src={defaultCoverImage} 
+                        alt="Capa Padrão" 
+                        className="w-full h-full object-cover" 
+                        loading="eager"
+                        decoding="sync"
+                      />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setDefaultCoverImage("")}
+                          onClick={() => { setDefaultCoverImage(""); removeImageFromCache("cover_image"); }}
                           className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" /> Remover

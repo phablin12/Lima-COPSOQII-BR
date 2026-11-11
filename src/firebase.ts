@@ -1,6 +1,9 @@
 import { initializeApp } from "firebase/app";
 import { 
   getFirestore, 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
   collection, 
   doc, 
   setDoc, 
@@ -29,7 +32,21 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// Initialize Firestore with persistent IndexedDB local cache for instant offline & reload performance
+let firestoreDb;
+try {
+  firestoreDb = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  });
+} catch (e) {
+  console.warn("Could not initialize persistent Firestore cache, falling back to getFirestore:", e);
+  firestoreDb = getFirestore(app);
+}
+
+export const db = firestoreDb;
 export const auth = getAuth(app);
 
 // Collection References

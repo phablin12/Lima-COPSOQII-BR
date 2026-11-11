@@ -23,6 +23,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
+import { getImageSync } from "../imageStore";
 
 interface ManagementDashboardProps {
   reports: Report[];
@@ -60,6 +61,10 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
   const effectiveLogo = useMemo(() => {
     if (assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
       return assessor.logo;
+    }
+    const fromStore = getImageSync("assessor_logo");
+    if (fromStore && fromStore !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      return fromStore;
     }
     try {
       const fast = localStorage.getItem("sst_fast_assessor_logo");

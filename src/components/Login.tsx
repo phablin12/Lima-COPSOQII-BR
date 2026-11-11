@@ -13,6 +13,7 @@ import {
   Activity, 
   ArrowRight
 } from "lucide-react";
+import { getImageSync } from "../imageStore";
 
 interface LoginProps {
   onLoginSuccess: (user: any) => void;
@@ -29,6 +30,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   // Load custom logo from localStorage immediately if available
   const [customLogo] = useState<string>(() => {
     try {
+      const fromStore = getImageSync("assessor_logo");
+      if (fromStore && fromStore !== "[OMITTED_IMAGE_FOR_CACHE]") {
+        return fromStore;
+      }
       const fastLogo = localStorage.getItem("sst_fast_assessor_logo");
       if (fastLogo && fastLogo !== "[OMITTED_IMAGE_FOR_CACHE]") {
         return fastLogo;

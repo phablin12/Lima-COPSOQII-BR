@@ -14,6 +14,7 @@ import {
 import { ReportPhases } from "./ReportPhases";
 import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
+import { getImageSync } from "../imageStore";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -131,11 +132,15 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     ? report.sectors.some((s) => s.risksRecognized !== false)
     : (report.risksRecognized !== false);
 
-  // Instant logo resolvers to eliminate slow loading and cache misses
+  // Instant logo and cover resolvers to eliminate slow loading and cache misses
   const resolvedAssessorLogo = useMemo(() => {
     const raw = activeAssessor.logo;
     if (raw && raw !== "[OMITTED_IMAGE_FOR_CACHE]") {
       return raw;
+    }
+    const fromStore = getImageSync("assessor_logo");
+    if (fromStore && fromStore !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      return fromStore;
     }
     try {
       const fastLogo = localStorage.getItem("sst_fast_assessor_logo");
@@ -168,7 +173,25 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     return "";
   }, [report.companyLogo, report.companyCnpj, report.companyName]);
 
-  // Preload logos into memory cache
+  const resolvedCoverImage = useMemo(() => {
+    const raw = report.coverImage || assessor.defaultCoverImage;
+    if (raw && raw !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      return raw;
+    }
+    const fromStore = getImageSync("cover_image");
+    if (fromStore && fromStore !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      return fromStore;
+    }
+    try {
+      const fastCover = localStorage.getItem("sst_fast_cover_image");
+      if (fastCover && fastCover !== "[OMITTED_IMAGE_FOR_CACHE]") {
+        return fastCover;
+      }
+    } catch (e) {}
+    return "";
+  }, [report.coverImage, assessor.defaultCoverImage]);
+
+  // Preload logos and cover into memory cache for zero decoding latency
   useEffect(() => {
     if (resolvedAssessorLogo) {
       const img = new Image();
@@ -178,7 +201,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
       const img = new Image();
       img.src = resolvedCompanyLogo;
     }
-  }, [resolvedAssessorLogo, resolvedCompanyLogo]);
+    if (resolvedCoverImage) {
+      const img = new Image();
+      img.src = resolvedCoverImage;
+    }
+  }, [resolvedAssessorLogo, resolvedCompanyLogo, resolvedCoverImage]);
 
   const docContainerRef = useRef<HTMLDivElement>(null);
   const [pageMap, setPageMap] = useState<Record<string, number>>({});
@@ -604,14 +631,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
       >
         
         {/* --- CAPA (Capa do Relatório) --- */}
-        {(report.coverImage || assessor.defaultCoverImage) ? (
+        {resolvedCoverImage ? (
           <div data-print-page-target="capa" className="min-h-[1050px] print:h-screen print:min-h-0 flex flex-col justify-center items-center pb-16 print:pb-0 page-break-after">
             <div className="w-full h-full max-h-[1000px] flex items-center justify-center">
               <img 
-                src={report.coverImage || assessor.defaultCoverImage} 
+                src={resolvedCoverImage} 
                 alt="Capa Customizada" 
                 className="max-w-full max-h-full object-contain print:max-h-[95vh] rounded-2xl print:rounded-none shadow-sm print:shadow-none"
                 referrerPolicy="no-referrer"
+                loading="eager"
+                decoding="sync"
               />
             </div>
           </div>

@@ -24,6 +24,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lima Engenharia Workspace</title>
+    <script>
+      (function() {
+        try {
+          var logo = localStorage.getItem("sst_fast_assessor_logo") || localStorage.getItem("sst_img_assessor_logo");
+          if (logo && logo.indexOf("[OMITTED") === -1) {
+            var img = new Image();
+            img.src = logo;
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

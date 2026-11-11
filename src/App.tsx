@@ -80,12 +80,13 @@ import {
   loadEvaluatorsFromFirestore
 } from "./firebase";
 import { Login } from "./components/Login";
+import { getImageSync, getImageAsync, saveImageToCache } from "./imageStore";
 
-// Utility to prune large base64 image strings from objects stored in localStorage cache
+// Utility to prune large base64 image strings ONLY from bulky report logs in localStorage cache
 function pruneLargeStrings(obj: any, keyName?: string): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === "string") {
-    // Preserve logos, favicons, cover images, signatures, and small images up to 1.5MB
+    // Preserve logos, favicons, cover images, signatures, and small images up to 3MB
     const isBrandKey = 
       keyName === "logo" || 
       keyName === "companyLogo" || 
@@ -93,13 +94,17 @@ function pruneLargeStrings(obj: any, keyName?: string): any {
       keyName === "editLogo" || 
       keyName === "evaluatorLogo" || 
       keyName === "favicon" || 
+      keyName === "coverImage" ||
       keyName === "defaultCoverImage" || 
       keyName === "signatureUrl";
 
-    if (isBrandKey && obj.length < 1500000) {
-      return obj;
+    if (isBrandKey) {
+      if (obj.length < 3000000) {
+        return obj;
+      }
     }
-    if (obj.length > 50000 || (obj.startsWith("data:image/") && !isBrandKey) || (obj.includes(";base64,") && !isBrandKey)) {
+    // Only prune non-brand data images that are over 600KB
+    if (obj.length > 600000 || ((obj.startsWith("data:image/") || obj.includes(";base64,")) && !isBrandKey && obj.length > 80000)) {
       return "[OMITTED_IMAGE_FOR_CACHE]";
     }
     return obj;
@@ -119,39 +124,29 @@ function pruneLargeStrings(obj: any, keyName?: string): any {
   return obj;
 }
 
-// Proactive storage cleanup on startup to shrink any bloated legacy data in localStorage
+// Proactive storage cleanup on startup to shrink ONLY bloated legacy report history without touching company branding
 function proactiveStorageCleanup() {
   try {
-    const keysToClean: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("sst_psicossocial_")) {
-        keysToClean.push(key);
+    const val = localStorage.getItem("sst_psicossocial_reports");
+    if (val && (val.startsWith("{") || val.startsWith("["))) {
+      try {
+        const parsed = JSON.parse(val);
+        const pruned = pruneLargeStrings(parsed);
+        const prunedStr = JSON.stringify(pruned);
+        if (prunedStr.length < val.length) {
+          localStorage.setItem("sst_psicossocial_reports", prunedStr);
+          console.log(`[Proactive Storage Cleanup] Shrunk sst_psicossocial_reports from ${val.length} to ${prunedStr.length} characters.`);
+        }
+      } catch (e) {
+        // Ignore parse errors
       }
     }
-    
-    keysToClean.forEach((key) => {
-      const val = localStorage.getItem(key);
-      if (val && (val.startsWith("{") || val.startsWith("["))) {
-        try {
-          const parsed = JSON.parse(val);
-          const pruned = pruneLargeStrings(parsed);
-          const prunedStr = JSON.stringify(pruned);
-          if (prunedStr.length < val.length) {
-            localStorage.setItem(key, prunedStr);
-            console.log(`[Proactive Storage Cleanup] Shrunk key "${key}" from ${val.length} to ${prunedStr.length} characters.`);
-          }
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-    });
   } catch (e) {
     console.error("Erro durante limpeza proativa do localStorage:", e);
   }
 }
 
-// Run the proactive storage cleanup to free up quota space immediately before patching setItem
+// Run the proactive storage cleanup on reports only
 try {
   proactiveStorageCleanup();
 } catch (e) {
@@ -164,8 +159,15 @@ try {
   localStorage.setItem = function (key: string, value: string) {
     try {
       let prunedValue = value;
+      // Protected keys must never be pruned or stripped
+      const isProtected = 
+        key === "sst_psicossocial_assessor" || 
+        key.startsWith("sst_fast_") || 
+        key.startsWith("sst_img_") || 
+        key === "sst_cached_user";
+
       // Prune large images for local storage fallback if the value is JSON
-      if (value && (value.startsWith("{") || value.startsWith("["))) {
+      if (!isProtected && value && (value.startsWith("{") || value.startsWith("["))) {
         try {
           const parsed = JSON.parse(value);
           const pruned = pruneLargeStrings(parsed);
@@ -432,17 +434,21 @@ export default function App() {
     };
 
     try {
-      const fastLogo = localStorage.getItem("sst_fast_assessor_logo");
+      const fastLogo = getImageSync("assessor_logo") || localStorage.getItem("sst_fast_assessor_logo");
+      const fastCover = getImageSync("cover_image") || localStorage.getItem("sst_fast_cover_image");
       const stored = localStorage.getItem("sst_psicossocial_assessor");
       if (stored) {
         const parsed = JSON.parse(stored);
         if (fastLogo && (!parsed.logo || parsed.logo === "[OMITTED_IMAGE_FOR_CACHE]")) {
           parsed.logo = fastLogo;
         }
+        if (fastCover && (!parsed.defaultCoverImage || parsed.defaultCoverImage === "[OMITTED_IMAGE_FOR_CACHE]")) {
+          parsed.defaultCoverImage = fastCover;
+        }
         return { ...fallback, ...parsed };
       }
-      if (fastLogo) {
-        return { ...fallback, logo: fastLogo };
+      if (fastLogo || fastCover) {
+        return { ...fallback, logo: fastLogo || "", defaultCoverImage: fastCover || "" };
       }
     } catch (e) {
       console.error("Erro ao ler assessor do localStorage no boot inicial:", e);
@@ -450,16 +456,15 @@ export default function App() {
     return fallback;
   });
 
-  // Preload assessor logo into browser memory cache immediately for zero latency decoding
+  // Preload assessor logo and cover image into browser memory cache immediately for zero latency decoding
   useEffect(() => {
     if (assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
-      try {
-        localStorage.setItem("sst_fast_assessor_logo", assessor.logo);
-      } catch (e) {}
-      const img = new Image();
-      img.src = assessor.logo;
+      saveImageToCache("assessor_logo", assessor.logo);
     }
-  }, [assessor.logo]);
+    if (assessor.defaultCoverImage && assessor.defaultCoverImage !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      saveImageToCache("cover_image", assessor.defaultCoverImage);
+    }
+  }, [assessor.logo, assessor.defaultCoverImage]);
 
   // Dynamic Browser tab title and favicon sync
   useEffect(() => {
@@ -483,15 +488,39 @@ export default function App() {
   // Mobile sidebar drawer state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Authentication State
-  const [user, setUser] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  // Authentication State - Instant render using cached user session to avoid blocking spinner on refresh
+  const [user, setUser] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem("sst_cached_user");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [authLoading, setAuthLoading] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem("sst_cached_user");
+    } catch {
+      return true;
+    }
+  });
 
   // A. Monitor Firebase Authentication State
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
+      try {
+        if (currentUser) {
+          localStorage.setItem("sst_cached_user", JSON.stringify({
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName
+          }));
+        } else {
+          localStorage.removeItem("sst_cached_user");
+        }
+      } catch (e) {}
     });
     return () => unsubscribe();
   }, []);
@@ -528,8 +557,34 @@ export default function App() {
 
       const storedAssessor = localStorage.getItem("sst_psicossocial_assessor");
       if (storedAssessor) {
-        setAssessor(JSON.parse(storedAssessor));
+        const parsed = JSON.parse(storedAssessor);
+        setAssessor((prev) => {
+          const effectiveLogo = (parsed.logo && parsed.logo !== "[OMITTED_IMAGE_FOR_CACHE]")
+            ? parsed.logo
+            : (prev.logo && prev.logo !== "[OMITTED_IMAGE_FOR_CACHE]" ? prev.logo : getImageSync("assessor_logo"));
+          const effectiveCover = (parsed.defaultCoverImage && parsed.defaultCoverImage !== "[OMITTED_IMAGE_FOR_CACHE]")
+            ? parsed.defaultCoverImage
+            : (prev.defaultCoverImage && prev.defaultCoverImage !== "[OMITTED_IMAGE_FOR_CACHE]" ? prev.defaultCoverImage : getImageSync("cover_image"));
+          return {
+            ...prev,
+            ...parsed,
+            logo: effectiveLogo,
+            defaultCoverImage: effectiveCover
+          };
+        });
       }
+
+      // Restore full-fidelity logo and cover from IndexedDB if needed
+      getImageAsync("assessor_logo").then((logo) => {
+        if (logo) {
+          setAssessor((prev) => (!prev.logo || prev.logo === "[OMITTED_IMAGE_FOR_CACHE]" ? { ...prev, logo } : prev));
+        }
+      });
+      getImageAsync("cover_image").then((cover) => {
+        if (cover) {
+          setAssessor((prev) => (!prev.defaultCoverImage || prev.defaultCoverImage === "[OMITTED_IMAGE_FOR_CACHE]" ? { ...prev, defaultCoverImage: cover } : prev));
+        }
+      });
     } catch (err) {
       console.error("Erro ao ler dados do localStorage:", err);
     }
@@ -807,9 +862,10 @@ export default function App() {
         if (docSnap.exists()) {
           const data = docSnap.data() as typeof assessor;
           if (data.logo && data.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
-            try {
-              localStorage.setItem("sst_fast_assessor_logo", data.logo);
-            } catch (e) {}
+            saveImageToCache("assessor_logo", data.logo);
+          }
+          if (data.defaultCoverImage && data.defaultCoverImage !== "[OMITTED_IMAGE_FOR_CACHE]") {
+            saveImageToCache("cover_image", data.defaultCoverImage);
           }
           setAssessor(data);
           localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(data));
@@ -914,9 +970,10 @@ export default function App() {
   // 1d. Helper to persist assessor company info
   const handleUpdateAssessor = async (newAssessor: typeof assessor) => {
     if (newAssessor.logo && newAssessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
-      try {
-        localStorage.setItem("sst_fast_assessor_logo", newAssessor.logo);
-      } catch (e) {}
+      saveImageToCache("assessor_logo", newAssessor.logo);
+    }
+    if (newAssessor.defaultCoverImage && newAssessor.defaultCoverImage !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      saveImageToCache("cover_image", newAssessor.defaultCoverImage);
     }
     setAssessor(newAssessor);
     try {
@@ -1121,21 +1178,27 @@ export default function App() {
         <div className="flex flex-col">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]" ? (
-                <div className="w-10 h-10 border border-slate-200 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0">
-                  <img 
-                    src={assessor.logo} 
-                    alt="Logo" 
-                    className="max-w-full max-h-full object-contain" 
-                    loading="eager"
-                    decoding="sync"
-                  />
-                </div>
-              ) : (
-                <div className="w-10 h-10 bg-slate-50 text-slate-700 rounded-xl flex items-center justify-center border border-slate-200 shadow-xs shrink-0">
-                  <Shield className="w-5 h-5 text-amber-500" />
-                </div>
-              )}
+              {(() => {
+                const effectiveLogo = (assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]")
+                  ? assessor.logo
+                  : getImageSync("assessor_logo");
+
+                return effectiveLogo ? (
+                  <div className="w-10 h-10 border border-slate-200 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0">
+                    <img 
+                      src={effectiveLogo} 
+                      alt="Logo" 
+                      className="max-w-full max-h-full object-contain" 
+                      loading="eager"
+                      decoding="sync"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 bg-slate-50 text-slate-700 rounded-xl flex items-center justify-center border border-slate-200 shadow-xs shrink-0">
+                    <Shield className="w-5 h-5 text-amber-500" />
+                  </div>
+                );
+              })()}
               <div className="min-w-0">
                 <h1 className="text-xs font-black tracking-tight leading-none text-slate-800 uppercase truncate" title={assessor.fantasyName}>
                   {assessor.fantasyName.toLowerCase().includes("lima") ? "Lima Engenharia" : assessor.fantasyName.split(" ")[0]}
