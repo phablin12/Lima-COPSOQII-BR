@@ -183,10 +183,146 @@ try {
   console.error("Falha ao aplicar patch no localStorage.setItem:", e);
 }
 
+// Helper to read initial navigation state from URL query parameters or localStorage
+const getInitialNavState = () => {
+  let initialReportId: string | null = null;
+  let initialActiveTab: string = "cadastro";
+  let initialHomeTab: "dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization" | "evaluators" = "dashboard";
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const urlReportId = params.get("reportId");
+    const urlTab = params.get("tab");
+    const urlView = params.get("view");
+
+    if (urlReportId) {
+      initialReportId = urlReportId;
+      if (urlTab) initialActiveTab = urlTab;
+    } else if (urlView) {
+      initialHomeTab = urlView as any;
+    } else {
+      // Fallback to localStorage if URL has no search params (e.g. reload or root load)
+      const savedReportId = localStorage.getItem("sst_nav_currentReportId");
+      const savedActiveTab = localStorage.getItem("sst_nav_activeTab");
+      const savedHomeTab = localStorage.getItem("sst_nav_homeTab");
+
+      if (savedReportId) {
+        initialReportId = savedReportId;
+        if (savedActiveTab) initialActiveTab = savedActiveTab;
+      } else if (savedHomeTab) {
+        initialHomeTab = savedHomeTab as any;
+      }
+    }
+  } catch (e) {
+    console.error("Erro ao ler estado de navegação inicial:", e);
+  }
+
+  return { initialReportId, initialActiveTab, initialHomeTab };
+};
+
 export default function App() {
-  // Central State
-  const [reports, setReports] = useState<Report[]>([]);
-  const [currentReportId, setCurrentReportId] = useState<string | null>(null);
+  const initialNav = getInitialNavState();
+
+  // Central State with synchronous lazy localStorage hydration for instant render
+  const [reports, setReports] = useState<Report[]>(() => {
+    try {
+      const stored = localStorage.getItem("sst_psicossocial_reports");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [currentReportId, setCurrentReportId] = useState<string | null>(initialNav.initialReportId);
+  const [activeTab, setActiveTab] = useState<string>(initialNav.initialActiveTab);
+  const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization" | "evaluators">(
+    initialNav.initialHomeTab
+  );
+
+  const isPopStateRef = useRef(false);
+  const isInitialMountRef = useRef(true);
+
+  // Sync navigation state with browser history (popstate / back & forward arrows)
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlReportId = params.get("reportId");
+        const urlTab = params.get("tab");
+        const urlView = params.get("view");
+
+        isPopStateRef.current = true;
+
+        if (urlReportId) {
+          setCurrentReportId(urlReportId);
+          if (urlTab) setActiveTab(urlTab);
+        } else {
+          setCurrentReportId(null);
+          if (urlView) setHomeTab(urlView as any);
+        }
+      } catch (err) {
+        console.error("Erro ao processar popstate:", err);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Update URL and localStorage when navigation state changes
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+
+      if (currentReportId) {
+        params.set("reportId", currentReportId);
+        params.set("tab", activeTab);
+        params.delete("view");
+        localStorage.setItem("sst_nav_currentReportId", currentReportId);
+        localStorage.setItem("sst_nav_activeTab", activeTab);
+        localStorage.removeItem("sst_nav_homeTab");
+      } else {
+        params.delete("reportId");
+        params.delete("tab");
+        params.set("view", homeTab);
+        localStorage.removeItem("sst_nav_currentReportId");
+        localStorage.removeItem("sst_nav_activeTab");
+        localStorage.setItem("sst_nav_homeTab", homeTab);
+      }
+
+      const newSearch = params.toString();
+      const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+      if (isPopStateRef.current) {
+        isPopStateRef.current = false;
+        return;
+      }
+
+      if (isInitialMountRef.current) {
+        isInitialMountRef.current = false;
+        if (newUrl !== currentUrl) {
+          window.history.replaceState({ currentReportId, activeTab, homeTab }, "", newUrl);
+        }
+        return;
+      }
+
+      if (newUrl !== currentUrl) {
+        window.history.pushState({ currentReportId, activeTab, homeTab }, "", newUrl);
+      }
+    } catch (err) {
+      console.error("Erro ao sincronizar URL e localStorage:", err);
+    }
+  }, [currentReportId, activeTab, homeTab]);
+
+  // Clean up nonexistent reportId after database sync
+  useEffect(() => {
+    if (currentReportId && reports.length > 0 && hasCheckedReportsSeedingRef.current) {
+      const exists = reports.some((r) => r.id === currentReportId);
+      if (!exists) {
+        setCurrentReportId(null);
+      }
+    }
+  }, [reports, currentReportId]);
 
   // Debounce Refs for report saving
   const latestReportToSaveRef = useRef<Report | null>(null);
@@ -198,12 +334,38 @@ export default function App() {
   const hasCheckedProfessionalsSeedingRef = useRef(false);
   const hasCheckedEvaluatorsSeedingRef = useRef(false);
 
-  const [globalCatalog, setGlobalCatalog] = useState<CatalogRisk[]>([]);
-  const [companies, setCompanies] = useState<any[]>([]);
-  const [professionals, setProfessionals] = useState<{ id: string; name: string; role: string; reg: string }[]>([]);
-  const [evaluators, setEvaluators] = useState<Assessor[]>([]);
-  const [activeTab, setActiveTab] = useState<string>("cadastro");
-  const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization" | "evaluators">("dashboard");
+  const [globalCatalog, setGlobalCatalog] = useState<CatalogRisk[]>(() => {
+    try {
+      const stored = localStorage.getItem("sst_psicossocial_catalog");
+      return stored ? JSON.parse(stored) : DEFAULT_RISK_CATALOG;
+    } catch {
+      return DEFAULT_RISK_CATALOG;
+    }
+  });
+  const [companies, setCompanies] = useState<any[]>(() => {
+    try {
+      const stored = localStorage.getItem("sst_psicossocial_companies");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [professionals, setProfessionals] = useState<{ id: string; name: string; role: string; reg: string }[]>(() => {
+    try {
+      const stored = localStorage.getItem("sst_psicossocial_professionals");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [evaluators, setEvaluators] = useState<Assessor[]>(() => {
+    try {
+      const stored = localStorage.getItem("sst_psicossocial_evaluators");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">("synced");
   
@@ -852,6 +1014,13 @@ export default function App() {
   // Get active report
   const currentReport = reports.find((r) => r.id === currentReportId);
 
+  const handleSelectReport = (id: string | null) => {
+    setCurrentReportId(id);
+    if (id) {
+      setActiveTab("cadastro");
+    }
+  };
+
   // Close mobile menu on click/nav change
   const handleNavClick = (action: () => void) => {
     action();
@@ -865,6 +1034,20 @@ export default function App() {
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-amber-500"></div>
           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest animate-pulse">
             Carregando Sistema...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // If page was reloaded directly on a report but reports are still fetching from Firestore
+  if (currentReportId && !currentReport && reports.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-900 border-t-amber-500"></div>
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-widest animate-pulse">
+            Carregando laudo selecionado...
           </span>
         </div>
       </div>
@@ -1241,7 +1424,7 @@ export default function App() {
                   reports={reports}
                   companies={companies}
                   onUpdateCompanies={handleUpdateCompanies}
-                  onSelectReport={setCurrentReportId}
+                  onSelectReport={handleSelectReport}
                   onCreateReport={handleCreateReport}
                   onDeleteReport={handleDeleteReport}
                   onUpdateAllReports={handleUpdateAllReports}
