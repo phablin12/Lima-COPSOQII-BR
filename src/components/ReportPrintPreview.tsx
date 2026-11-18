@@ -435,6 +435,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     return report.chapterTitles?.[id] || defaultTitle;
   };
 
+  const getSubchaptersForRoot = (rootId: string) =>
+    visibleChapters.filter(
+      (sub) => sub.level > 1 && (sub.rootChapterId === rootId || sub.parentChapterId === rootId)
+    );
+
   const renderCustomChapterItem = (ch: UnifiedChapter | CustomChapter) => {
     const isUnified = "fullTitle" in ch;
     const level = ch.level || 2;
@@ -456,22 +461,30 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     if (level === 2) {
       return (
         <div key={ch.id} data-print-subpage-target={ch.id} className="space-y-3 pt-6 border-t border-slate-200">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-5 bg-indigo-600 rounded"></div>
-            <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
-              {title}
-            </h4>
-          </div>
+          <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
+            {title}
+          </h4>
+          {renderIndentedText(text)}
+        </div>
+      );
+    }
+
+    if (level === 3) {
+      return (
+        <div key={ch.id} data-print-subpage-target={ch.id} className="space-y-2 pt-4 pl-4">
+          <h5 className="text-sm font-bold text-slate-800 tracking-wide">
+            {title}
+          </h5>
           {renderIndentedText(text)}
         </div>
       );
     }
 
     return (
-      <div key={ch.id} data-print-subpage-target={ch.id} className="space-y-2 pt-4 pl-4 border-l-2 border-indigo-200">
-        <h5 className="text-sm font-bold text-slate-800 tracking-wide">
+      <div key={ch.id} data-print-subpage-target={ch.id} className="space-y-2 pt-3 pl-7">
+        <h6 className="text-[13px] font-semibold text-slate-700 tracking-wide">
           {title}
-        </h5>
+        </h6>
         {renderIndentedText(text)}
       </div>
     );
@@ -521,9 +534,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const renderIntroducao = (ch: UnifiedChapter) => {
-    const subchapters = visibleChapters.filter(
-      (sub) => sub.level > 1 && (sub.parentChapterId === "introducao" || sub.number.startsWith(`${ch.number}.`))
-    );
+    const subchapters = getSubchaptersForRoot(ch.id);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="introducao" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -537,9 +548,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const renderFundamentacao = (ch: UnifiedChapter) => {
-    const subchapters = visibleChapters.filter(
-      (sub) => sub.level > 1 && (sub.parentChapterId === "fundamentacao" || sub.number.startsWith(`${ch.number}.`))
-    );
+    const subchapters = getSubchaptersForRoot(ch.id);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="fundamentacao" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -553,9 +562,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const renderMetodologia = (ch: UnifiedChapter) => {
-    const subchapters = visibleChapters.filter(
-      (sub) => sub.level > 1 && (sub.parentChapterId === "metodologia" || sub.number.startsWith(`${ch.number}.`))
-    );
+    const subchapters = getSubchaptersForRoot(ch.id);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="metodologia" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -569,9 +576,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const renderConsideracoes = (ch: UnifiedChapter) => {
-    const subchapters = visibleChapters.filter(
-      (sub) => sub.level > 1 && (sub.parentChapterId === "consideracoes" || sub.number.startsWith(`${ch.number}.`))
-    );
+    const subchapters = getSubchaptersForRoot(ch.id);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="consideracoes" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -585,9 +590,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const renderReferencias = (ch: UnifiedChapter) => {
-    const subchapters = visibleChapters.filter(
-      (sub) => sub.level > 1 && (sub.parentChapterId === "referencias" || sub.number.startsWith(`${ch.number}.`))
-    );
+    const subchapters = getSubchaptersForRoot(ch.id);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="referencias" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -603,9 +606,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const renderCustomMainChapter = (ch: UnifiedChapter) => {
-    const subchapters = visibleChapters.filter(
-      (sub) => sub.level > 1 && (sub.parentChapterId === ch.id || sub.number.startsWith(`${ch.number}.`))
-    );
+    const subchapters = getSubchaptersForRoot(ch.id);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target={ch.id} className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -1118,9 +1119,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   }
 
                   // Standard or custom level 1 chapter
-                  const subchapters = visibleChapters.filter(
-                    (sub) => sub.level > 1 && (sub.parentChapterId === ch.id || sub.number.startsWith(`${ch.number}.`))
-                  );
+                  const subchapters = getSubchaptersForRoot(ch.id);
 
                   return (
                     <div key={ch.id} className="space-y-1.5">
@@ -1135,7 +1134,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                         <div
                           key={sub.id}
                           className={`flex items-end gap-2 text-[11px] text-slate-600 ${
-                            sub.level >= 3 ? "pl-8" : "pl-6"
+                            sub.level >= 4 ? "pl-11" : sub.level === 3 ? "pl-8" : "pl-6"
                           }`}
                         >
                           <span className="font-medium">{sub.fullTitle}</span>
@@ -1164,15 +1163,22 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
             if (ch.id === "fundamentacao") return renderFundamentacao(ch);
             if (ch.id === "metodologia") return renderMetodologia(ch);
             if (ch.type === "phases") {
+              const phaseSubchapters = getSubchaptersForRoot(ch.id);
               return (
-                <ReportPhases
-                  key={ch.id}
-                  ch={ch}
-                  report={report}
-                  isQualitative={isQualitative}
-                  hasRecognizedRisks={hasRecognizedRisks}
-                  renderHeader={renderHeader}
-                />
+                <React.Fragment key={ch.id}>
+                  <ReportPhases
+                    ch={ch}
+                    report={report}
+                    isQualitative={isQualitative}
+                    hasRecognizedRisks={hasRecognizedRisks}
+                    renderHeader={renderHeader}
+                  />
+                  {phaseSubchapters.length > 0 && (
+                    <div className="space-y-4">
+                      {phaseSubchapters.map(renderCustomChapterItem)}
+                    </div>
+                  )}
+                </React.Fragment>
               );
             }
             if (ch.id === "consideracoes") return renderConsideracoes(ch);

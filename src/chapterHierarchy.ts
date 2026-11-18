@@ -189,11 +189,12 @@ export interface UnifiedChapter {
   id: string;
   type: "standard" | "custom" | "phases";
   baseId?: string;
-  number: string; // Dynamically computed sequential number: "1", "2", "2.1", "8", etc.
+  number: string; // Dynamically computed sequential number: "1", "2", "2.1", "2.1.1", "8", etc.
   title: string; // Clean title without hardcoded number
   fullTitle: string; // Formatted title e.g. "1. Introdução"
-  level: number; // 1 = main, 2 = sub, 3 = sub-sub
+  level: number; // 1 = main, 2 = sub, 3 = sub-sub, 4 = sub-sub-sub
   parentChapterId?: string;
+  rootChapterId?: string; // ID of the visible level-1 ancestor owning this item
   isExcluded: boolean;
   order: number;
   tip?: string;
@@ -201,8 +202,37 @@ export interface UnifiedChapter {
 }
 
 /**
+ * Helper: finds the index range [startIdx, endIdx] (inclusive) covering a chapter and all its descendants
+ */
+export const getSubtreeRange = (
+  chapters: { id: string; level: number; parentChapterId?: string }[],
+  rootIdx: number
+): { start: number; end: number } => {
+  if (rootIdx < 0 || rootIdx >= chapters.length) {
+    return { start: rootIdx, end: rootIdx };
+  }
+  const root = chapters[rootIdx];
+  const subtreeIds = new Set<string>([root.id]);
+  let end = rootIdx;
+
+  for (let i = rootIdx + 1; i < chapters.length; i++) {
+    const cur = chapters[i];
+    const isDirectChild = cur.parentChapterId && subtreeIds.has(cur.parentChapterId);
+    const isDeeperAdjacent = cur.level > root.level && (!cur.parentChapterId || subtreeIds.has(cur.parentChapterId));
+    if (isDirectChild || isDeeperAdjacent) {
+      subtreeIds.add(cur.id);
+      end = i;
+    } else {
+      break;
+    }
+  }
+
+  return { start: rootIdx, end };
+};
+
+/**
  * Builds the unified, linearly ordered chapter list with dynamic sequential numbers.
- * If a chapter is moved, all numbers automatically recalculate dynamically.
+ * Supports arbitrary nesting (1 -> 1.1 -> 1.1.1 -> 1.1.1.1) and automatic renumbering on reorder/exclusion.
  */
 export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
   const excluded = report.excludedChapters || [];
@@ -219,7 +249,6 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
     "referencias",
   ];
 
-  // Retrieve or initialize saved linear order
   let activeOrder: string[] = [];
   if (report.chaptersOrder && report.chaptersOrder.length > 0) {
     activeOrder = [...report.chaptersOrder];
@@ -227,26 +256,39 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
     activeOrder = [...defaultMainOrder];
   }
 
-  // Ensure all standard chapters and phases are in activeOrder
+  // Ensure all standard chapters and phases are present
   defaultMainOrder.forEach((id) => {
     if (!activeOrder.includes(id)) {
       activeOrder.push(id);
     }
   });
 
-  // Ensure all custom chapters are in activeOrder
+  // Deduplicate activeOrder while keeping first occurrence
+  const seenIds = new Set<string>();
+  activeOrder = activeOrder.filter((id) => {
+    if (seenIds.has(id)) return false;
+    seenIds.add(id);
+    return true;
+  });
+
+  const customMap = new Map<string, CustomChapter>();
+  customChapters.forEach((c) => customMap.set(c.id, c));
+
+  // Ensure any custom chapters missing from activeOrder are inserted right after their parent's subtree
   customChapters.forEach((c) => {
     if (!activeOrder.includes(c.id)) {
-      // If it has a parent, try to insert right after parent or siblings
       if (c.parentChapterId && activeOrder.includes(c.parentChapterId)) {
         const parentIdx = activeOrder.indexOf(c.parentChapterId);
-        // Find last child of this parent already in activeOrder
+        const parentSet = new Set<string>([c.parentChapterId]);
         let insertIdx = parentIdx + 1;
-        while (
-          insertIdx < activeOrder.length &&
-          customChapters.some((sib) => sib.id === activeOrder[insertIdx] && sib.parentChapterId === c.parentChapterId)
-        ) {
-          insertIdx++;
+        while (insertIdx < activeOrder.length) {
+          const sib = customMap.get(activeOrder[insertIdx]);
+          if (sib && sib.parentChapterId && parentSet.has(sib.parentChapterId)) {
+            parentSet.add(sib.id);
+            insertIdx++;
+          } else {
+            break;
+          }
         }
         activeOrder.splice(insertIdx, 0, c.id);
       } else {
@@ -255,12 +297,17 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
     }
   });
 
-  // Separate main items from subchapters to establish parent-child relationships
-  // Subchapters are custom chapters that have a parentChapterId OR level >= 2
-  const customMap = new Map<string, CustomChapter>();
-  customChapters.forEach((c) => customMap.set(c.id, c));
+  // Keep only valid IDs that exist as standard, phases, or existing customChapters
+  const validStandardIds = new Set([
+    "introducao",
+    "fundamentacao",
+    "metodologia",
+    "fases-automaticas",
+    "consideracoes",
+    "referencias",
+  ]);
+  activeOrder = activeOrder.filter((id) => validStandardIds.has(id) || customMap.has(id));
 
-  // Determine hierarchy level and parent for each chapter in activeOrder
   const itemsMeta: {
     id: string;
     type: "standard" | "custom" | "phases";
@@ -300,39 +347,35 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
       return;
     }
 
-    // Custom chapter
     const custom = customMap.get(id);
     if (custom) {
-      const lvl = custom.level || (custom.parentChapterId ? 2 : 1);
+      const lvl = custom.level && custom.level >= 1 ? Math.min(4, custom.level) : custom.parentChapterId ? 2 : 1;
       const clean = cleanChapterTitle(custom.title);
       itemsMeta.push({
         id: custom.id,
         type: "custom",
         level: lvl,
-        parentChapterId: custom.parentChapterId,
+        parentChapterId: lvl === 1 ? undefined : custom.parentChapterId,
         title: clean || custom.title,
         text: custom.text,
-        tip: lvl >= 2 ? `Subseção técnica vinculada.` : "Capítulo personalizado do laudo.",
+        tip: lvl >= 2 ? "Subseção técnica vinculada." : "Capítulo personalizado do laudo.",
         isExcluded: excluded.includes(custom.id),
       });
     }
   });
 
-  // Calculate dynamic sequential numbering
+  // Calculate dynamic sequential hierarchical numbering using an ancestor stack
   let mainNumber = 1;
-  const parentNumberMap = new Map<string, string>();
-  const parentChildCount = new Map<string, number>();
+  const ancestorStack: { id: string; level: number; number: string; rootId: string }[] = [];
+  const childCounters = new Map<string, number>();
 
   const result: UnifiedChapter[] = [];
 
-  // Automated phases size
   const hasRisks = report.risksRecognized !== false;
   const isQualitative = report.methodology === "qualitative";
   const phasesCount = isQualitative ? (hasRisks ? 2 : 0) : (hasRisks ? 4 : 2);
 
   itemsMeta.forEach((item, index) => {
-    let dynamicNumber = "";
-
     if (item.type === "phases") {
       if (phasesCount === 0) {
         result.push({
@@ -342,6 +385,7 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
           title: "Fases Omitidas (Sem Riscos)",
           fullTitle: "Fases Omitidas (Sem Riscos)",
           level: 1,
+          rootChapterId: item.id,
           isExcluded: true,
           order: (index + 1) * 10,
           tip: "A empresa declarou não reconhecer riscos psicossociais nesta avaliação. Capítulos de riscos omitidos.",
@@ -351,8 +395,10 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
 
       const startNum = mainNumber;
       const endNum = mainNumber + phasesCount - 1;
-      dynamicNumber = startNum === endNum ? String(startNum) : `${startNum}–${endNum}`;
+      const dynamicNumber = startNum === endNum ? String(startNum) : `${startNum}–${endNum}`;
       mainNumber += phasesCount;
+
+      ancestorStack.length = 0;
 
       const title = isQualitative
         ? "Inventário de Riscos e Plano de Ação"
@@ -365,6 +411,7 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
         title,
         fullTitle: `${dynamicNumber}. ${title}`,
         level: 1,
+        rootChapterId: item.id,
         isExcluded: false,
         order: (index + 1) * 10,
         tip: isQualitative
@@ -374,15 +421,55 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
       return;
     }
 
-    if (item.level === 1) {
-      // Main chapter
-      if (!item.isExcluded) {
-        dynamicNumber = String(mainNumber);
-        parentNumberMap.set(item.id, dynamicNumber);
-        mainNumber += 1;
-      } else {
-        dynamicNumber = "—";
+    if (item.isExcluded) {
+      result.push({
+        id: item.id,
+        type: item.type,
+        baseId: item.type === "standard" ? item.id : undefined,
+        number: "—",
+        title: item.title,
+        fullTitle: item.title,
+        level: item.level,
+        parentChapterId: item.parentChapterId,
+        isExcluded: true,
+        order: (index + 1) * 10,
+        tip: item.tip,
+        text: item.text,
+      });
+      return;
+    }
+
+    // Effective level: if a subchapter has no visible ancestor (e.g. its parent was deleted or moved), promote to level 1
+    let effectiveLevel = item.level;
+    let parentEntry: { id: string; level: number; number: string; rootId: string } | undefined;
+
+    if (effectiveLevel > 1) {
+      // Pop stack entries that are at same or deeper level than current item
+      while (ancestorStack.length > 0 && ancestorStack[ancestorStack.length - 1].level >= effectiveLevel) {
+        ancestorStack.pop();
       }
+
+      if (item.parentChapterId) {
+        parentEntry = ancestorStack.find((a) => a.id === item.parentChapterId);
+      }
+      if (!parentEntry && ancestorStack.length > 0) {
+        parentEntry = ancestorStack[ancestorStack.length - 1];
+      }
+
+      if (!parentEntry) {
+        // No visible parent exists above this subchapter; promote cleanly so it still numbers and prints!
+        effectiveLevel = 1;
+      } else {
+        effectiveLevel = Math.min(4, parentEntry.level + 1);
+      }
+    }
+
+    if (effectiveLevel === 1) {
+      const dynamicNumber = String(mainNumber);
+      mainNumber += 1;
+
+      ancestorStack.length = 0;
+      ancestorStack.push({ id: item.id, level: 1, number: dynamicNumber, rootId: item.id });
 
       result.push({
         id: item.id,
@@ -390,45 +477,37 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
         baseId: item.type === "standard" ? item.id : undefined,
         number: dynamicNumber,
         title: item.title,
-        fullTitle: item.isExcluded ? item.title : `${dynamicNumber}. ${item.title}`,
+        fullTitle: `${dynamicNumber}. ${item.title}`,
         level: 1,
-        isExcluded: item.isExcluded,
+        rootChapterId: item.id,
+        isExcluded: false,
         order: (index + 1) * 10,
         tip: item.tip,
         text: item.text,
       });
     } else {
-      // Subchapter (level 2 or 3)
-      // Find parent's dynamic number
-      let parentNum = "1";
-      if (item.parentChapterId && parentNumberMap.has(item.parentChapterId)) {
-        parentNum = parentNumberMap.get(item.parentChapterId)!;
-      } else {
-        // Fallback: use previous level 1 chapter
-        const prevMain = [...result].reverse().find((r) => r.level === 1 && !r.isExcluded);
-        parentNum = prevMain ? prevMain.number : "1";
-      }
+      const parent = parentEntry!;
+      const nextCount = (childCounters.get(parent.id) || 0) + 1;
+      childCounters.set(parent.id, nextCount);
 
-      const childKey = item.parentChapterId || parentNum;
-      const curCount = (parentChildCount.get(childKey) || 0) + 1;
-      parentChildCount.set(childKey, curCount);
-
-      if (item.level === 3) {
-        dynamicNumber = `${parentNum}.${curCount}`;
-      } else {
-        dynamicNumber = `${parentNum}.${curCount}`;
-      }
-      parentNumberMap.set(item.id, dynamicNumber);
+      const dynamicNumber = `${parent.number}.${nextCount}`;
+      ancestorStack.push({
+        id: item.id,
+        level: effectiveLevel,
+        number: dynamicNumber,
+        rootId: parent.rootId,
+      });
 
       result.push({
         id: item.id,
         type: item.type,
-        number: item.isExcluded ? "—" : dynamicNumber,
+        number: dynamicNumber,
         title: item.title,
-        fullTitle: item.isExcluded ? item.title : `${dynamicNumber}. ${item.title}`,
-        level: item.level,
-        parentChapterId: item.parentChapterId,
-        isExcluded: item.isExcluded,
+        fullTitle: `${dynamicNumber}. ${item.title}`,
+        level: effectiveLevel,
+        parentChapterId: parent.id,
+        rootChapterId: parent.rootId,
+        isExcluded: false,
         order: (index + 1) * 10,
         tip: item.tip,
         text: item.text,
@@ -440,7 +519,41 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
 };
 
 /**
- * Reorders chapters based on drag-and-drop and returns updated state with synchronized numbers
+ * Synchronizes chaptersOrder and customChapters dynamic numbers & parent references
+ */
+export const syncUnifiedChapterNumbers = (
+  report: Report
+): {
+  chaptersOrder: string[];
+  customChapters: CustomChapter[];
+} => {
+  const unifiedList = getUnifiedChapters(report);
+  const unifiedMap = new Map<string, UnifiedChapter>();
+  unifiedList.forEach((c) => unifiedMap.set(c.id, c));
+
+  const customChaptersList = report.customChapters || [];
+  const syncedCustoms = customChaptersList.map((ch, idx) => {
+    const unified = unifiedMap.get(ch.id);
+    if (!unified) return ch;
+    return {
+      ...ch,
+      number: unified.isExcluded ? ch.number : unified.number,
+      level: unified.level,
+      parentChapterId: unified.level === 1 ? undefined : unified.parentChapterId,
+      order: (idx + 1) * 10,
+    };
+  });
+
+  return {
+    chaptersOrder: unifiedList.map((c) => c.id),
+    customChapters: syncedCustoms,
+  };
+};
+
+/**
+ * Reorders chapters based on drag-and-drop:
+ * - Dragging a parent chapter moves its entire subtree together.
+ * - Dragging a subchapter updates its parentChapterId based on its new parent slot.
  */
 export const reorderUnifiedChapters = (
   report: Report,
@@ -455,50 +568,77 @@ export const reorderUnifiedChapters = (
   const currentIds = currentList.map((c) => c.id);
 
   if (!currentIds.includes(sourceId) || !currentIds.includes(targetId) || sourceId === targetId) {
-    return {
-      chaptersOrder: currentIds,
-      customChapters: report.customChapters || [],
-    };
+    return syncUnifiedChapterNumbers(report);
   }
 
-  // Remove source
-  const filtered = currentIds.filter((id) => id !== sourceId);
-  const targetIdx = filtered.indexOf(targetId);
+  const sourceIdx = currentIds.indexOf(sourceId);
+  const sourceItem = currentList[sourceIdx];
+  const subtree = getSubtreeRange(currentList, sourceIdx);
+  const movingIds = currentIds.slice(subtree.start, subtree.end + 1);
+  const movingSet = new Set(movingIds);
 
-  const insertIdx = position === "before" ? targetIdx : targetIdx + 1;
-  filtered.splice(insertIdx, 0, sourceId);
+  // Prevent dropping a parent onto one of its own descendants
+  if (movingSet.has(targetId)) {
+    return syncUnifiedChapterNumbers(report);
+  }
 
-  // If a custom chapter was dragged under or adjacent to a parent, update its parentChapterId if appropriate
-  const customChaptersList = [...(report.customChapters || [])];
-  const sourceCustomIdx = customChaptersList.findIndex((c) => c.id === sourceId);
+  const remainingList = currentList.filter((c) => !movingSet.has(c.id));
+  const targetIdxInRemaining = remainingList.findIndex((c) => c.id === targetId);
+  if (targetIdxInRemaining === -1) {
+    return syncUnifiedChapterNumbers(report);
+  }
 
-  // Re-generate list to synchronize numbers
-  const updatedReport: Report = {
+  let insertIdx = position === "before" ? targetIdxInRemaining : targetIdxInRemaining + 1;
+
+  // If moving a level-1 chapter after another level-1 chapter that has subchapters, skip past target's subtree
+  if (sourceItem.level === 1 && position === "after") {
+    const targetSubtree = getSubtreeRange(remainingList, targetIdxInRemaining);
+    insertIdx = targetSubtree.end + 1;
+  }
+
+  const nextOrderIds = remainingList.map((c) => c.id);
+  nextOrderIds.splice(insertIdx, 0, ...movingIds);
+
+  // If moving a subchapter (level >= 2), re-attach its parentChapterId to its new structural parent
+  let updatedCustomChapters = [...(report.customChapters || [])];
+  if (sourceItem.level >= 2) {
+    const prevNeighbor = insertIdx > 0 ? remainingList[insertIdx - 1] : undefined;
+    updatedCustomChapters = updatedCustomChapters.map((c) => {
+      if (c.id !== sourceId) return c;
+      if (!prevNeighbor || prevNeighbor.type === "phases") {
+        // Placed at top of report or right after phases: promote to main chapter
+        return { ...c, level: 1, parentChapterId: undefined };
+      }
+      if (prevNeighbor.level < c.level!) {
+        return { ...c, parentChapterId: prevNeighbor.id };
+      }
+      if (prevNeighbor.level === c.level!) {
+        return {
+          ...c,
+          parentChapterId: prevNeighbor.parentChapterId || prevNeighbor.rootChapterId,
+        };
+      }
+      // prevNeighbor is deeper than c: attach to ancestor with level === c.level - 1
+      let parentCandidate = prevNeighbor.parentChapterId;
+      for (let j = insertIdx - 1; j >= 0; j--) {
+        if (remainingList[j].level < (c.level || 2) && remainingList[j].type !== "phases") {
+          parentCandidate = remainingList[j].id;
+          break;
+        }
+      }
+      return { ...c, parentChapterId: parentCandidate };
+    });
+  }
+
+  return syncUnifiedChapterNumbers({
     ...report,
-    chaptersOrder: filtered,
-  };
-
-  const renumberedList = getUnifiedChapters(updatedReport);
-  const renumberedMap = new Map<string, string>();
-  renumberedList.forEach((c) => renumberedMap.set(c.id, c.number));
-
-  const syncedCustoms = customChaptersList.map((ch, idx) => {
-    const dynNumber = renumberedMap.get(ch.id) || ch.number;
-    return {
-      ...ch,
-      number: dynNumber,
-      order: (idx + 1) * 10,
-    };
+    chaptersOrder: nextOrderIds,
+    customChapters: updatedCustomChapters,
   });
-
-  return {
-    chaptersOrder: filtered,
-    customChapters: syncedCustoms,
-  };
 };
 
 /**
- * Moves a chapter one position up or down in the unified order
+ * Moves a chapter one position up or down in the unified order (moving level-1 subtrees cleanly)
  */
 export const moveChapterUpDown = (
   report: Report,
@@ -509,26 +649,29 @@ export const moveChapterUpDown = (
   customChapters: CustomChapter[];
 } => {
   const currentList = getUnifiedChapters(report);
-  const currentIds = currentList.map((c) => c.id);
-  const index = currentIds.indexOf(chapterId);
+  const index = currentList.findIndex((c) => c.id === chapterId);
   if (index === -1) {
-    return {
-      chaptersOrder: currentIds,
-      customChapters: report.customChapters || [],
-    };
+    return syncUnifiedChapterNumbers(report);
   }
 
-  const targetIndex = direction === "up" ? index - 1 : index + 1;
-  if (targetIndex < 0 || targetIndex >= currentIds.length) {
-    return {
-      chaptersOrder: currentIds,
-      customChapters: report.customChapters || [],
-    };
-  }
+  const movingItem = currentList[index];
+  const subtree = getSubtreeRange(currentList, index);
 
-  const targetId = currentIds[targetIndex];
-  const pos = direction === "up" ? "before" : "after";
-  return reorderUnifiedChapters(report, chapterId, targetId, pos);
+  if (direction === "up") {
+    if (index === 0) return syncUnifiedChapterNumbers(report);
+    // If moving a level-1 chapter up, jump above the previous level-1 root (if moving over its subchapters)
+    let targetIdx = index - 1;
+    if (movingItem.level === 1 && currentList[targetIdx].level > 1) {
+      while (targetIdx > 0 && currentList[targetIdx].level > 1) {
+        targetIdx--;
+      }
+    }
+    return reorderUnifiedChapters(report, chapterId, currentList[targetIdx].id, "before");
+  } else {
+    const afterEndIdx = subtree.end + 1;
+    if (afterEndIdx >= currentList.length) return syncUnifiedChapterNumbers(report);
+    return reorderUnifiedChapters(report, chapterId, currentList[afterEndIdx].id, "after");
+  }
 };
 
 /**

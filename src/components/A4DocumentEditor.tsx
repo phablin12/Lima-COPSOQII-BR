@@ -128,6 +128,12 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
       [chapterId, registerEditorRef]
     );
 
+    const syncEmptyAttr = (editorEl: HTMLDivElement) => {
+      const isTextEmpty =
+        !editorEl.textContent?.trim() && !editorEl.querySelector("[data-page-break]");
+      editorEl.setAttribute("data-empty", isTextEmpty ? "true" : "false");
+    };
+
     // Sync initial or external value changes without disrupting cursor
     useEffect(() => {
       const editorEl = localRef.current;
@@ -138,6 +144,7 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
 
       if (editorEl.innerHTML === "") {
         editorEl.innerHTML = normalizedHtml;
+        syncEmptyAttr(editorEl);
         setLastEmittedExternal(chapterId, normalizedHtml);
         onRequestLayout();
         return;
@@ -147,15 +154,19 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
         const currentClean = serializeEditorHtml(editorEl);
         if (normalizedHtml !== currentClean) {
           editorEl.innerHTML = normalizedHtml;
+          syncEmptyAttr(editorEl);
           setLastEmittedExternal(chapterId, normalizedHtml);
           onRequestLayout();
         }
+      } else {
+        syncEmptyAttr(editorEl);
       }
     }, [chapterId, value, onRequestLayout, setLastEmittedExternal, getLastEmittedExternal]);
 
     const emitLocalChange = () => {
       const editorEl = localRef.current;
       if (!editorEl) return;
+      syncEmptyAttr(editorEl);
       const cleanHtml = serializeEditorHtml(editorEl);
       setLastEmittedExternal(chapterId, cleanHtml);
       onChangeValue(chapterId, cleanHtml);
@@ -695,40 +706,78 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
     };
   }, []);
 
-  // Scroll smoothly to requested chapter when clicked in the left sidebar
+  // Scroll smoothly to requested chapter after A4 pagination layout commits
   useEffect(() => {
     if (!scrollToChapterRequest) return;
-    const viewportEl = viewportRef.current;
-    const flowEl = flowRef.current;
-    if (!viewportEl || !flowEl) return;
+    const targetId = scrollToChapterRequest.id;
 
-    const targetSec = flowEl.querySelector<HTMLElement>(
-      `:scope > section[data-chapter-block="${CSS.escape(scrollToChapterRequest.id)}"]`
-    );
-    if (!targetSec) return;
-
-    const viewportRect = viewportEl.getBoundingClientRect();
-    const secRect = targetSec.getBoundingClientRect();
-    const targetTop = Math.max(0, viewportEl.scrollTop + (secRect.top - viewportRect.top) - 24);
-
-    programmaticScrollUntilRef.current = Date.now() + 550;
-    viewportEl.scrollTo({ top: targetTop, behavior: "smooth" });
-
-    // Focus the chapter editor when in edit mode without triggering native jump-scroll
-    if (viewMode === "edit") {
-      focusedChapterIdRef.current = scrollToChapterRequest.id;
-      const ed = editorRefsMap.current.get(scrollToChapterRequest.id);
-      if (ed) {
-        setTimeout(() => {
-          try {
-            ed.focus({ preventScroll: true });
-          } catch {
-            // ignore
-          }
-        }, 120);
-      }
+    // Clear stale selection pointing to another chapter so toolbar commands target the new chapter
+    if (savedRangeRef.current && savedRangeRef.current.chapterId !== targetId) {
+      savedRangeRef.current = null;
     }
-  }, [scrollToChapterRequest, viewMode]);
+    focusedChapterIdRef.current = targetId;
+
+    let cancelled = false;
+    let innerRafId = 0;
+
+    const rafId = requestAnimationFrame(() => {
+      if (cancelled) return;
+      runPaginationLayout();
+
+      innerRafId = requestAnimationFrame(() => {
+        if (cancelled) return;
+        const viewportEl = viewportRef.current;
+        const flowEl = flowRef.current;
+        if (!viewportEl || !flowEl) return;
+
+        const targetSec = flowEl.querySelector<HTMLElement>(
+          `:scope > section[data-chapter-block="${CSS.escape(targetId)}"]`
+        );
+        if (!targetSec) return;
+
+        const viewportRect = viewportEl.getBoundingClientRect();
+        const secRect = targetSec.getBoundingClientRect();
+        const targetTop = Math.max(
+          0,
+          viewportEl.scrollTop + (secRect.top - viewportRect.top) - 24
+        );
+
+        programmaticScrollUntilRef.current = Date.now() + 650;
+        viewportEl.scrollTo({ top: targetTop, behavior: "smooth" });
+
+        // Focus the chapter editor when in edit mode without triggering native jump-scroll
+        if (viewMode === "edit") {
+          const ed = editorRefsMap.current.get(targetId);
+          if (ed) {
+            try {
+              ed.focus({ preventScroll: true });
+              const isTextEmpty =
+                !ed.textContent?.trim() && !ed.querySelector("[data-page-break]");
+              if (isTextEmpty && ed.firstElementChild) {
+                const sel = window.getSelection();
+                if (sel) {
+                  const r = document.createRange();
+                  r.setStart(ed.firstElementChild, 0);
+                  r.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(r);
+                  savedRangeRef.current = { chapterId: targetId, range: r.cloneRange() };
+                }
+              }
+            } catch {
+              // ignore focus/selection fallback
+            }
+          }
+        }
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      if (innerRafId) cancelAnimationFrame(innerRafId);
+    };
+  }, [scrollToChapterRequest, viewMode, runPaginationLayout]);
 
   // Track visible page & active chapter while user scrolls freely through the full report
   const handleViewportScroll = useCallback(() => {
@@ -905,6 +954,9 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
 
   const emitChapterEditorChange = useCallback(
     (chapterId: string, editorEl: HTMLDivElement) => {
+      const isTextEmpty =
+        !editorEl.textContent?.trim() && !editorEl.querySelector("[data-page-break]");
+      editorEl.setAttribute("data-empty", isTextEmpty ? "true" : "false");
       const cleanHtml = serializeEditorHtml(editorEl);
       lastEmittedByChapterRef.current.set(chapterId, cleanHtml);
       onChangeChapterText(chapterId, cleanHtml);
@@ -1884,6 +1936,18 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
         ${
           viewMode === "edit"
             ? `
+        .a4-doc-content[data-empty="true"] {
+          position: relative;
+        }
+        .a4-doc-content[data-empty="true"]::before {
+          content: "Digite o texto deste capítulo aqui...";
+          position: absolute;
+          left: var(--doc-indent, 1.5cm);
+          top: 0;
+          color: #94a3b8;
+          pointer-events: none;
+          font-style: italic;
+        }
         .a4-doc-content .a4-page-break::before {
           content: "Quebra de Página Manual · Clique para remover";
           display: block;

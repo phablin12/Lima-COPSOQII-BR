@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Report, ReportChapters, CustomChapter } from "../types";
 import { 
   BookOpen, 
@@ -26,6 +26,8 @@ import { getImageSync } from "../imageStore";
 import {
   cleanChapterTitle,
   getUnifiedChapters,
+  getSubtreeRange,
+  syncUnifiedChapterNumbers,
   reorderUnifiedChapters,
   moveChapterUpDown,
   UnifiedChapter,
@@ -97,6 +99,15 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   const [activeChapterId, setActiveChapterId] = useState<string>("introducao");
   const [scrollToChapterRequest, setScrollToChapterRequest] = useState<{ id: string; nonce: number } | null>(null);
   const [showSavedNotification, setShowSavedNotification] = useState(false);
+  const savedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current !== null) {
+        window.clearTimeout(savedTimerRef.current);
+      }
+    };
+  }, []);
   
   // Custom chapters creation modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -143,6 +154,17 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     [report.finalConsiderations, report.chapters, customChaptersList]
   );
 
+  const triggerSavedIndicator = useCallback(() => {
+    setShowSavedNotification(true);
+    if (savedTimerRef.current !== null) {
+      window.clearTimeout(savedTimerRef.current);
+    }
+    savedTimerRef.current = window.setTimeout(() => {
+      savedTimerRef.current = null;
+      setShowSavedNotification(false);
+    }, 1200);
+  }, []);
+
   const handleChapterTextChange = useCallback(
     (targetChapterId: string, text: string) => {
       if (targetChapterId === "consideracoes") {
@@ -164,10 +186,9 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
         onChange({ customChapters: updatedCustoms });
       }
 
-      setShowSavedNotification(true);
-      setTimeout(() => setShowSavedNotification(false), 1200);
+      triggerSavedIndicator();
     },
-    [onChange, report.chapters, customChaptersList]
+    [onChange, report.chapters, customChaptersList, triggerSavedIndicator]
   );
 
   const continuousChapters = useMemo<ContinuousChapterItem[]>(() => {
@@ -183,98 +204,145 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     }));
   }, [visibleChapters, getChapterValue]);
 
-  // Open modal with smart pre-selections
+  const editableVisibleChapters = useMemo(
+    () => visibleChapters.filter((c) => c.type !== "phases"),
+    [visibleChapters]
+  );
+
+  // Open modal with smart, validated pre-selections
   const handleOpenCreateModal = (presetParentId?: string) => {
+    const firstEditableId = editableVisibleChapters[0]?.id || "introducao";
+    const activeRootId = activeChapter?.rootChapterId || activeChapter?.id || "after-active";
+
     if (presetParentId && presetParentId !== "fases-automaticas") {
       setCreateParentId(presetParentId);
       setCreateType("continuation");
     } else {
       setCreateType("main");
-      setCreateInsertPosition(effectiveActiveId || "after-active");
+      setCreateInsertPosition(activeRootId);
+      if (!editableVisibleChapters.some((c) => c.id === createParentId)) {
+        setCreateParentId(firstEditableId);
+      }
     }
     setCreateTitle("");
     setIsCreateModalOpen(true);
   };
 
-  // Create chapter and insert immediately in unified flow
-  const handleConfirmCreateChapter = () => {
-    if (!createTitle.trim()) return;
+  // Pure planner used by both live modal preview and actual creation
+  const buildInsertionPlan = useCallback(
+    (rawTitle: string, forcedId?: string) => {
+      const cleanTitle = cleanChapterTitle(rawTitle.trim()) || rawTitle.trim();
+      const newId = forcedId || `custom-${Date.now()}`;
 
-    const cleanTitle = cleanChapterTitle(createTitle.trim()) || createTitle.trim();
-    const newId = `custom-${Date.now()}`;
+      // Preserve all chapters (including excluded) in their exact sequence
+      const fullOrder = unifiedChapters.map((c) => c.id);
+      const newOrder = [...fullOrder];
+      let newCh: CustomChapter;
 
-    // Current linear order
-    const currentOrder = visibleChapters.map((c) => c.id);
-    let newOrder = [...currentOrder];
+      if (createType === "main") {
+        newCh = {
+          id: newId,
+          title: cleanTitle,
+          text: "",
+          order: (newOrder.length + 1) * 10,
+          level: 1,
+        };
 
-    let newCh: CustomChapter;
+        if (createInsertPosition === "start") {
+          newOrder.unshift(newId);
+        } else if (createInsertPosition === "end") {
+          newOrder.push(newId);
+        } else {
+          const requestedId =
+            createInsertPosition === "after-active" ? effectiveActiveId : createInsertPosition;
+          const requestedItem = unifiedChapters.find((c) => c.id === requestedId);
+          // Anchor on level-1 root so inserting a main chapter never splits a parent from its subchapters
+          const anchorId =
+            requestedItem && requestedItem.level > 1 && requestedItem.rootChapterId
+              ? requestedItem.rootChapterId
+              : requestedId;
+          const anchorIdx = unifiedChapters.findIndex((c) => c.id === anchorId);
 
-    if (createType === "main") {
-      newCh = {
-        id: newId,
-        title: cleanTitle,
-        text: "Digite o texto do seu capítulo aqui...",
-        order: (newOrder.length + 1) * 10,
-        level: 1,
-      };
-
-      if (createInsertPosition === "start") {
-        newOrder.unshift(newId);
-      } else if (createInsertPosition === "end") {
-        newOrder.push(newId);
+          if (anchorIdx !== -1) {
+            const subtree = getSubtreeRange(unifiedChapters, anchorIdx);
+            newOrder.splice(subtree.end + 1, 0, newId);
+          } else {
+            newOrder.push(newId);
+          }
+        }
       } else {
-        // after-active or specified target
-        const targetId = createInsertPosition === "after-active" ? effectiveActiveId : createInsertPosition;
-        const targetIdx = newOrder.indexOf(targetId);
-        if (targetIdx !== -1) {
-          newOrder.splice(targetIdx + 1, 0, newId);
+        const validParent =
+          editableVisibleChapters.find((c) => c.id === createParentId) || editableVisibleChapters[0];
+        const parentId = validParent ? validParent.id : "introducao";
+        const nextLevel = Math.min(4, (validParent?.level || 1) + 1);
+
+        newCh = {
+          id: newId,
+          title: cleanTitle,
+          text: "",
+          order: (newOrder.length + 1) * 10,
+          parentChapterId: parentId,
+          level: nextLevel,
+        };
+
+        const parentIdx = unifiedChapters.findIndex((c) => c.id === parentId);
+        if (parentIdx !== -1) {
+          const subtree = getSubtreeRange(unifiedChapters, parentIdx);
+          newOrder.splice(subtree.end + 1, 0, newId);
         } else {
           newOrder.push(newId);
         }
       }
-    } else {
-      // Continuation / subchapter
-      newCh = {
-        id: newId,
-        title: cleanTitle,
-        text: "Digite o texto da sua subseção aqui...",
-        order: (newOrder.length + 1) * 10,
-        parentChapterId: createParentId,
-        level: 2,
-      };
 
-      const parentIdx = newOrder.indexOf(createParentId);
-      if (parentIdx !== -1) {
-        let insertIdx = parentIdx + 1;
-        while (
-          insertIdx < newOrder.length &&
-          customChaptersList.some((s) => s.id === newOrder[insertIdx] && s.parentChapterId === createParentId)
-        ) {
-          insertIdx++;
-        }
-        newOrder.splice(insertIdx, 0, newId);
-      } else {
-        newOrder.push(newId);
-      }
-    }
+      const updatedCustoms = [...customChaptersList, newCh];
+      const synced = syncUnifiedChapterNumbers({
+        ...report,
+        chaptersOrder: newOrder,
+        customChapters: updatedCustoms,
+      });
 
-    const updatedCustoms = [...customChaptersList, newCh];
-    const reorderedState = reorderUnifiedChapters(
-      { ...report, chaptersOrder: newOrder, customChapters: updatedCustoms },
-      newId,
-      newId,
-      "after"
-    );
+      const simulatedUnified = getUnifiedChapters({
+        ...report,
+        chaptersOrder: synced.chaptersOrder,
+        customChapters: synced.customChapters,
+      });
+      const createdPreview = simulatedUnified.find((c) => c.id === newId);
+
+      return { newId, synced, createdPreview };
+    },
+    [
+      unifiedChapters,
+      createType,
+      createInsertPosition,
+      effectiveActiveId,
+      editableVisibleChapters,
+      createParentId,
+      customChaptersList,
+      report,
+    ]
+  );
+
+  const previewChapterResult = useMemo(() => {
+    if (!isCreateModalOpen || !createTitle.trim()) return null;
+    return buildInsertionPlan(createTitle, "preview-new-chapter").createdPreview || null;
+  }, [isCreateModalOpen, createTitle, buildInsertionPlan]);
+
+  // Create chapter and insert immediately in unified flow
+  const handleConfirmCreateChapter = () => {
+    if (!createTitle.trim()) return;
+
+    const { newId, synced } = buildInsertionPlan(createTitle);
 
     onChange({
-      chaptersOrder: reorderedState.chaptersOrder,
-      customChapters: reorderedState.customChapters,
+      chaptersOrder: synced.chaptersOrder,
+      customChapters: synced.customChapters,
     });
 
     setActiveChapterId(newId);
     setScrollToChapterRequest({ id: newId, nonce: Date.now() });
     setIsCreateModalOpen(false);
     setCreateTitle("");
+    triggerSavedIndicator();
   };
 
   // Request delete for standard or custom chapter
@@ -926,15 +994,17 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
                     onChange={(e) => setCreateInsertPosition(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-400"
                   >
-                    <option value="after-active">Logo após o capítulo selecionado ({activeChapter?.title || "Atual"})</option>
+                    <option value="after-active">Logo após o capítulo atual ({activeChapter?.title || "Atual"})</option>
                     <option value="end">No final do laudo</option>
                     <option value="start">No início do laudo (antes do primeiro capítulo)</option>
-                    <optgroup label="Inserir logo após capítulo específico:">
-                      {visibleChapters.map((ch) => (
-                        <option key={ch.id} value={ch.id}>
-                          Após {ch.fullTitle}
-                        </option>
-                      ))}
+                    <optgroup label="Inserir após capítulo principal específico:">
+                      {visibleChapters
+                        .filter((c) => c.level === 1)
+                        .map((ch) => (
+                          <option key={ch.id} value={ch.id}>
+                            Após {ch.fullTitle}
+                          </option>
+                        ))}
                     </optgroup>
                   </select>
                 </div>
@@ -949,11 +1019,13 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
                     onChange={(e) => setCreateParentId(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-slate-400"
                   >
-                    {visibleChapters.filter((c) => c.type !== "phases").map((ch) => (
-                      <option key={ch.id} value={ch.id}>
-                        {ch.fullTitle}
-                      </option>
-                    ))}
+                    {editableVisibleChapters
+                      .filter((c) => c.level < 4)
+                      .map((ch) => (
+                        <option key={ch.id} value={ch.id}>
+                          {ch.level > 1 ? `${"— ".repeat(ch.level - 1)}${ch.fullTitle}` : ch.fullTitle}
+                        </option>
+                      ))}
                   </select>
                 </div>
               )}
@@ -976,17 +1048,19 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
                 />
               </div>
 
-              {/* Card de Pré-visualização do resultado */}
-              {createTitle && (
+              {/* Card de Pré-visualização com numeração real prevista */}
+              {createTitle.trim() && (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Prévia do Título no Laudo:
+                    Prévia da Numeração e Título no Laudo:
                   </span>
                   <div className="font-bold text-slate-900 text-xs">
-                    {cleanChapterTitle(createTitle.trim()) || createTitle.trim()}
+                    {previewChapterResult?.fullTitle ||
+                      cleanChapterTitle(createTitle.trim()) ||
+                      createTitle.trim()}
                   </div>
                   <span className="text-[10px] text-emerald-700 font-medium block">
-                    ✓ A numeração sequencial será vinculada e calculada automaticamente no laudo e no sumário.
+                    ✓ Numeração e posição calculadas automaticamente no editor A4 e no sumário.
                   </span>
                 </div>
               )}
