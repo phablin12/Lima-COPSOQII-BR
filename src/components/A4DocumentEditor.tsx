@@ -253,7 +253,7 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
         onClick={handleClick}
         onPaste={handlePaste}
         style={{ "--doc-indent": indentCss } as React.CSSProperties}
-        className="a4-doc-content outline-none min-h-[36px] cursor-text"
+        className="a4-doc-content outline-none min-h-[140px] cursor-text"
       />
     );
   }
@@ -828,15 +828,19 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
           const ed = editorRefsMap.current.get(targetId);
           if (ed) {
             try {
+              if (ed.innerHTML.trim() === "" || ed.innerHTML === "<br>") {
+                ed.innerHTML = "<p><br></p>";
+              }
               ed.focus({ preventScroll: true });
-              const isTextEmpty =
-                !ed.textContent?.trim() && !ed.querySelector("[data-page-break]");
-              if (isTextEmpty && ed.firstElementChild) {
-                const sel = window.getSelection();
-                if (sel) {
+              const sel = window.getSelection();
+              if (sel) {
+                const alreadyInside =
+                  sel.rangeCount > 0 && ed.contains(sel.getRangeAt(0).commonAncestorContainer);
+                if (!alreadyInside) {
                   const r = document.createRange();
-                  r.setStart(ed.firstElementChild, 0);
-                  r.collapse(true);
+                  const targetNode = ed.lastElementChild || ed;
+                  r.selectNodeContents(targetNode);
+                  r.collapse(false);
                   sel.removeAllRanges();
                   sel.addRange(r);
                   savedRangeRef.current = { chapterId: targetId, range: r.cloneRange() };
@@ -980,6 +984,50 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
       setActiveFormats({ bold, italic, underline, align, block, ul, ol });
     },
     [viewMode, saveSelectionForChapter]
+  );
+
+  const focusChapterEditorAtEnd = useCallback(
+    (chapterId: string) => {
+      if (viewMode !== "edit") return;
+      const el = editorRefsMap.current.get(chapterId);
+      if (!el) return;
+
+      if (el.innerHTML.trim() === "" || el.innerHTML === "<br>") {
+        el.innerHTML = "<p><br></p>";
+      }
+
+      try {
+        el.focus({ preventScroll: true });
+      } catch {
+        el.focus();
+      }
+
+      const sel = window.getSelection();
+      if (sel) {
+        const alreadyInside =
+          sel.rangeCount > 0 && el.contains(sel.getRangeAt(0).commonAncestorContainer);
+        if (!alreadyInside) {
+          try {
+            const range = document.createRange();
+            const targetNode = el.lastElementChild || el;
+            range.selectNodeContents(targetNode);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            savedRangeRef.current = { chapterId, range: range.cloneRange() };
+          } catch {
+            // ignore caret placement fallback
+          }
+        } else {
+          saveSelectionForChapter(chapterId, el);
+        }
+      }
+
+      focusedChapterIdRef.current = chapterId;
+      onActiveChapterChange(chapterId);
+      updateToolbarStateForEditor(chapterId, el);
+    },
+    [viewMode, saveSelectionForChapter, onActiveChapterChange, updateToolbarStateForEditor]
   );
 
   // Listen for selection changes inside any active chapter editor
@@ -1677,6 +1725,15 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
         >
           <div
             ref={stackRef}
+            onClick={(e) => {
+              if (viewMode !== "edit") return;
+              if (e.target !== stackRef.current && e.target !== flowRef.current) return;
+              const editableChapters = chapters.filter((c) => c.type !== "phases");
+              const lastEditable = editableChapters[editableChapters.length - 1];
+              if (lastEditable) {
+                focusChapterEditorAtEnd(lastEditable.id);
+              }
+            }}
             style={{
               width: `${A4_WIDTH}px`,
               height: `${totalStackHeight}px`,
@@ -1867,7 +1924,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                                   {ch.fullTitle}
                                 </h3>
                                 <p className="text-xs text-slate-500">
-                                  Seção gerada automaticamente a partir das abas de Setores, COPSOQ, Matriz GRO e Plano de Ação.
+                                  Seções automáticas (tabelas de Setores, COPSOQ, Matriz GRO e Plano de Ação): para alterar textos ou ações destes capítulos, edite diretamente nas abas superiores correspondentes. Os capítulos de texto livre ficam logo abaixo.
                                 </p>
                               </div>
                             </div>
@@ -1937,6 +1994,19 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                     key={ch.id}
                     data-chapter-block={ch.id}
                     data-chapter-level={ch.level}
+                    onClick={(e) => {
+                      if (viewMode !== "edit") return;
+                      const target = e.target as HTMLElement;
+                      if (
+                        target.closest("[data-chapter-editor]") ||
+                        target.closest("button") ||
+                        target.closest("a") ||
+                        target.closest("input")
+                      ) {
+                        return;
+                      }
+                      focusChapterEditorAtEnd(ch.id);
+                    }}
                     className={`w-full ${isSubchapter ? "pt-4" : ""}`}
                   >
                     {/* Título do capítulo ou subcapítulo integrado ao fluxo da página A4 */}
@@ -1990,6 +2060,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
 
                     {viewMode === "edit" ? (
                       <ChapterEditableBody
+                        key={`${report.id}:${ch.id}`}
                         chapterId={ch.id}
                         value={ch.value}
                         indentCss={indentCss}

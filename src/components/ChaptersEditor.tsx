@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Report, ReportChapters, CustomChapter } from "../types";
+import { DEFAULT_CHAPTERS } from "../defaultChapters";
 import { 
   BookOpen, 
   Check, 
@@ -148,7 +149,8 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
         return report.finalConsiderations || "";
       }
       if (["introducao", "fundamentacao", "metodologia", "referencias"].includes(chapterId)) {
-        return report.chapters[chapterId as keyof ReportChapters] || "";
+        const chaptersObj = report.chapters || DEFAULT_CHAPTERS;
+        return chaptersObj[chapterId as keyof ReportChapters] || "";
       }
       const custom = customChaptersList.find((c) => c.id === chapterId);
       return custom ? custom.text : "";
@@ -175,7 +177,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
       } else if (["introducao", "fundamentacao", "metodologia", "referencias"].includes(targetChapterId)) {
         onChange({
           chapters: {
-            ...latestReport.chapters,
+            ...(latestReport.chapters || DEFAULT_CHAPTERS),
             [targetChapterId]: text,
           },
         });
@@ -886,6 +888,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
           )}
 
           <A4DocumentEditor
+            key={report.id}
             chapters={continuousChapters}
             activeChapterId={effectiveActiveId}
             scrollToChapterRequest={scrollToChapterRequest}

@@ -57,9 +57,9 @@ export const CATALOG_COLLECTION = "catalog";
 export const SETTINGS_COLLECTION = "settings";
 export const EVALUATORS_COLLECTION = "evaluators";
 
-// Firestore 1 MiB document hard limit (~1,048,576 bytes); keep safe budget below 920 KB
-const SAFE_FIRESTORE_DOC_BYTES = 860_000;
-const HARD_SAFE_FIRESTORE_DOC_BYTES = 960_000;
+// Firestore 1 MiB document hard limit (~1,048,576 bytes); keep safe budget well below 820 KB to allow protobuf field overhead
+const SAFE_FIRESTORE_DOC_BYTES = 700_000;
+const HARD_SAFE_FIRESTORE_DOC_BYTES = 820_000;
 
 export enum OperationType {
   CREATE = "create",
@@ -172,35 +172,58 @@ async function shrinkEmbeddedImages(
   return obj;
 }
 
+function stripInlineDataImagesFromHtml(obj: any): any {
+  if (typeof obj === "string") {
+    if (obj.includes("data:image/") && obj.length > 50_000 && !obj.startsWith("data:image/")) {
+      return obj.replace(/data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/g, "");
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(stripInlineDataImagesFromHtml);
+  }
+  if (obj && typeof obj === "object") {
+    const out: Record<string, any> = {};
+    for (const key of Object.keys(obj)) {
+      out[key] = stripInlineDataImagesFromHtml(obj[key]);
+    }
+    return out;
+  }
+  return obj;
+}
+
 function stripSecondaryMediaFields(payload: any): any {
-  const copy = { ...payload };
-  if (copy.coverImage && typeof copy.coverImage === "string" && copy.coverImage.length > 50_000) {
+  let copy = { ...payload };
+  if (copy.coverImage && typeof copy.coverImage === "string" && copy.coverImage.length > 30_000) {
     copy.coverImage = "";
   }
   if (
     copy.defaultCoverImage &&
     typeof copy.defaultCoverImage === "string" &&
-    copy.defaultCoverImage.length > 50_000
+    copy.defaultCoverImage.length > 30_000
   ) {
     copy.defaultCoverImage = "";
   }
-  if (copy.favicon && typeof copy.favicon === "string" && copy.favicon.length > 30_000) {
+  if (copy.favicon && typeof copy.favicon === "string" && copy.favicon.length > 20_000) {
     copy.favicon = "";
   }
   if (copy.evaluator && typeof copy.evaluator === "object") {
     const evalCopy = { ...copy.evaluator };
-    if (evalCopy.logo && typeof evalCopy.logo === "string" && evalCopy.logo.length > 50_000) {
+    if (evalCopy.logo && typeof evalCopy.logo === "string" && evalCopy.logo.length > 30_000) {
       evalCopy.logo = "";
     }
     copy.evaluator = evalCopy;
   }
   if (getUtf8ByteSize(JSON.stringify(copy)) > HARD_SAFE_FIRESTORE_DOC_BYTES) {
-    if (copy.companyLogo && typeof copy.companyLogo === "string" && copy.companyLogo.length > 50_000) {
+    if (copy.companyLogo && typeof copy.companyLogo === "string" && copy.companyLogo.length > 30_000) {
       copy.companyLogo = "";
     }
-    if (copy.logo && typeof copy.logo === "string" && copy.logo.length > 50_000) {
+    if (copy.logo && typeof copy.logo === "string" && copy.logo.length > 30_000) {
       copy.logo = "";
     }
+  }
+  if (getUtf8ByteSize(JSON.stringify(copy)) > HARD_SAFE_FIRESTORE_DOC_BYTES) {
+    copy = stripInlineDataImagesFromHtml(copy);
   }
   return copy;
 }
@@ -273,33 +296,60 @@ async function preparePayloadForFirestore(
 }
 
 /**
+ * Extracts raw inner error text when wrapped by handleFirestoreError JSON.
+ */
+function extractInnerErrorText(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err || "");
+  if (raw.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.error === "string") {
+        return parsed.path ? `${parsed.error} (${parsed.path})` : parsed.error;
+      }
+    } catch {
+      // ignore JSON parse failure
+    }
+  }
+  return raw;
+}
+
+/**
  * Translates raw Firebase/Firestore errors into a concise human-readable Portuguese message.
  */
 export function formatCloudErrorMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err || "");
+  const raw = extractInnerErrorText(err);
   const lower = raw.toLowerCase();
 
   if (lower.includes("unsupported field value: undefined")) {
     return "Campo inválido (indefinido) ao serializar dados.";
   }
   if (lower.includes("exceeds maximum allowed size") || lower.includes("maximum size")) {
-    return "Documento excedeu o limite de 1 MB na nuvem (imagens muito grandes).";
+    return "Documento excedeu o limite de 1 MB na nuvem (imagens ou conteúdo muito grandes).";
   }
   if (lower.includes("permission-denied") || lower.includes("missing or insufficient permissions")) {
     return auth?.currentUser
-      ? "Permissão negada ou regra de validação recusada no Firestore."
+      ? `Permissão negada ou regra de validação recusada no Firestore: ${raw.slice(0, 140)}`
       : "Sessão expirada. Faça login novamente para sincronizar.";
   }
   if (lower.includes("unauthenticated")) {
     return "Usuário não autenticado para gravar na nuvem.";
   }
+  if (lower.includes("invalid-argument")) {
+    return `Dados em formato inválido recusados pelo Firestore: ${raw.slice(0, 140)}`;
+  }
+  if (lower.includes("resource-exhausted") || lower.includes("quota")) {
+    return "Cota ou limite de gravação do Firestore atingido.";
+  }
+  if (lower.includes("failed-precondition")) {
+    return `Pré-condição do banco de dados não atendida: ${raw.slice(0, 140)}`;
+  }
+  if (lower.includes("deadline-exceeded") || lower.includes("aborted")) {
+    return "Tempo limite excedido ao gravar na nuvem. Clique em Reenviar.";
+  }
   if (lower.includes("offline") || lower.includes("unavailable") || lower.includes("network")) {
     return "Sem conexão estável com a nuvem no momento.";
   }
-  if (lower.includes("quota")) {
-    return "Cota diária do banco de dados atingida.";
-  }
-  return "Falha temporária ao sincronizar com a nuvem.";
+  return raw ? `Falha ao sincronizar com a nuvem: ${raw.slice(0, 140)}` : "Falha temporária ao sincronizar com a nuvem.";
 }
 
 /**

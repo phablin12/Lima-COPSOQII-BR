@@ -771,15 +771,51 @@ export default function App() {
           hasCheckedReportsSeedingRef.current = true;
           hasFirestoreReportsLoadedRef.current = true;
 
-          // Keep any newer pending local edits that haven't finished echoing back from Firestore
+          // Keep any newer pending local edits or unsaved newly created reports not yet echoed by Firestore
           const pending = latestReportToSaveRef.current;
-          const mergedList = pending
-            ? list.map((item) =>
-                item.id === pending.id && (pending.updatedAt || "") > (item.updatedAt || "")
-                  ? pending
-                  : item
-              )
-            : list;
+          const pendingReportIds = new Set<string>();
+          const deletingReportIds = new Set<string>();
+          pendingCloudSyncsRef.current.forEach((_, key) => {
+            if (key.startsWith("report:")) {
+              pendingReportIds.add(key.slice("report:".length));
+            } else if (key.startsWith("delete_report:")) {
+              deletingReportIds.add(key.slice("delete_report:".length));
+            }
+          });
+
+          const localById = new Map<string, Report>();
+          reportsRef.current.forEach((r) => localById.set(r.id, r));
+          if (pending) localById.set(pending.id, pending);
+
+          const mergedMap = new Map<string, Report>();
+          list.forEach((item) => {
+            if (deletingReportIds.has(item.id)) return;
+            const localCandidate =
+              pending && pending.id === item.id
+                ? pending
+                : pendingReportIds.has(item.id)
+                  ? localById.get(item.id)
+                  : undefined;
+
+            if (localCandidate && (localCandidate.updatedAt || "") >= (item.updatedAt || "")) {
+              mergedMap.set(item.id, localCandidate);
+            } else {
+              mergedMap.set(item.id, item);
+            }
+          });
+
+          // Ensure unsaved local/new reports remain visible even if Firestore hasn't persisted them yet
+          if (pending && !deletingReportIds.has(pending.id) && !mergedMap.has(pending.id)) {
+            mergedMap.set(pending.id, pending);
+          }
+          pendingReportIds.forEach((id) => {
+            if (!deletingReportIds.has(id) && !mergedMap.has(id)) {
+              const localReport = localById.get(id);
+              if (localReport) mergedMap.set(id, localReport);
+            }
+          });
+
+          const mergedList = Array.from(mergedMap.values());
 
           // Sort reports consistently across all PCs by updatedAt / createdAt descending
           mergedList.sort((a, b) => {
@@ -787,6 +823,7 @@ export default function App() {
             const dateB = b.updatedAt || b.createdAt || "";
             return dateB.localeCompare(dateA);
           });
+          reportsRef.current = mergedList;
           setReports(mergedList);
           saveJsonToCache("reports", mergedList);
           localStorage.setItem("sst_psicossocial_reports", JSON.stringify(mergedList));
@@ -1202,9 +1239,19 @@ export default function App() {
 
   // 2. Import / save multiple reports to Firestore
   const handleUpdateAllReports = async (updatedReports: Report[]) => {
+    reportsRef.current = updatedReports;
+    setReports(updatedReports);
+    saveJsonToCache("reports", updatedReports);
+    try {
+      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updatedReports));
+    } catch (err) {
+      console.error("Erro ao persistir relatórios localmente:", err);
+    }
+
     const syncFn = async () => {
+      const latestMap = new Map(reportsRef.current.map((r) => [r.id, r]));
       for (const r of updatedReports) {
-        await saveReportToFirestore(r);
+        await saveReportToFirestore(latestMap.get(r.id) || r);
       }
     };
 
@@ -1212,7 +1259,7 @@ export default function App() {
     try {
       await syncFn();
       pendingCloudSyncsRef.current.delete("bulk_reports");
-      if (pendingCloudSyncsRef.current.size === 0) {
+      if (pendingCloudSyncsRef.current.size === 0 && !latestReportToSaveRef.current) {
         setSyncState("synced");
         setSyncErrorDetail(null);
       }
@@ -1263,18 +1310,23 @@ export default function App() {
       console.error("Erro ao salvar relatório localmente:", err);
     }
 
+    latestReportToSaveRef.current = newReport;
     setCurrentReportId(newReport.id);
     setActiveTab("cadastro"); // Reset to first step on new report
 
     const syncFn = async () => {
-      await saveReportToFirestore(newReport);
+      const latest = reportsRef.current.find((r) => r.id === newReport.id) || newReport;
+      await saveReportToFirestore(latest);
     };
 
     setSyncState("syncing");
     try {
       await syncFn();
+      if (latestReportToSaveRef.current?.id === newReport.id) {
+        latestReportToSaveRef.current = null;
+      }
       pendingCloudSyncsRef.current.delete(`report:${newReport.id}`);
-      if (pendingCloudSyncsRef.current.size === 0) {
+      if (pendingCloudSyncsRef.current.size === 0 && !latestReportToSaveRef.current) {
         setSyncState("synced");
         setSyncErrorDetail(null);
       }
@@ -1935,6 +1987,7 @@ export default function App() {
                     )}
                     {effectiveTab === "capitulos" && (
                       <ChaptersEditor
+                        key={currentReport.id}
                         report={currentReport}
                         onChange={handleUpdateCurrentReport}
                         assessor={assessor}
