@@ -42,7 +42,9 @@ import {
   FolderHeart, 
   Cloud, 
   CloudOff, 
-  ShieldCheck
+  ShieldCheck,
+  RefreshCw,
+  AlertCircle
 } from "lucide-react";
 import { 
   onAuthStateChanged,
@@ -77,7 +79,9 @@ import {
   loadAssessorFromFirestore,
   saveEvaluatorToFirestore,
   deleteEvaluatorFromFirestore,
-  loadEvaluatorsFromFirestore
+  loadEvaluatorsFromFirestore,
+  formatCloudErrorMessage,
+  testFirestoreConnection
 } from "./firebase";
 import { Login } from "./components/Login";
 import {
@@ -363,9 +367,12 @@ export default function App() {
     }
   }, [reports, currentReportId]);
 
-  // Debounce Refs for report saving
+  // Debounce & fresh state refs for report saving
   const latestReportToSaveRef = useRef<Report | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportsRef = useRef<Report[]>(reports);
+  reportsRef.current = reports;
+  const pendingCloudSyncsRef = useRef<Map<string, () => Promise<void>>>(new Map());
 
   // Seeding check refs to prevent deleted items from reappearing when database is empty
   const hasCheckedReportsSeedingRef = useRef(false);
@@ -407,7 +414,10 @@ export default function App() {
     }
   });
   const [lastSaved, setLastSaved] = useState<string | null>(null);
-  const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">("synced");
+  const [syncState, setSyncState] = useState<"synced" | "syncing" | "error" | "offline">(() =>
+    typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "synced"
+  );
+  const [syncErrorDetail, setSyncErrorDetail] = useState<string | null>(null);
   
   // Assessing Company details
   // Assessing Company details with instant lazy initialization from localStorage
@@ -533,12 +543,90 @@ export default function App() {
       return true;
     }
   });
+  // Tracks whether Firebase SDK has finished restoring auth.currentUser (prevents permission-denied on frame 1)
+  const [authSessionReady, setAuthSessionReady] = useState<boolean>(() => Boolean(auth.currentUser));
+
+  const recordCloudFailure = (err: unknown, taskKey?: string, retryFn?: () => Promise<void>) => {
+    if (taskKey && retryFn) {
+      pendingCloudSyncsRef.current.set(taskKey, retryFn);
+    }
+    const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    setSyncErrorDetail(isOffline ? "Sem conexão com a internet. Alterações salvas localmente." : formatCloudErrorMessage(err));
+    setSyncState(isOffline ? "offline" : "error");
+  };
+
+  const handleRetryCloudSync = async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setSyncState("offline");
+      setSyncErrorDetail("Sem conexão com a internet. Assim que voltar, tentaremos novamente.");
+      return;
+    }
+    if (!auth.currentUser) {
+      setSyncState("error");
+      setSyncErrorDetail("Sessão de autenticação expirada ou ainda inicializando.");
+      return;
+    }
+
+    setSyncState("syncing");
+    setSyncErrorDetail(null);
+
+    try {
+      // Flush any debounced report edit immediately
+      if (latestReportToSaveRef.current) {
+        const pendingReport = latestReportToSaveRef.current;
+        await saveReportToFirestore(pendingReport);
+        if (latestReportToSaveRef.current === pendingReport) {
+          latestReportToSaveRef.current = null;
+        }
+        pendingCloudSyncsRef.current.delete(`report:${pendingReport.id}`);
+      }
+
+      // Retry any failed entity sync tasks
+      const pendingEntries: Array<[string, () => Promise<void>]> = [];
+      pendingCloudSyncsRef.current.forEach((fn, key) => {
+        pendingEntries.push([key, fn]);
+      });
+      for (const [key, fn] of pendingEntries) {
+        await fn();
+        pendingCloudSyncsRef.current.delete(key);
+      }
+
+      const connected = await testFirestoreConnection();
+      if (!connected && pendingCloudSyncsRef.current.size > 0) {
+        throw new Error("Não foi possível confirmar a conexão com o servidor.");
+      }
+
+      setSyncState("synced");
+      setSyncErrorDetail(null);
+    } catch (err) {
+      console.error("Erro ao reenviar dados pendentes para a nuvem:", err);
+      recordCloudFailure(err);
+    }
+  };
+
+  // Monitor browser online/offline transitions and auto-flush queued cloud syncs
+  useEffect(() => {
+    const onOnline = () => {
+      handleRetryCloudSync();
+    };
+    const onOffline = () => {
+      setSyncState("offline");
+      setSyncErrorDetail("Sem conexão com a internet. Seus dados continuam salvos localmente.");
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   // A. Monitor Firebase Authentication State
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
+      setAuthSessionReady(true);
       try {
         if (currentUser) {
           localStorage.setItem("sst_cached_user", JSON.stringify({
@@ -546,6 +634,7 @@ export default function App() {
             email: currentUser.email,
             displayName: currentUser.displayName
           }));
+          testFirestoreConnection();
         } else {
           localStorage.removeItem("sst_cached_user");
         }
@@ -629,11 +718,23 @@ export default function App() {
     }
   }, []);
 
-  // C. Real-Time Synchronization from Firestore - Listeners for instant updates
+  // C. Real-Time Synchronization from Firestore - Wait for genuine Firebase Auth session before subscribing
   useEffect(() => {
-    if (!user) return;
+    if (!authSessionReady || !user || !auth.currentUser) return;
 
-    setSyncState("syncing");
+    setSyncState(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "syncing");
+
+    // Flush any edits made in the first milliseconds before authSessionReady completed
+    if (pendingCloudSyncsRef.current.size > 0 || (latestReportToSaveRef.current && !saveTimeoutRef.current)) {
+      handleRetryCloudSync();
+    }
+
+    const markSnapshotSynced = () => {
+      if (pendingCloudSyncsRef.current.size === 0 && !latestReportToSaveRef.current) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
+    };
 
     // Reset seeding tracking refs on login / user change
     hasCheckedReportsSeedingRef.current = false;
@@ -651,6 +752,7 @@ export default function App() {
         }
       } catch (err) {
         console.error(`Erro ao subir dados locais para ${collectionName}:`, err);
+        recordCloudFailure(err);
       }
     };
 
@@ -712,11 +814,11 @@ export default function App() {
             });
           }
         }
-        setSyncState("synced");
+        markSnapshotSynced();
       },
       (error) => {
         console.error("Erro no onSnapshot de relatórios:", error);
-        setSyncState("error");
+        recordCloudFailure(error);
       }
     );
 
@@ -764,11 +866,11 @@ export default function App() {
             });
           }
         }
-        setSyncState("synced");
+        markSnapshotSynced();
       },
       (error) => {
         console.error("Erro no onSnapshot de empresas:", error);
-        setSyncState("error");
+        recordCloudFailure(error);
       }
     );
 
@@ -815,11 +917,11 @@ export default function App() {
             });
           }
         }
-        setSyncState("synced");
+        markSnapshotSynced();
       },
       (error) => {
         console.error("Erro no onSnapshot de profissionais:", error);
-        setSyncState("error");
+        recordCloudFailure(error);
       }
     );
 
@@ -866,11 +968,11 @@ export default function App() {
             });
           }
         }
-        setSyncState("synced");
+        markSnapshotSynced();
       },
       (error) => {
         console.error("Erro no onSnapshot de avaliadores:", error);
-        setSyncState("error");
+        recordCloudFailure(error);
       }
     );
 
@@ -890,15 +992,20 @@ export default function App() {
           localStorage.setItem("sst_psicossocial_catalog", JSON.stringify(list));
         } else {
           // Seed Firestore with default catalog if database is empty
-          const storedCatalog = localStorage.getItem("sst_psicossocial_catalog");
-          const catalogToSave = storedCatalog ? JSON.parse(storedCatalog) : DEFAULT_RISK_CATALOG;
-          await saveCatalogToFirestore(catalogToSave);
+          try {
+            const storedCatalog = localStorage.getItem("sst_psicossocial_catalog");
+            const catalogToSave = storedCatalog ? JSON.parse(storedCatalog) : DEFAULT_RISK_CATALOG;
+            await saveCatalogToFirestore(catalogToSave);
+          } catch (seedErr) {
+            console.error("Erro ao inicializar catálogo no Firestore:", seedErr);
+            recordCloudFailure(seedErr);
+          }
         }
-        setSyncState("synced");
+        markSnapshotSynced();
       },
       (error) => {
         console.error("Erro no onSnapshot de catálogo:", error);
-        setSyncState("error");
+        recordCloudFailure(error);
       }
     );
 
@@ -916,19 +1023,34 @@ export default function App() {
           if (data.defaultCoverImage && data.defaultCoverImage !== "[OMITTED_IMAGE_FOR_CACHE]") {
             saveImageToCache("cover_image", data.defaultCoverImage);
           }
-          setAssessor(data);
+          setAssessor((prev) => ({
+            ...data,
+            logo:
+              data.logo && data.logo !== "[OMITTED_IMAGE_FOR_CACHE]"
+                ? data.logo
+                : (prev.logo && prev.logo !== "[OMITTED_IMAGE_FOR_CACHE]" ? prev.logo : getImageSync("assessor_logo")),
+            defaultCoverImage:
+              data.defaultCoverImage && data.defaultCoverImage !== "[OMITTED_IMAGE_FOR_CACHE]"
+                ? data.defaultCoverImage
+                : (prev.defaultCoverImage && prev.defaultCoverImage !== "[OMITTED_IMAGE_FOR_CACHE]"
+                    ? prev.defaultCoverImage
+                    : getImageSync("cover_image")),
+          }));
           saveJsonToCache("assessor", data);
           localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(data));
         } else {
-          const storedAssessor = localStorage.getItem("sst_psicossocial_assessor");
-          const assessorToSave = storedAssessor ? JSON.parse(storedAssessor) : assessor;
-          await saveAssessorToFirestore(assessorToSave);
+          try {
+            await saveAssessorToFirestore(assessor);
+          } catch (seedErr) {
+            console.error("Erro ao inicializar dados da assessora no Firestore:", seedErr);
+            recordCloudFailure(seedErr);
+          }
         }
-        setSyncState("synced");
+        markSnapshotSynced();
       },
       (error) => {
         console.error("Erro no onSnapshot do assessor:", error);
-        setSyncState("error");
+        recordCloudFailure(error);
       }
     );
 
@@ -940,10 +1062,11 @@ export default function App() {
       unsubCatalog();
       unsubAssessor();
     };
-  }, [user]);
+  }, [user, authSessionReady]);
 
   // 1b. Helper to persist companies
   const handleUpdateCompanies = async (newCompanies: typeof companies) => {
+    const prevCompanies = companies;
     setCompanies(newCompanies);
     try {
       localStorage.setItem("sst_psicossocial_companies", JSON.stringify(newCompanies));
@@ -951,24 +1074,33 @@ export default function App() {
       console.error("Erro ao salvar empresas no localStorage:", err);
     }
 
-    setSyncState("syncing");
-    try {
-      const deleted = companies.filter((oc) => !newCompanies.some((nc) => nc.id === oc.id));
+    const syncFn = async () => {
+      const deleted = prevCompanies.filter((oc) => !newCompanies.some((nc) => nc.id === oc.id));
       for (const dc of deleted) {
         await deleteCompanyFromFirestore(dc.id);
       }
       for (const nc of newCompanies) {
         await saveCompanyToFirestore(nc);
       }
-      setSyncState("synced");
+    };
+
+    setSyncState("syncing");
+    try {
+      await syncFn();
+      pendingCloudSyncsRef.current.delete("companies");
+      if (pendingCloudSyncsRef.current.size === 0) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
     } catch (err) {
       console.error("Erro ao sincronizar empresas no Firestore:", err);
-      setSyncState("error");
+      recordCloudFailure(err, "companies", syncFn);
     }
   };
 
   // 1c. Helper to persist professionals
   const handleUpdateProfessionals = async (newProfs: typeof professionals) => {
+    const prevProfs = professionals;
     setProfessionals(newProfs);
     try {
       localStorage.setItem("sst_psicossocial_professionals", JSON.stringify(newProfs));
@@ -976,24 +1108,33 @@ export default function App() {
       console.error("Erro ao salvar profissionais no localStorage:", err);
     }
 
-    setSyncState("syncing");
-    try {
-      const deleted = professionals.filter((op) => !newProfs.some((np) => np.id === op.id));
+    const syncFn = async () => {
+      const deleted = prevProfs.filter((op) => !newProfs.some((np) => np.id === op.id));
       for (const dp of deleted) {
         await deleteProfessionalFromFirestore(dp.id);
       }
       for (const np of newProfs) {
         await saveProfessionalToFirestore(np);
       }
-      setSyncState("synced");
+    };
+
+    setSyncState("syncing");
+    try {
+      await syncFn();
+      pendingCloudSyncsRef.current.delete("professionals");
+      if (pendingCloudSyncsRef.current.size === 0) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
     } catch (err) {
       console.error("Erro ao sincronizar profissionais no Firestore:", err);
-      setSyncState("error");
+      recordCloudFailure(err, "professionals", syncFn);
     }
   };
 
   // 1c-2. Helper to persist evaluators
   const handleUpdateEvaluators = async (newEvaluators: Assessor[]) => {
+    const prevEvaluators = evaluators;
     setEvaluators(newEvaluators);
     try {
       localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify(newEvaluators));
@@ -1001,19 +1142,27 @@ export default function App() {
       console.error("Erro ao salvar avaliadores no localStorage:", err);
     }
 
-    setSyncState("syncing");
-    try {
-      const deleted = evaluators.filter((ev) => !newEvaluators.some((nv) => nv.id === ev.id));
+    const syncFn = async () => {
+      const deleted = prevEvaluators.filter((ev) => !newEvaluators.some((nv) => nv.id === ev.id));
       for (const dev of deleted) {
         await deleteEvaluatorFromFirestore(dev.id);
       }
       for (const nev of newEvaluators) {
         await saveEvaluatorToFirestore(nev);
       }
-      setSyncState("synced");
+    };
+
+    setSyncState("syncing");
+    try {
+      await syncFn();
+      pendingCloudSyncsRef.current.delete("evaluators");
+      if (pendingCloudSyncsRef.current.size === 0) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
     } catch (err) {
       console.error("Erro ao sincronizar avaliadores no Firestore:", err);
-      setSyncState("error");
+      recordCloudFailure(err, "evaluators", syncFn);
     }
   };
 
@@ -1033,27 +1182,43 @@ export default function App() {
       console.error("Erro ao salvar dados da assessora no localStorage:", err);
     }
 
+    const syncFn = async () => {
+      await saveAssessorToFirestore(newAssessor);
+    };
+
     setSyncState("syncing");
     try {
-      await saveAssessorToFirestore(newAssessor);
-      setSyncState("synced");
+      await syncFn();
+      pendingCloudSyncsRef.current.delete("assessor");
+      if (pendingCloudSyncsRef.current.size === 0) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
     } catch (err) {
       console.error("Erro ao sincronizar assessora no Firestore:", err);
-      setSyncState("error");
+      recordCloudFailure(err, "assessor", syncFn);
     }
   };
 
   // 2. Import / save multiple reports to Firestore
   const handleUpdateAllReports = async (updatedReports: Report[]) => {
-    setSyncState("syncing");
-    try {
+    const syncFn = async () => {
       for (const r of updatedReports) {
         await saveReportToFirestore(r);
       }
-      setSyncState("synced");
+    };
+
+    setSyncState("syncing");
+    try {
+      await syncFn();
+      pendingCloudSyncsRef.current.delete("bulk_reports");
+      if (pendingCloudSyncsRef.current.size === 0) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
     } catch (err) {
       console.error("Erro ao salvar relatórios:", err);
-      setSyncState("error");
+      recordCloudFailure(err, "bulk_reports", syncFn);
     }
   };
 
@@ -1066,20 +1231,29 @@ export default function App() {
       console.error("Erro ao persistir catálogo no localStorage:", err);
     }
 
+    const syncFn = async () => {
+      await saveCatalogToFirestore(newCatalog);
+    };
+
     setSyncState("syncing");
     try {
-      await saveCatalogToFirestore(newCatalog);
-      setSyncState("synced");
+      await syncFn();
+      pendingCloudSyncsRef.current.delete("catalog");
+      if (pendingCloudSyncsRef.current.size === 0) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
     } catch (err) {
       console.error("Erro ao sincronizar catálogo no Firestore:", err);
-      setSyncState("error");
+      recordCloudFailure(err, "catalog", syncFn);
     }
   };
 
   // 4. Create new report
   const handleCreateReport = async (newReport: Report) => {
-    // Immediate optimistic local update
-    const updated = [newReport, ...reports];
+    // Immediate optimistic local update using fresh reportsRef
+    const updated = [newReport, ...reportsRef.current];
+    reportsRef.current = updated;
     setReports(updated);
     saveJsonToCache("reports", updated);
     try {
@@ -1089,22 +1263,32 @@ export default function App() {
       console.error("Erro ao salvar relatório localmente:", err);
     }
 
-    setSyncState("syncing");
-    try {
-      await saveReportToFirestore(newReport);
-      setSyncState("synced");
-    } catch (err) {
-      console.error("Erro ao criar relatório no Firestore:", err);
-      setSyncState("error");
-    }
     setCurrentReportId(newReport.id);
     setActiveTab("cadastro"); // Reset to first step on new report
+
+    const syncFn = async () => {
+      await saveReportToFirestore(newReport);
+    };
+
+    setSyncState("syncing");
+    try {
+      await syncFn();
+      pendingCloudSyncsRef.current.delete(`report:${newReport.id}`);
+      if (pendingCloudSyncsRef.current.size === 0) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
+    } catch (err) {
+      console.error("Erro ao criar relatório no Firestore:", err);
+      recordCloudFailure(err, `report:${newReport.id}`, syncFn);
+    }
   };
 
   // 5. Delete report
   const handleDeleteReport = async (id: string) => {
-    // Immediate optimistic local update
-    const updated = reports.filter((r) => r.id !== id);
+    // Immediate optimistic local update using fresh reportsRef
+    const updated = reportsRef.current.filter((r) => r.id !== id);
+    reportsRef.current = updated;
     setReports(updated);
     saveJsonToCache("reports", updated);
     try {
@@ -1114,34 +1298,48 @@ export default function App() {
       console.error("Erro ao remover relatório localmente:", err);
     }
 
-    setSyncState("syncing");
-    try {
-      await deleteReportFromFirestore(id);
-      setSyncState("synced");
-    } catch (err) {
-      console.error("Erro ao deletar relatório no Firestore:", err);
-      setSyncState("error");
+    if (latestReportToSaveRef.current?.id === id) {
+      latestReportToSaveRef.current = null;
     }
     if (currentReportId === id) {
       setCurrentReportId(null);
     }
+
+    const syncFn = async () => {
+      await deleteReportFromFirestore(id);
+    };
+
+    setSyncState("syncing");
+    try {
+      await syncFn();
+      pendingCloudSyncsRef.current.delete(`delete_report:${id}`);
+      if (pendingCloudSyncsRef.current.size === 0) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
+    } catch (err) {
+      console.error("Erro ao deletar relatório no Firestore:", err);
+      recordCloudFailure(err, `delete_report:${id}`, syncFn);
+    }
   };
 
-  // 6. Update current report attributes
+  // 6. Update current report attributes (uses reportsRef so rapid updates never clobber each other)
   const handleUpdateCurrentReport = (updatedFields: Partial<Report>) => {
     if (!currentReportId) return;
 
-    const current = reports.find((r) => r.id === currentReportId);
+    const latestReports = reportsRef.current;
+    const current = latestReports.find((r) => r.id === currentReportId);
     if (!current) return;
 
-    const updatedReport = {
+    const updatedReport: Report = {
       ...current,
       ...updatedFields,
       updatedAt: new Date().toISOString(),
     };
 
     // Immediate optimistic local update for fluid UI experience
-    const updatedReports = reports.map((r) => (r.id === currentReportId ? updatedReport : r));
+    const updatedReports = latestReports.map((r) => (r.id === currentReportId ? updatedReport : r));
+    reportsRef.current = updatedReports;
     setReports(updatedReports);
     saveJsonToCache("reports", updatedReports);
     try {
@@ -1153,7 +1351,7 @@ export default function App() {
 
     // Schedule debounced Firestore save
     latestReportToSaveRef.current = updatedReport;
-    setSyncState("syncing");
+    setSyncState(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "syncing");
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -1164,15 +1362,32 @@ export default function App() {
       const reportToSave = latestReportToSaveRef.current;
       if (!reportToSave) return;
 
+      if (!auth.currentUser) {
+        recordCloudFailure(
+          new Error("unauthenticated"),
+          `report:${reportToSave.id}`,
+          async () => saveReportToFirestore(latestReportToSaveRef.current || reportToSave)
+        );
+        return;
+      }
+
       try {
         await saveReportToFirestore(reportToSave);
         if (latestReportToSaveRef.current === reportToSave) {
           latestReportToSaveRef.current = null;
         }
-        setSyncState("synced");
+        pendingCloudSyncsRef.current.delete(`report:${reportToSave.id}`);
+        if (pendingCloudSyncsRef.current.size === 0 && !latestReportToSaveRef.current) {
+          setSyncState("synced");
+          setSyncErrorDetail(null);
+        }
       } catch (err) {
         console.error("Erro ao atualizar relatório no Firestore:", err);
-        setSyncState("error");
+        recordCloudFailure(
+          err,
+          `report:${reportToSave.id}`,
+          async () => saveReportToFirestore(latestReportToSaveRef.current || reportToSave)
+        );
       }
     }, 1000); // 1-second debounce
   };
@@ -1546,41 +1761,66 @@ export default function App() {
           </div>
 
           {/* Saved Status Indicators */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Firebase Sync Indicator */}
-            <div className={`flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs ${
-              syncState === "synced" 
-                ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
-                : syncState === "syncing"
-                ? "bg-blue-50 text-blue-700 border-blue-100 animate-pulse"
-                : "bg-rose-50 text-rose-700 border-rose-150"
-            }`}>
-              {syncState === "synced" ? (
-                <>
-                  <Cloud className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span className="hidden xs:inline">Nuvem Ativa</span>
-                </>
-              ) : syncState === "syncing" ? (
-                <>
-                  <Cloud className="w-3.5 h-3.5 text-blue-500 animate-bounce shrink-0" />
-                  <span className="hidden xs:inline">Salvando na Nuvem...</span>
-                </>
-              ) : (
-                <>
-                  <CloudOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                  <span className="hidden xs:inline">Erro na Nuvem</span>
-                </>
-              )}
-            </div>
+            {syncState === "synced" ? (
+              <div className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-emerald-50 text-emerald-700 border-emerald-100 whitespace-nowrap shrink-0">
+                <Cloud className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span className="hidden xs:inline">Nuvem Ativa</span>
+              </div>
+            ) : syncState === "syncing" ? (
+              <div className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-blue-50 text-blue-700 border-blue-100 animate-pulse whitespace-nowrap shrink-0">
+                <Cloud className="w-3.5 h-3.5 text-blue-500 animate-bounce shrink-0" />
+                <span className="hidden xs:inline">Salvando na Nuvem...</span>
+              </div>
+            ) : syncState === "offline" ? (
+              <button
+                type="button"
+                onClick={handleRetryCloudSync}
+                title={syncErrorDetail || "Sem conexão com a internet. Clique para tentar sincronizar."}
+                className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 transition cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <CloudOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="hidden xs:inline">Sem Conexão</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleRetryCloudSync}
+                title={syncErrorDetail || "Erro ao sincronizar na nuvem. Clique para reenviar."}
+                className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 transition cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <CloudOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                <span className="hidden xs:inline">Erro na Nuvem · Reenviar</span>
+                <RefreshCw className="w-3 h-3 text-rose-500 shrink-0" />
+              </button>
+            )}
 
             {currentReport && lastSaved && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">
                 <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                 <span className="hidden md:inline">Salvo localmente às</span> {lastSaved}
               </div>
             )}
           </div>
         </header>
+
+        {/* Banner discreto de diagnóstico apenas quando houver falha ativa na nuvem */}
+        {syncState === "error" && syncErrorDetail && (
+          <div className="bg-rose-50 border-b border-rose-200 px-6 py-2 flex items-center justify-between gap-3 text-xs text-rose-800 print:hidden">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span className="font-semibold truncate">{syncErrorDetail}</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleRetryCloudSync}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <RefreshCw className="w-3 h-3" /> Tentar novamente
+            </button>
+          </div>
+        )}
 
         {/* CONTEÚDO DA PÁGINA */}
         <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto print:p-0 print:max-w-none">
