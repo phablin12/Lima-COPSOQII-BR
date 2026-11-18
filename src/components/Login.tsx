@@ -34,10 +34,6 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       if (fromStore && fromStore !== "[OMITTED_IMAGE_FOR_CACHE]") {
         return fromStore;
       }
-      const fastLogo = localStorage.getItem("sst_fast_assessor_logo");
-      if (fastLogo && fastLogo !== "[OMITTED_IMAGE_FOR_CACHE]") {
-        return fastLogo;
-      }
       const stored = localStorage.getItem("sst_psicossocial_assessor");
       if (stored) {
         const parsed = JSON.parse(stored);

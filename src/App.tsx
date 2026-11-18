@@ -80,43 +80,51 @@ import {
   loadEvaluatorsFromFirestore
 } from "./firebase";
 import { Login } from "./components/Login";
-import { getImageSync, getImageAsync, saveImageToCache } from "./imageStore";
+import {
+  getImageSync,
+  getImageAsync,
+  saveImageToCache,
+  saveJsonToCache,
+  getJsonFromCache,
+} from "./imageStore";
 
-// Utility to prune large base64 image strings ONLY from bulky report logs in localStorage cache
-function pruneLargeStrings(obj: any, keyName?: string): any {
+// Utility to prune large base64 image strings from localStorage JSON caches (full-fidelity copies live in IndexedDB + Firestore)
+function pruneLargeStrings(
+  obj: any,
+  keyName?: string,
+  options?: { isAssessorSettings?: boolean }
+): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === "string") {
-    // Preserve logos, favicons, cover images, signatures, and small images up to 3MB
-    const isBrandKey = 
-      keyName === "logo" || 
-      keyName === "companyLogo" || 
-      keyName === "clientLogo" || 
-      keyName === "editLogo" || 
-      keyName === "evaluatorLogo" || 
-      keyName === "favicon" || 
-      keyName === "coverImage" ||
-      keyName === "defaultCoverImage" || 
-      keyName === "signatureUrl";
-
-    if (isBrandKey) {
-      if (obj.length < 3000000) {
-        return obj;
+    const isImageData = obj.startsWith("data:image/") || obj.includes(";base64,");
+    if (options?.isAssessorSettings) {
+      // Assessor logo & cover live in imageStore (IndexedDB + single sst_img_* slot); avoid duplicating them in sst_psicossocial_assessor
+      if ((keyName === "logo" || keyName === "defaultCoverImage") && obj.length > 25000) {
+        return "[OMITTED_IMAGE_FOR_CACHE]";
       }
+      if (isImageData && obj.length > 60000) {
+        return "";
+      }
+      if (obj.length > 250000) {
+        return "";
+      }
+      return obj;
     }
-    // Only prune non-brand data images that are over 600KB
-    if (obj.length > 600000 || ((obj.startsWith("data:image/") || obj.includes(";base64,")) && !isBrandKey && obj.length > 80000)) {
-      return "[OMITTED_IMAGE_FOR_CACHE]";
+
+    // For report/company/evaluator arrays in localStorage, strip embedded images > 30KB (full copies are in IndexedDB + Firestore)
+    if ((isImageData && obj.length > 30000) || obj.length > 150000) {
+      return "";
     }
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map((item) => pruneLargeStrings(item, keyName));
+    return obj.map((item) => pruneLargeStrings(item, keyName, options));
   }
   if (typeof obj === "object") {
     const pruned: any = {};
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        pruned[key] = pruneLargeStrings(obj[key], key);
+        pruned[key] = pruneLargeStrings(obj[key], key, options);
       }
     }
     return pruned;
@@ -124,74 +132,94 @@ function pruneLargeStrings(obj: any, keyName?: string): any {
   return obj;
 }
 
-// Proactive storage cleanup on startup to shrink ONLY bloated legacy report history without touching company branding
+// Proactive storage cleanup on startup to shrink any bloated legacy caches and free quota before app mounts
 function proactiveStorageCleanup() {
   try {
-    const val = localStorage.getItem("sst_psicossocial_reports");
-    if (val && (val.startsWith("{") || val.startsWith("["))) {
-      try {
-        const parsed = JSON.parse(val);
-        const pruned = pruneLargeStrings(parsed);
-        const prunedStr = JSON.stringify(pruned);
-        if (prunedStr.length < val.length) {
-          localStorage.setItem("sst_psicossocial_reports", prunedStr);
-          console.log(`[Proactive Storage Cleanup] Shrunk sst_psicossocial_reports from ${val.length} to ${prunedStr.length} characters.`);
+    // Clean up legacy duplicated fast keys if any remain
+    try {
+      localStorage.removeItem("sst_fast_assessor_logo");
+      localStorage.removeItem("sst_fast_cover_image");
+    } catch {
+      // ignore
+    }
+
+    const targets: Array<{ key: string; isAssessor?: boolean }> = [
+      { key: "sst_psicossocial_reports" },
+      { key: "sst_psicossocial_companies" },
+      { key: "sst_psicossocial_evaluators" },
+      { key: "sst_psicossocial_assessor", isAssessor: true },
+    ];
+
+    for (const { key, isAssessor } of targets) {
+      const val = localStorage.getItem(key);
+      if (val && (val.startsWith("{") || val.startsWith("["))) {
+        try {
+          const parsed = JSON.parse(val);
+          const pruned = pruneLargeStrings(parsed, undefined, { isAssessorSettings: isAssessor });
+          const prunedStr = JSON.stringify(pruned);
+          if (prunedStr.length < val.length) {
+            localStorage.setItem(key, prunedStr);
+          }
+        } catch {
+          // Ignore parse errors
         }
-      } catch (e) {
-        // Ignore parse errors
       }
     }
-  } catch (e) {
-    console.error("Erro durante limpeza proativa do localStorage:", e);
+  } catch {
+    // Ignore proactive cleanup errors
   }
 }
 
-// Run the proactive storage cleanup on reports only
-try {
-  proactiveStorageCleanup();
-} catch (e) {
-  console.error("Falha ao executar proactiveStorageCleanup:", e);
-}
+// Run proactive storage cleanup before hydrating state
+proactiveStorageCleanup();
 
-// Safe localStorage wrapper to prevent QuotaExceededError crashes
+// Safe localStorage wrapper to prune bloated JSON payloads and handle quota gracefully without noisy error spam
 try {
   const originalSetItem = localStorage.setItem;
   localStorage.setItem = function (key: string, value: string) {
-    try {
-      let prunedValue = value;
-      // Protected keys must never be pruned or stripped
-      const isProtected = 
-        key === "sst_psicossocial_assessor" || 
-        key.startsWith("sst_fast_") || 
-        key.startsWith("sst_img_") || 
-        key === "sst_cached_user";
+    let prunedValue = value;
+    const isProtected =
+      key.startsWith("sst_img_") ||
+      key.startsWith("sst_nav_") ||
+      key === "sst_cached_user";
 
-      // Prune large images for local storage fallback if the value is JSON
-      if (!isProtected && value && (value.startsWith("{") || value.startsWith("["))) {
-        try {
-          const parsed = JSON.parse(value);
-          const pruned = pruneLargeStrings(parsed);
-          prunedValue = JSON.stringify(pruned);
-        } catch (e) {
-          // Fallback to original value if parsing fails
-        }
+    if (!isProtected && value && (value.startsWith("{") || value.startsWith("["))) {
+      try {
+        const parsed = JSON.parse(value);
+        const pruned = pruneLargeStrings(parsed, undefined, {
+          isAssessorSettings: key === "sst_psicossocial_assessor",
+        });
+        prunedValue = JSON.stringify(pruned);
+      } catch {
+        // Fallback to original value if parsing fails
       }
+    }
+
+    try {
       originalSetItem.call(localStorage, key, prunedValue);
     } catch (error: any) {
-      console.warn(`localStorage.setItem falhou para a chave "${key}":`, error);
-      if (error.name === "QuotaExceededError" || error.code === 22 || error.code === 1014) {
+      if (error?.name === "QuotaExceededError" || error?.code === 22 || error?.code === 1014) {
+        // For optional image slots, skip silently (IndexedDB already holds the image)
+        if (key.startsWith("sst_img_")) {
+          return;
+        }
         try {
-          // Remove non-critical items to try to recover
+          // Evict expendable cache items to make room for current write
           localStorage.removeItem("sst_psicossocial_catalog");
-          originalSetItem.call(localStorage, key, value);
-        } catch (retryError) {
-          console.warn("Quota do localStorage totalmente excedida. Operação de escrita ignorada para a chave:", key);
+          localStorage.removeItem("sst_fast_assessor_logo");
+          localStorage.removeItem("sst_fast_cover_image");
+          if (key !== "sst_psicossocial_reports") {
+            localStorage.removeItem("sst_psicossocial_reports");
+          }
+          originalSetItem.call(localStorage, key, prunedValue);
+        } catch {
+          // Quota still exceeded; rely on IndexedDB + Firestore without crashing or spamming warnings
         }
       }
     }
   };
-} catch (e) {
-  console.error("Falha ao aplicar patch no localStorage.setItem:", e);
+} catch {
+  // Ignore patch failure in restricted environments
 }
 
 // Helper to read initial navigation state from URL query parameters or localStorage
@@ -341,6 +369,7 @@ export default function App() {
 
   // Seeding check refs to prevent deleted items from reappearing when database is empty
   const hasCheckedReportsSeedingRef = useRef(false);
+  const hasFirestoreReportsLoadedRef = useRef(false);
   const hasCheckedCompaniesSeedingRef = useRef(false);
   const hasCheckedProfessionalsSeedingRef = useRef(false);
   const hasCheckedEvaluatorsSeedingRef = useRef(false);
@@ -434,8 +463,8 @@ export default function App() {
     };
 
     try {
-      const fastLogo = getImageSync("assessor_logo") || localStorage.getItem("sst_fast_assessor_logo");
-      const fastCover = getImageSync("cover_image") || localStorage.getItem("sst_fast_cover_image");
+      const fastLogo = getImageSync("assessor_logo");
+      const fastCover = getImageSync("cover_image");
       const stored = localStorage.getItem("sst_psicossocial_assessor");
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -574,7 +603,7 @@ export default function App() {
         });
       }
 
-      // Restore full-fidelity logo and cover from IndexedDB if needed
+      // Restore full-fidelity logo, cover, and full report snapshots from IndexedDB immediately
       getImageAsync("assessor_logo").then((logo) => {
         if (logo) {
           setAssessor((prev) => (!prev.logo || prev.logo === "[OMITTED_IMAGE_FOR_CACHE]" ? { ...prev, logo } : prev));
@@ -583,6 +612,16 @@ export default function App() {
       getImageAsync("cover_image").then((cover) => {
         if (cover) {
           setAssessor((prev) => (!prev.defaultCoverImage || prev.defaultCoverImage === "[OMITTED_IMAGE_FOR_CACHE]" ? { ...prev, defaultCoverImage: cover } : prev));
+        }
+      });
+      getJsonFromCache<Report[]>("reports").then((cachedReports) => {
+        if (
+          !hasFirestoreReportsLoadedRef.current &&
+          cachedReports &&
+          Array.isArray(cachedReports) &&
+          cachedReports.length > 0
+        ) {
+          setReports(cachedReports);
         }
       });
     } catch (err) {
@@ -628,27 +667,37 @@ export default function App() {
 
         if (list.length > 0) {
           hasCheckedReportsSeedingRef.current = true;
-          // Sort reports Consistently across all PCs by updatedAt / createdAt descending
-          list.sort((a, b) => {
+          hasFirestoreReportsLoadedRef.current = true;
+
+          // Keep any newer pending local edits that haven't finished echoing back from Firestore
+          const pending = latestReportToSaveRef.current;
+          const mergedList = pending
+            ? list.map((item) =>
+                item.id === pending.id && (pending.updatedAt || "") > (item.updatedAt || "")
+                  ? pending
+                  : item
+              )
+            : list;
+
+          // Sort reports consistently across all PCs by updatedAt / createdAt descending
+          mergedList.sort((a, b) => {
             const dateA = a.updatedAt || a.createdAt || "";
             const dateB = b.updatedAt || b.createdAt || "";
             return dateB.localeCompare(dateA);
           });
-          setReports(list);
-          localStorage.setItem("sst_psicossocial_reports", JSON.stringify(list));
+          setReports(mergedList);
+          saveJsonToCache("reports", mergedList);
+          localStorage.setItem("sst_psicossocial_reports", JSON.stringify(mergedList));
         } else {
-          // Firestore is empty - try to seed from local storage if available, but keep local state
+          // Firestore is empty - try to seed from IndexedDB or local storage if available, keeping local state
           if (!hasCheckedReportsSeedingRef.current) {
             hasCheckedReportsSeedingRef.current = true;
+            const cachedIdb = await getJsonFromCache<Report[]>("reports");
             const stored = localStorage.getItem("sst_psicossocial_reports");
-            if (stored) {
-              const parsed = JSON.parse(stored) as Report[];
-              if (parsed && parsed.length > 0) {
-                setReports(parsed);
-                uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, parsed, saveReportToFirestore);
-              } else {
-                setReports([]);
-              }
+            const parsed = (cachedIdb && cachedIdb.length > 0) ? cachedIdb : (stored ? (JSON.parse(stored) as Report[]) : []);
+            if (parsed && parsed.length > 0) {
+              setReports(parsed);
+              uploadLocalIfCollectionIsEmpty(REPORTS_COLLECTION, parsed, saveReportToFirestore);
             } else {
               setReports([]);
             }
@@ -868,6 +917,7 @@ export default function App() {
             saveImageToCache("cover_image", data.defaultCoverImage);
           }
           setAssessor(data);
+          saveJsonToCache("assessor", data);
           localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(data));
         } else {
           const storedAssessor = localStorage.getItem("sst_psicossocial_assessor");
@@ -976,6 +1026,7 @@ export default function App() {
       saveImageToCache("cover_image", newAssessor.defaultCoverImage);
     }
     setAssessor(newAssessor);
+    saveJsonToCache("assessor", newAssessor);
     try {
       localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(newAssessor));
     } catch (err) {
@@ -1030,6 +1081,7 @@ export default function App() {
     // Immediate optimistic local update
     const updated = [newReport, ...reports];
     setReports(updated);
+    saveJsonToCache("reports", updated);
     try {
       localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updated));
       setLastSaved(new Date().toLocaleTimeString());
@@ -1054,6 +1106,7 @@ export default function App() {
     // Immediate optimistic local update
     const updated = reports.filter((r) => r.id !== id);
     setReports(updated);
+    saveJsonToCache("reports", updated);
     try {
       localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updated));
       setLastSaved(new Date().toLocaleTimeString());
@@ -1090,6 +1143,7 @@ export default function App() {
     // Immediate optimistic local update for fluid UI experience
     const updatedReports = reports.map((r) => (r.id === currentReportId ? updatedReport : r));
     setReports(updatedReports);
+    saveJsonToCache("reports", updatedReports);
     try {
       localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updatedReports));
       setLastSaved(new Date().toLocaleTimeString());
@@ -1106,11 +1160,15 @@ export default function App() {
     }
 
     saveTimeoutRef.current = setTimeout(async () => {
+      saveTimeoutRef.current = null;
       const reportToSave = latestReportToSaveRef.current;
       if (!reportToSave) return;
 
       try {
         await saveReportToFirestore(reportToSave);
+        if (latestReportToSaveRef.current === reportToSave) {
+          latestReportToSaveRef.current = null;
+        }
         setSyncState("synced");
       } catch (err) {
         console.error("Erro ao atualizar relatório no Firestore:", err);

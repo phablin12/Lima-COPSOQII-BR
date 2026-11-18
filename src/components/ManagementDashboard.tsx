@@ -66,10 +66,6 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
     if (fromStore && fromStore !== "[OMITTED_IMAGE_FOR_CACHE]") {
       return fromStore;
     }
-    try {
-      const fast = localStorage.getItem("sst_fast_assessor_logo");
-      if (fast && fast !== "[OMITTED_IMAGE_FOR_CACHE]") return fast;
-    } catch (e) {}
     return "";
   }, [assessor.logo]);
 

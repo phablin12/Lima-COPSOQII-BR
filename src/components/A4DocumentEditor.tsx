@@ -151,6 +151,10 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
       }
 
       if (value !== lastEmitted && normalizedHtml !== lastEmitted) {
+        // Never overwrite DOM while the user is actively typing inside this chapter
+        if (document.activeElement === editorEl) {
+          return;
+        }
         const currentClean = serializeEditorHtml(editorEl);
         if (normalizedHtml !== currentClean) {
           editorEl.innerHTML = normalizedHtml;
@@ -321,6 +325,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   });
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  const stackWrapperRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
   const variablesMenuRef = useRef<HTMLDivElement>(null);
@@ -334,6 +339,8 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   const layoutRafRef = useRef<number | null>(null);
   const scrollSyncRafRef = useRef<number | null>(null);
   const programmaticScrollUntilRef = useRef<number>(0);
+  const isPaginatingRef = useRef<boolean>(false);
+  const lastHandledScrollNonceRef = useRef<number>(0);
 
   const marginPx = MARGIN_PX_MAP[pageMarginCm] || 76;
   const indentCss = INDENT_CSS_MAP[paragraphIndent] || "1.5cm";
@@ -403,20 +410,64 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   const runPaginationLayout = useCallback(() => {
     const flowEl = flowRef.current;
     const stackEl = stackRef.current;
+    const viewportEl = viewportRef.current;
     if (!flowEl || !stackEl) return;
 
-    const stackRect = stackEl.getBoundingClientRect();
     const currentScale = scale || 1;
     const maxPrintableHeight = A4_HEIGHT - marginPx * 2;
 
+    // Capture current viewport scroll and visual anchor element BEFORE resetting pagination margins
+    const prevScrollTop = viewportEl ? viewportEl.scrollTop : 0;
+    let anchorEl: HTMLElement | null = null;
+    let beforeAnchorTop = 0;
+
+    if (viewportEl) {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl && flowEl.contains(activeEl)) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && activeEl.contains(sel.anchorNode)) {
+          let curr: Node | null = sel.anchorNode;
+          while (curr && curr !== activeEl) {
+            if (curr.parentNode === activeEl && curr.nodeType === Node.ELEMENT_NODE) {
+              anchorEl = curr as HTMLElement;
+              break;
+            }
+            curr = curr.parentNode;
+          }
+        }
+        if (!anchorEl) {
+          anchorEl = activeEl.closest("section[data-chapter-block]") as HTMLElement | null;
+        }
+      }
+
+      if (!anchorEl) {
+        const vpTop = viewportEl.getBoundingClientRect().top;
+        const sections = Array.from(
+          flowEl.querySelectorAll(":scope > section[data-chapter-block]")
+        ) as HTMLElement[];
+        for (const sec of sections) {
+          if (sec.getBoundingClientRect().bottom > vpTop + 20) {
+            anchorEl = sec;
+            break;
+          }
+        }
+      }
+
+      if (anchorEl) {
+        beforeAnchorTop = anchorEl.getBoundingClientRect().top;
+      }
+    }
+
+    isPaginatingRef.current = true;
+
     const getRelTop = (node: HTMLElement) => {
-      const rect = node.getBoundingClientRect();
-      return (rect.top - stackRect.top) / currentScale;
+      const sTop = stackEl.getBoundingClientRect().top;
+      return (node.getBoundingClientRect().top - sTop) / currentScale;
     };
 
     const getRelBottom = (node: HTMLElement) => {
-      const rect = node.getBoundingClientRect();
-      return (rect.bottom - stackRect.top) / currentScale;
+      const sTop = stackEl.getBoundingClientRect().top;
+      return (node.getBoundingClientRect().bottom - sTop) / currentScale;
     };
 
     // 1. Reset previously injected pagination spacing across all chapters
@@ -665,6 +716,30 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
 
     const bottomPageIndex = Math.floor(Math.max(0, maxContentBottom - 1) / PAGE_STEP);
     const computedPages = Math.max(1, Math.max(highestPageIndex, bottomPageIndex) + 1);
+    const newStackHeight = computedPages * A4_HEIGHT + Math.max(0, computedPages - 1) * PAGE_GAP;
+
+    // Synchronously update stack heights before restoring scrollTop so new pages never get clamped
+    stackEl.style.height = `${newStackHeight}px`;
+    if (stackWrapperRef.current) {
+      stackWrapperRef.current.style.height = `${newStackHeight * currentScale}px`;
+    }
+
+    if (viewportEl) {
+      if (anchorEl && anchorEl.isConnected) {
+        const afterAnchorTop = anchorEl.getBoundingClientRect().top;
+        const drift = afterAnchorTop - beforeAnchorTop;
+        const targetScroll = Math.max(0, prevScrollTop + drift);
+        if (Math.abs(viewportEl.scrollTop - targetScroll) > 0.5) {
+          viewportEl.scrollTop = targetScroll;
+        }
+      } else if (Math.abs(viewportEl.scrollTop - prevScrollTop) > 0.5) {
+        viewportEl.scrollTop = prevScrollTop;
+      }
+    }
+
+    requestAnimationFrame(() => {
+      isPaginatingRef.current = false;
+    });
 
     if (computedPages !== pageCountRef.current) {
       pageCountRef.current = computedPages;
@@ -706,9 +781,12 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
     };
   }, []);
 
-  // Scroll smoothly to requested chapter after A4 pagination layout commits
+  // Scroll smoothly to requested chapter ONLY when a new navigation nonce arrives
   useEffect(() => {
     if (!scrollToChapterRequest) return;
+    if (scrollToChapterRequest.nonce === lastHandledScrollNonceRef.current) return;
+    lastHandledScrollNonceRef.current = scrollToChapterRequest.nonce;
+
     const targetId = scrollToChapterRequest.id;
 
     // Clear stale selection pointing to another chapter so toolbar commands target the new chapter
@@ -781,9 +859,12 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
 
   // Track visible page & active chapter while user scrolls freely through the full report
   const handleViewportScroll = useCallback(() => {
+    if (isPaginatingRef.current) return;
     if (scrollSyncRafRef.current !== null) return;
     scrollSyncRafRef.current = requestAnimationFrame(() => {
       scrollSyncRafRef.current = null;
+      if (isPaginatingRef.current) return;
+
       const viewportEl = viewportRef.current;
       const stackEl = stackRef.current;
       const flowEl = flowRef.current;
@@ -798,6 +879,18 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
       setCurrentVisiblePage(visPage);
 
       if (Date.now() < programmaticScrollUntilRef.current) return;
+
+      // Never switch active chapter away from an actively focused chapter editor while it remains visible
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl && flowEl.contains(activeEl)) {
+        const focusedSection = activeEl.closest("section[data-chapter-block]") as HTMLElement | null;
+        if (focusedSection) {
+          const fr = focusedSection.getBoundingClientRect();
+          if (fr.bottom > vpRect.top + 24 && fr.top < vpRect.bottom - 24) {
+            return;
+          }
+        }
+      }
 
       const sections = Array.from(
         flowEl.querySelectorAll(":scope > section[data-chapter-block]")
@@ -1570,9 +1663,11 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
       <div
         ref={viewportRef}
         onScroll={handleViewportScroll}
+        style={{ overflowAnchor: "none" }}
         className="bg-[#e5e7eb] py-8 px-4 sm:px-6 overflow-y-auto overflow-x-auto h-[calc(100vh-230px)] min-h-[640px] flex justify-center"
       >
         <div
+          ref={stackWrapperRef}
           style={{
             width: `${A4_WIDTH * scale}px`,
             height: `${totalStackHeight * scale}px`,

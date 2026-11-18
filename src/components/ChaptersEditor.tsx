@@ -130,6 +130,8 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   const [dropPosition, setDropPosition] = useState<"before" | "after">("after");
 
   const customChaptersList = report.customChapters || [];
+  const reportRef = useRef(report);
+  reportRef.current = report;
 
   // Compute unified dynamic chapters
   const unifiedChapters = getUnifiedChapters(report);
@@ -167,17 +169,19 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
 
   const handleChapterTextChange = useCallback(
     (targetChapterId: string, text: string) => {
+      const latestReport = reportRef.current;
       if (targetChapterId === "consideracoes") {
         onChange({ finalConsiderations: text });
       } else if (["introducao", "fundamentacao", "metodologia", "referencias"].includes(targetChapterId)) {
         onChange({
           chapters: {
-            ...report.chapters,
+            ...latestReport.chapters,
             [targetChapterId]: text,
           },
         });
       } else {
-        const updatedCustoms = customChaptersList.map((c) => {
+        const latestCustoms = latestReport.customChapters || [];
+        const updatedCustoms = latestCustoms.map((c) => {
           if (c.id === targetChapterId) {
             return { ...c, text };
           }
@@ -188,7 +192,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
 
       triggerSavedIndicator();
     },
-    [onChange, report.chapters, customChaptersList, triggerSavedIndicator]
+    [onChange, triggerSavedIndicator]
   );
 
   const continuousChapters = useMemo<ContinuousChapterItem[]>(() => {
@@ -419,8 +423,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     e.stopPropagation();
     const { chaptersOrder, customChapters } = moveChapterUpDown(report, chapterId, direction);
     onChange({ chaptersOrder, customChapters });
-    setShowSavedNotification(true);
-    setTimeout(() => setShowSavedNotification(false), 1200);
+    triggerSavedIndicator();
   };
 
   // HTML5 Drag and Drop handlers
@@ -464,8 +467,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     );
 
     onChange({ chaptersOrder, customChapters });
-    setShowSavedNotification(true);
-    setTimeout(() => setShowSavedNotification(false), 1500);
+    triggerSavedIndicator();
   };
 
   const handleDragEnd = () => {
@@ -887,7 +889,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
             chapters={continuousChapters}
             activeChapterId={effectiveActiveId}
             scrollToChapterRequest={scrollToChapterRequest}
-            onActiveChapterChange={(chId) => setActiveChapterId(chId)}
+            onActiveChapterChange={setActiveChapterId}
             onChangeChapterText={handleChapterTextChange}
             paragraphIndent={report.paragraphIndent || "medium"}
             onChangeIndent={(indent) => onChange({ paragraphIndent: indent })}
