@@ -15,7 +15,7 @@ import { ReportPhases } from "./ReportPhases";
 import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
 import { getImageSync } from "../imageStore";
-import { isHtmlContent, sanitizeRichHtml } from "../richTextUtils";
+import { hasRichTextContent, isHtmlContent, sanitizeRichHtml } from "../richTextUtils";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -335,7 +335,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   };
 
   const renderIndentedText = (text: string) => {
-    if (!text) return null;
+    if (!hasRichTextContent(text)) return null;
     const resolvedText = replaceTemplateVariables(text, report, activeAssessor);
     const indent = report.paragraphIndent || "medium";
     const indentCm = indent === "medium" ? "1.5cm" : indent === "large" ? "2.5cm" : "0cm";
@@ -440,7 +440,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
       (sub) => sub.level > 1 && (sub.rootChapterId === rootId || sub.parentChapterId === rootId)
     );
 
-  const renderCustomChapterItem = (ch: UnifiedChapter | CustomChapter) => {
+  const renderCustomChapterItem = (ch: UnifiedChapter | CustomChapter, compactTop = false) => {
     const isUnified = "fullTitle" in ch;
     const level = ch.level || 2;
     const title = isUnified ? (ch as UnifiedChapter).fullTitle : (ch.title || "");
@@ -460,7 +460,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
     if (level === 2) {
       return (
-        <div key={ch.id} data-print-subpage-target={ch.id} className="space-y-3 pt-6 border-t border-slate-200">
+        <div
+          key={ch.id}
+          data-print-subpage-target={ch.id}
+          className={compactTop ? "space-y-2.5 pt-1" : "space-y-3 pt-6 border-t border-slate-200"}
+        >
           <h4 className="text-base font-bold text-slate-900 uppercase tracking-wide">
             {title}
           </h4>
@@ -535,6 +539,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
   const renderIntroducao = (ch: UnifiedChapter) => {
     const subchapters = getSubchaptersForRoot(ch.id);
+    const parentEmpty = !hasRichTextContent(report.chapters.introducao);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="introducao" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -542,13 +547,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           {ch.fullTitle}
         </h3>
         {renderIndentedText(report.chapters.introducao)}
-        {subchapters.map(renderCustomChapterItem)}
+        {subchapters.map((sub, idx) => renderCustomChapterItem(sub, idx === 0 && parentEmpty))}
       </div>
     );
   };
 
   const renderFundamentacao = (ch: UnifiedChapter) => {
     const subchapters = getSubchaptersForRoot(ch.id);
+    const parentEmpty = !hasRichTextContent(report.chapters.fundamentacao);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="fundamentacao" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -556,13 +562,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           {ch.fullTitle}
         </h3>
         {renderIndentedText(report.chapters.fundamentacao)}
-        {subchapters.map(renderCustomChapterItem)}
+        {subchapters.map((sub, idx) => renderCustomChapterItem(sub, idx === 0 && parentEmpty))}
       </div>
     );
   };
 
   const renderMetodologia = (ch: UnifiedChapter) => {
     const subchapters = getSubchaptersForRoot(ch.id);
+    const parentEmpty = !hasRichTextContent(report.chapters.metodologia);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="metodologia" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -570,13 +577,14 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           {ch.fullTitle}
         </h3>
         {renderIndentedText(report.chapters.metodologia)}
-        {subchapters.map(renderCustomChapterItem)}
+        {subchapters.map((sub, idx) => renderCustomChapterItem(sub, idx === 0 && parentEmpty))}
       </div>
     );
   };
 
   const renderConsideracoes = (ch: UnifiedChapter) => {
     const subchapters = getSubchaptersForRoot(ch.id);
+    const parentEmpty = !hasRichTextContent(report.finalConsiderations);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="consideracoes" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -584,29 +592,33 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           {ch.fullTitle}
         </h3>
         {renderIndentedText(report.finalConsiderations)}
-        {subchapters.map(renderCustomChapterItem)}
+        {subchapters.map((sub, idx) => renderCustomChapterItem(sub, idx === 0 && parentEmpty))}
       </div>
     );
   };
 
   const renderReferencias = (ch: UnifiedChapter) => {
     const subchapters = getSubchaptersForRoot(ch.id);
+    const parentEmpty = !hasRichTextContent(report.chapters.referencias);
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target="referencias" className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
         <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
           {ch.fullTitle}
         </h3>
-        <div className="text-xs font-mono">
-          {renderIndentedText(report.chapters.referencias)}
-        </div>
-        {subchapters.map(renderCustomChapterItem)}
+        {!parentEmpty && (
+          <div className="text-xs font-mono">
+            {renderIndentedText(report.chapters.referencias)}
+          </div>
+        )}
+        {subchapters.map((sub, idx) => renderCustomChapterItem(sub, idx === 0 && parentEmpty))}
       </div>
     );
   };
 
   const renderCustomMainChapter = (ch: UnifiedChapter) => {
     const subchapters = getSubchaptersForRoot(ch.id);
+    const parentEmpty = !hasRichTextContent(ch.text || "");
     return (
       <div key={ch.id} data-print-section="true" data-print-page-target={ch.id} className="space-y-4 print:pt-12 page-break-before">
         {renderHeader(ch.fullTitle)}
@@ -614,7 +626,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
           {ch.fullTitle}
         </h3>
         {renderIndentedText(ch.text || "")}
-        {subchapters.map(renderCustomChapterItem)}
+        {subchapters.map((sub, idx) => renderCustomChapterItem(sub, idx === 0 && parentEmpty))}
       </div>
     );
   };
@@ -1175,7 +1187,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                   />
                   {phaseSubchapters.length > 0 && (
                     <div className="space-y-4">
-                      {phaseSubchapters.map(renderCustomChapterItem)}
+                      {phaseSubchapters.map((sub) => renderCustomChapterItem(sub))}
                     </div>
                   )}
                 </React.Fragment>

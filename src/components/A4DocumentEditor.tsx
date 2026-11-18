@@ -30,7 +30,7 @@ import {
 import { Report } from "../types";
 import { UnifiedChapter } from "../chapterHierarchy";
 import { ReportPhases } from "./ReportPhases";
-import { ensureRichHtml, sanitizeRichHtml, serializeEditorHtml } from "../richTextUtils";
+import { ensureRichHtml, hasRichTextContent, sanitizeRichHtml, serializeEditorHtml } from "../richTextUtils";
 
 // Exact A4 dimensions at 96 DPI (210mm x 297mm)
 const A4_WIDTH = 794;
@@ -96,6 +96,7 @@ interface ChapterEditableBodyProps {
   chapterId: string;
   value: string;
   indentCss: string;
+  hasSubchapters?: boolean;
   onChangeValue: (chapterId: string, cleanHtml: string) => void;
   onFocusChapter: (chapterId: string, editorEl: HTMLDivElement) => void;
   onSelectionActivity: (chapterId: string, editorEl: HTMLDivElement) => void;
@@ -110,6 +111,7 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
     chapterId,
     value,
     indentCss,
+    hasSubchapters = false,
     onChangeValue,
     onFocusChapter,
     onSelectionActivity,
@@ -244,6 +246,7 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
       <div
         ref={setRefs}
         data-chapter-editor={chapterId}
+        data-has-subchapters={hasSubchapters ? "true" : "false"}
         contentEditable={true}
         suppressContentEditableWarning={true}
         onFocus={() => localRef.current && onFocusChapter(chapterId, localRef.current)}
@@ -253,7 +256,9 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
         onClick={handleClick}
         onPaste={handlePaste}
         style={{ "--doc-indent": indentCss } as React.CSSProperties}
-        className="a4-doc-content outline-none min-h-[140px] cursor-text"
+        className={`a4-doc-content outline-none cursor-text ${
+          hasSubchapters ? "min-h-[16px]" : "min-h-[110px]"
+        }`}
       />
     );
   }
@@ -1888,7 +1893,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                 paddingBottom: `${marginPx}px`,
               }}
             >
-              {chapters.map((ch) => {
+              {chapters.map((ch, chIdx) => {
                 if (ch.type === "phases") {
                   const unifiedPhase: UnifiedChapter = {
                     id: ch.id,
@@ -1988,6 +1993,17 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                 }
 
                 const isSubchapter = ch.level >= 2;
+                const nextCh = chIdx + 1 < chapters.length ? chapters[chIdx + 1] : null;
+                const prevCh = chIdx > 0 ? chapters[chIdx - 1] : null;
+                const hasSubchapters = Boolean(nextCh && nextCh.level > ch.level);
+                const hasOwnText = hasRichTextContent(ch.value);
+                const isTitleOnlyParent = hasSubchapters && !hasOwnText;
+                const prevWasTitleOnlyParent = Boolean(
+                  prevCh &&
+                    ch.level > prevCh.level &&
+                    prevCh.type !== "phases" &&
+                    !hasRichTextContent(prevCh.value)
+                );
 
                 return (
                   <section
@@ -2007,12 +2023,16 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                       }
                       focusChapterEditorAtEnd(ch.id);
                     }}
-                    className={`w-full ${isSubchapter ? "pt-4" : ""}`}
+                    className={`w-full ${
+                      isSubchapter ? (prevWasTitleOnlyParent ? "pt-1" : "pt-4") : ""
+                    }`}
                   >
                     {/* Título do capítulo ou subcapítulo integrado ao fluxo da página A4 */}
                     <div
                       data-flow-heading="true"
-                      className="group/heading flex items-start justify-between gap-3 mb-3 select-none"
+                      className={`group/heading flex items-start justify-between gap-3 select-none ${
+                        isTitleOnlyParent ? "mb-1" : "mb-3"
+                      }`}
                     >
                       <div className="flex-1 min-w-0">
                         {ch.level === 1 ? (
@@ -2064,6 +2084,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                         chapterId={ch.id}
                         value={ch.value}
                         indentCss={indentCss}
+                        hasSubchapters={hasSubchapters}
                         onChangeValue={onChangeChapterText}
                         onFocusChapter={handleFocusChapter}
                         onSelectionActivity={updateToolbarStateForEditor}
@@ -2072,13 +2093,13 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                         setLastEmittedExternal={setLastEmittedExternal}
                         getLastEmittedExternal={getLastEmittedExternal}
                       />
-                    ) : (
+                    ) : hasOwnText ? (
                       <ChapterPreviewBody
                         rawValue={ch.value}
                         indentCss={indentCss}
                         resolvePreviewText={resolvePreviewText}
                       />
-                    )}
+                    ) : null}
                   </section>
                 );
               })}
@@ -2105,12 +2126,28 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
         .a4-doc-content[data-empty="true"] {
           position: relative;
         }
-        .a4-doc-content[data-empty="true"]::before {
+        .a4-doc-content[data-empty="true"][data-has-subchapters="false"]::before {
           content: "Digite o texto deste capítulo aqui...";
           position: absolute;
           left: var(--doc-indent, 1.5cm);
           top: 0;
           color: #94a3b8;
+          pointer-events: none;
+          font-style: italic;
+        }
+        .a4-doc-content[data-empty="true"][data-has-subchapters="true"] p {
+          margin-bottom: 0 !important;
+          min-height: 14px !important;
+          line-height: 1.15 !important;
+        }
+        .a4-doc-content[data-empty="true"][data-has-subchapters="true"]:focus::before {
+          content: "Texto introdutório opcional...";
+          position: absolute;
+          left: var(--doc-indent, 1.5cm);
+          top: 0;
+          font-size: 12px;
+          line-height: 1.15;
+          color: #cbd5e1;
           pointer-events: none;
           font-style: italic;
         }

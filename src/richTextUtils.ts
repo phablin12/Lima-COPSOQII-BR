@@ -10,6 +10,20 @@ export function isHtmlContent(text: string): boolean {
   return HTML_TAG_REGEX.test(text);
 }
 
+/**
+ * Returns true if the HTML or plain text contains visible characters or a manual page break.
+ */
+export function hasRichTextContent(text?: string | null): boolean {
+  if (!text) return false;
+  if (/data-page-break/i.test(text)) return true;
+  const plain = text
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\u200B/g, "")
+    .trim();
+  return plain.length > 0;
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
