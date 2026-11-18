@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { Report, ReportChapters, CustomChapter } from "../types";
 import { 
   BookOpen, 
@@ -11,11 +11,7 @@ import {
   Plus, 
   Trash2, 
   Edit3, 
-  Eye, 
-  Code,
   Sparkles,
-  ChevronRight,
-  Info,
   GripVertical,
   ChevronUp,
   ChevronDown,
@@ -25,16 +21,9 @@ import {
   RotateCcw,
   AlertTriangle
 } from "lucide-react";
-import { SearchableSelect } from "./SearchableSelect";
+import { A4DocumentEditor, ContinuousChapterItem } from "./A4DocumentEditor";
+import { getImageSync } from "../imageStore";
 import {
-  STANDARD_CHAPTERS,
-  STANDARD_CHAPTER_DEFAULTS,
-  getStandardChapterTitle,
-  getFullChapterTitle,
-  getChapterLevel,
-  detectParentSection,
-  suggestNextNumber,
-  compareChapterNumbers,
   cleanChapterTitle,
   getUnifiedChapters,
   reorderUnifiedChapters,
@@ -80,6 +69,7 @@ export const replaceTemplateVariables = (
 
   const variables: Record<string, string> = {
     "{empresa_cliente}": report.companyName || "",
+    "{nome_fantasia}": report.companyFantasyName || report.companyName || "",
     "{cnpj_cliente}": report.cnpj || "",
     "{endereco_cliente}": report.companyAddress || "",
     "{cidade_cliente}": report.companyCity || "",
@@ -104,8 +94,8 @@ export const replaceTemplateVariables = (
 };
 
 export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange, assessor }) => {
-  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
   const [activeChapterId, setActiveChapterId] = useState<string>("introducao");
+  const [scrollToChapterRequest, setScrollToChapterRequest] = useState<{ id: string; nonce: number } | null>(null);
   const [showSavedNotification, setShowSavedNotification] = useState(false);
   
   // Custom chapters creation modal state
@@ -128,8 +118,6 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   const [dragOverChapterId, setDragOverChapterId] = useState<string | null>(null);
   const [dropPosition, setDropPosition] = useState<"before" | "after">("after");
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   const customChaptersList = report.customChapters || [];
 
   // Compute unified dynamic chapters
@@ -141,49 +129,59 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   const activeChapter = visibleChapters.find((c) => c.id === activeChapterId) || visibleChapters[0];
   const effectiveActiveId = activeChapter ? activeChapter.id : "introducao";
 
-  const getChapterValue = (chapterId: string): string => {
-    if (chapterId === "consideracoes") {
-      return report.finalConsiderations || "";
-    }
-    if (["introducao", "fundamentacao", "metodologia", "referencias"].includes(chapterId)) {
-      return report.chapters[chapterId as keyof ReportChapters] || "";
-    }
-    // Custom chapter
-    const custom = customChaptersList.find((c) => c.id === chapterId);
-    return custom ? custom.text : "";
-  };
+  const getChapterValue = useCallback(
+    (chapterId: string): string => {
+      if (chapterId === "consideracoes") {
+        return report.finalConsiderations || "";
+      }
+      if (["introducao", "fundamentacao", "metodologia", "referencias"].includes(chapterId)) {
+        return report.chapters[chapterId as keyof ReportChapters] || "";
+      }
+      const custom = customChaptersList.find((c) => c.id === chapterId);
+      return custom ? custom.text : "";
+    },
+    [report.finalConsiderations, report.chapters, customChaptersList]
+  );
 
-  const handleChapterTextChange = (text: string) => {
-    if (effectiveActiveId === "consideracoes") {
-      onChange({ finalConsiderations: text });
-    } else if (["introducao", "fundamentacao", "metodologia", "referencias"].includes(effectiveActiveId)) {
-      onChange({
-        chapters: {
-          ...report.chapters,
-          [effectiveActiveId]: text,
-        },
-      });
-    } else {
-      // Custom chapter
-      const updatedCustoms = customChaptersList.map((c) => {
-        if (c.id === effectiveActiveId) {
-          return { ...c, text };
-        }
-        return c;
-      });
-      onChange({ customChapters: updatedCustoms });
-    }
+  const handleChapterTextChange = useCallback(
+    (targetChapterId: string, text: string) => {
+      if (targetChapterId === "consideracoes") {
+        onChange({ finalConsiderations: text });
+      } else if (["introducao", "fundamentacao", "metodologia", "referencias"].includes(targetChapterId)) {
+        onChange({
+          chapters: {
+            ...report.chapters,
+            [targetChapterId]: text,
+          },
+        });
+      } else {
+        const updatedCustoms = customChaptersList.map((c) => {
+          if (c.id === targetChapterId) {
+            return { ...c, text };
+          }
+          return c;
+        });
+        onChange({ customChapters: updatedCustoms });
+      }
 
-    setShowSavedNotification(true);
-    const t = setTimeout(() => setShowSavedNotification(false), 1200);
-    return () => clearTimeout(t);
-  };
+      setShowSavedNotification(true);
+      setTimeout(() => setShowSavedNotification(false), 1200);
+    },
+    [onChange, report.chapters, customChaptersList]
+  );
 
-  const getChapterTips = (chapterId: string): string => {
-    const ch = unifiedChapters.find((c) => c.id === chapterId);
-    if (ch?.tip) return ch.tip;
-    return "Edite o texto técnico deste capítulo e utilize as variáveis automáticas de preenchimento.";
-  };
+  const continuousChapters = useMemo<ContinuousChapterItem[]>(() => {
+    return visibleChapters.map((ch) => ({
+      id: ch.id,
+      type: ch.type,
+      number: ch.number,
+      title: ch.title,
+      fullTitle: ch.fullTitle,
+      level: ch.level,
+      value: ch.type === "phases" ? "" : getChapterValue(ch.id),
+      tip: ch.tip,
+    }));
+  }, [visibleChapters, getChapterValue]);
 
   // Open modal with smart pre-selections
   const handleOpenCreateModal = (presetParentId?: string) => {
@@ -274,9 +272,9 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     });
 
     setActiveChapterId(newId);
+    setScrollToChapterRequest({ id: newId, nonce: Date.now() });
     setIsCreateModalOpen(false);
     setCreateTitle("");
-    setActiveTab("edit");
   };
 
   // Request delete for standard or custom chapter
@@ -305,6 +303,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     const updated = (report.excludedChapters || []).filter((id) => id !== chapterId);
     onChange({ excludedChapters: updated });
     setActiveChapterId(chapterId);
+    setScrollToChapterRequest({ id: chapterId, nonce: Date.now() });
   };
 
   // Start editing title
@@ -406,26 +405,6 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     setDragOverChapterId(null);
   };
 
-  // Insert Variable helper
-  const handleInsertVariable = (variableKey: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentText = getChapterValue(effectiveActiveId);
-    const before = currentText.substring(0, start);
-    const after = currentText.substring(end, currentText.length);
-
-    const updatedText = before + variableKey + after;
-    handleChapterTextChange(updatedText);
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.selectionStart = textarea.selectionEnd = start + variableKey.length;
-    }, 50);
-  };
-
   const autoVariables = [
     { key: "{empresa_cliente}", label: "Empresa Cliente (Razão)", desc: report.companyName },
     { key: "{nome_fantasia}", label: "Nome Fantasia Cliente", desc: report.companyFantasyName || report.companyName },
@@ -444,38 +423,46 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     { key: "{responsavel_legal}", label: "Resp. Legal", desc: assessor?.legalResponsible },
   ];
 
-  const renderParagraphsWithIndent = (text: string, indent: "none" | "medium" | "large") => {
-    if (!text) return <p className="text-slate-400 italic">Capítulo sem texto cadastrado.</p>;
-    const paras = text.split(/\n+/);
-    const indentCm = indent === "medium" ? "1.5cm" : indent === "large" ? "2.5cm" : "0cm";
-
-    return (
-      <div className="space-y-4">
-        {paras.map((p, idx) => {
-          const trimmed = p.trim();
-          if (!trimmed) return null;
-          const isList = /^(?:\d+\.|\*|-|•|a\)|b\)|c\))/i.test(trimmed);
-          return (
-            <p 
-              key={idx} 
-              className="text-justify text-slate-800 leading-relaxed text-sm"
-              style={{ 
-                textIndent: isList ? "0cm" : indentCm,
-                paddingLeft: isList ? "1rem" : "0cm" 
-              }}
-            >
-              {trimmed}
-            </p>
-          );
-        })}
-      </div>
-    );
+  // Resolve active assessor & client logos with instant cached fallback for A4 preview header
+  const effectiveAssessor = {
+    ...(report.evaluator || assessor),
+    logo:
+      (report.evaluator?.logo && report.evaluator.logo !== "[OMITTED_IMAGE_FOR_CACHE]"
+        ? report.evaluator.logo
+        : assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]"
+        ? assessor.logo
+        : getImageSync("assessor_logo")) || "",
   };
+
+  const resolvedCompanyLogo = (() => {
+    if (report.companyLogo && report.companyLogo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+      return report.companyLogo;
+    }
+    try {
+      const storedCompanies = localStorage.getItem("sst_psicossocial_companies");
+      if (storedCompanies) {
+        const companies = JSON.parse(storedCompanies);
+        const match = companies.find(
+          (c: any) =>
+            (c.cnpj && c.cnpj === report.companyCnpj) ||
+            (c.fantasyName && c.fantasyName.toLowerCase() === (report.companyName || "").toLowerCase()) ||
+            (c.name && c.name.toLowerCase() === (report.companyName || "").toLowerCase())
+        );
+        if (match?.logo && match.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
+          return match.logo;
+        }
+      }
+    } catch {
+      // ignore storage parse error
+    }
+    return "";
+  })();
 
   // Render a unified row in the sidebar list
   const renderUnifiedChapterRow = (ch: UnifiedChapter) => {
     // If it's the automated phases block
     if (ch.type === "phases") {
+      const isActive = effectiveActiveId === ch.id;
       const isDragged = draggedChapterId === ch.id;
       const isDragOver = dragOverChapterId === ch.id;
 
@@ -488,27 +475,51 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, ch.id)}
           onDragEnd={handleDragEnd}
-          className={`my-2 p-2.5 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-xs transition select-none flex items-center justify-between group ${
+          onClick={() => {
+            setActiveChapterId(ch.id);
+            setScrollToChapterRequest({ id: ch.id, nonce: Date.now() });
+            setIsEditingMeta(false);
+          }}
+          className={`my-2 p-2.5 rounded-xl border border-dashed text-xs transition select-none flex items-center justify-between group cursor-pointer ${
+            isActive
+              ? "bg-slate-900 border-slate-900 text-white shadow-xs"
+              : "bg-slate-50 border-slate-200 hover:border-slate-300"
+          } ${
             isDragged ? "opacity-40 ring-2 ring-indigo-400" : ""
           } ${isDragOver && dropPosition === "before" ? "border-t-2 border-indigo-600 bg-indigo-50/50" : ""} ${
             isDragOver && dropPosition === "after" ? "border-b-2 border-indigo-600 bg-indigo-50/50" : ""
           }`}
         >
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <GripVertical className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 cursor-grab shrink-0" title="Arraste para reposicionar as Fases Automáticas" />
-            <span className="w-10 h-5 rounded-md bg-slate-200 text-slate-700 font-mono font-bold text-[10px] flex items-center justify-center shrink-0">
+            <GripVertical
+              className={`w-3.5 h-3.5 cursor-grab shrink-0 ${
+                isActive ? "text-white/60 hover:text-white" : "text-slate-300 group-hover:text-slate-600"
+              }`}
+              title="Arraste para reposicionar as Fases Automáticas"
+            />
+            <span
+              className={`w-10 h-5 rounded-md font-mono font-bold text-[10px] flex items-center justify-center shrink-0 ${
+                isActive ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+              }`}
+            >
               {ch.number}
             </span>
             <div className="leading-tight truncate">
-              <span className="font-bold text-slate-700 block text-xs truncate">Fases Automáticas Tabuladas</span>
-              <span className="text-[10px] text-slate-400 block truncate">Resultados • Devolutivas • GRO • Ações</span>
+              <span className={`font-bold block text-xs truncate ${isActive ? "text-white" : "text-slate-700"}`}>
+                Fases Automáticas Tabuladas
+              </span>
+              <span className={`text-[10px] block truncate ${isActive ? "text-slate-300" : "text-slate-400"}`}>
+                Resultados · Devolutivas · GRO · Ações
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               type="button"
               onClick={(e) => handleMoveChapter(ch.id, "up", e)}
-              className="p-1 text-slate-400 hover:text-slate-800 rounded transition cursor-pointer"
+              className={`p-1 rounded transition cursor-pointer ${
+                isActive ? "text-white hover:bg-white/20" : "text-slate-400 hover:text-slate-800"
+              }`}
               title="Mover para cima"
             >
               <ChevronUp className="w-3.5 h-3.5" />
@@ -516,7 +527,9 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
             <button
               type="button"
               onClick={(e) => handleMoveChapter(ch.id, "down", e)}
-              className="p-1 text-slate-400 hover:text-slate-800 rounded transition cursor-pointer"
+              className={`p-1 rounded transition cursor-pointer ${
+                isActive ? "text-white hover:bg-white/20" : "text-slate-400 hover:text-slate-800"
+              }`}
               title="Mover para baixo"
             >
               <ChevronDown className="w-3.5 h-3.5" />
@@ -542,6 +555,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
         onDragEnd={handleDragEnd}
         onClick={() => {
           setActiveChapterId(ch.id);
+          setScrollToChapterRequest({ id: ch.id, nonce: Date.now() });
           setIsEditingMeta(false);
         }}
         className={`w-full text-left py-2 px-2.5 text-xs rounded-xl transition-all flex items-center justify-between group cursor-pointer relative select-none ${
@@ -670,67 +684,50 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   };
 
   return (
-    <div className="space-y-6" id="chapters-editor-container">
+    <div className="space-y-5" id="chapters-editor-container">
       {/* Cabeçalho */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
+      <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2.5">
             <span className="p-2 bg-slate-100 text-slate-800 rounded-xl">
               <BookOpen className="w-5 h-5" />
             </span>
-            <h3 className="text-base sm:text-lg font-bold text-slate-900">
-              Editor Profissional de Capítulos & Estrutura do Laudo
-            </h3>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                Editor de Capítulos & Documento Paginado A4
+              </h3>
+              <p className="text-xs text-slate-500">
+                Role livremente pelo laudo completo em folhas A4, navegue pelos capítulos ao lado ou alterne para a Visualização Real.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 max-w-2xl">
-            Arraste e solte qualquer capítulo para reorganizar a ordem do laudo. A numeração de todos os capítulos e subseções é atualizada automaticamente em tempo real.
-          </p>
         </div>
 
-        {/* Controles de Topo: Recuo e Botão Adicionar */}
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Recuo:</span>
-            <SearchableSelect
-              value={report.paragraphIndent || "medium"}
-              onChange={(val) => onChange({ paragraphIndent: val as "none" | "medium" | "large" })}
-              options={[
-                { value: "none", label: "Sem Recuo (0cm)" },
-                { value: "medium", label: "Padrão ABNT (1.5cm)" },
-                { value: "large", label: "Amplo (2.5cm)" }
-              ]}
-              placeholder="Recuo"
-              className="w-40"
-              required
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => handleOpenCreateModal()}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition shadow-xs cursor-pointer"
-          >
-            <Plus className="w-4 h-4 text-amber-300" />
-            Adicionar Capítulo
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => handleOpenCreateModal()}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition shadow-xs whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-center"
+        >
+          <Plus className="w-4 h-4 text-amber-300" />
+          Adicionar Capítulo
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
         {/* Menu Lateral Unificado com Drag & Drop e Numeração Dinâmica */}
-        <div className="lg:col-span-4 bg-white p-4 rounded-2xl border border-slate-150 shadow-xs space-y-4">
+        <div className="w-full lg:w-[295px] xl:w-[315px] shrink-0 lg:sticky lg:top-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div>
               <span className="text-xs font-bold text-slate-800 block">Estrutura Linear do Laudo</span>
               <span className="text-[10px] text-slate-400">Arraste para reordenar (numeração automática)</span>
             </div>
-            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono">
-              {visibleChapters.length} capítulos
+            <span className="text-xs font-mono font-semibold text-slate-500 tabular-nums">
+              {visibleChapters.length} cap.
             </span>
           </div>
 
           {/* Lista Unificada Draggable */}
-          <div className="space-y-1.5 max-h-[750px] overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[650px] overflow-y-auto pr-1">
             {visibleChapters.map((ch) => renderUnifiedChapterRow(ch))}
           </div>
 
@@ -773,196 +770,73 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
           </button>
         </div>
 
-        {/* Editor de Texto do Capítulo Ativo */}
-        <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-150 shadow-xs space-y-6">
-          <div className="border-b border-slate-100 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1 min-w-0 flex-1">
-              {/* Header do capítulo ativo com edição de título */}
-              {isEditingMeta ? (
-                <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="w-20 space-y-0.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Capítulo</label>
-                    <div className="px-2.5 py-1 text-xs bg-slate-200/80 rounded-lg font-mono font-bold text-slate-700 text-center">
-                      {activeChapter?.number || "•"}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-[200px] space-y-0.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Título do Capítulo / Seção</label>
-                    <input
-                      type="text"
-                      value={editingTitleValue}
-                      onChange={(e) => setEditingTitleValue(e.target.value)}
-                      placeholder="Título da seção..."
-                      className="w-full px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white font-bold text-slate-900 focus:ring-2 focus:ring-slate-400 outline-none"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5 self-end">
-                    <button
-                      type="button"
-                      onClick={handleSaveMeta}
-                      className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black transition cursor-pointer"
-                    >
-                      Salvar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingMeta(false)}
-                      className="px-2.5 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-300 transition cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
+        {/* Editor Paginado de Documento A4 (Estilo Google Docs / Word) */}
+        <div className="flex-1 min-w-0 w-full space-y-3">
+          {/* Painel Inline de Edição de Nome do Capítulo quando ativado */}
+          {isEditingMeta && (
+            <div className="flex flex-wrap items-center gap-2 p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs">
+              <div className="w-20 space-y-0.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Capítulo</label>
+                <div className="px-2.5 py-1.5 text-xs bg-slate-100 rounded-lg font-mono font-bold text-slate-700 text-center">
+                  {unifiedChapters.find((c) => c.id === editingTargetChapterId)?.number || activeChapter?.number || "•"}
                 </div>
-              ) : (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-extrabold text-slate-900 text-base">
-                      {activeChapter?.number ? `${activeChapter.number}. ` : ""}{activeChapter?.title || "Capítulo"}
-                    </h4>
-
-                    {/* Botões Universais de Edição e Exclusão no Capítulo Ativo */}
-                    <div className="flex items-center gap-1.5 ml-2">
-                      <button
-                        type="button"
-                        onClick={() => handleStartEditingMeta(effectiveActiveId)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
-                        title="Alterar título deste capítulo"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-slate-600" />
-                        <span>Editar Nome</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleRequestDelete(effectiveActiveId, activeChapter?.fullTitle || "Capítulo", activeChapter?.type === "standard");
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition cursor-pointer"
-                        title="Excluir este capítulo do laudo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                        <span>Excluir Capítulo</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-mono font-bold">
-                      Número no Laudo: {activeChapter?.number || "•"}
-                    </span>
-                    <span>• Nível {activeChapter?.level || 1}</span>
-                    <span>• Posição sequencial dinâmica</span>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-xs text-slate-500 pt-0.5">
-                {getChapterTips(effectiveActiveId)}
-              </p>
-            </div>
-
-            {/* Alternância de Abas: Editar vs Pré-visualizar */}
-            <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-              {showSavedNotification && (
-                <span className="text-emerald-600 text-[10px] font-bold flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full animate-in fade-in">
-                  <Check className="w-3 h-3" /> Salvo
-                </span>
-              )}
-
-              <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("edit")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === "edit"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <Code className="w-3.5 h-3.5" /> Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("preview")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === "preview"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  <Eye className="w-3.5 h-3.5" /> Visualizar
-                </button>
               </div>
-            </div>
-          </div>
-
-          {activeTab === "edit" ? (
-            <div className="space-y-4">
-              <div className="relative">
-                <textarea
-                  ref={textareaRef}
-                  value={getChapterValue(effectiveActiveId)}
-                  onChange={(e) => handleChapterTextChange(e.target.value)}
-                  rows={15}
-                  className="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-sm text-slate-800 font-sans leading-relaxed shadow-xs"
-                  placeholder="Digite o texto técnico do seu capítulo aqui. Use as variáveis automáticas abaixo para preenchimento dinâmico dos dados cadastrais..."
+              <div className="flex-1 min-w-[200px] space-y-0.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Título do Capítulo / Seção</label>
+                <input
+                  type="text"
+                  value={editingTitleValue}
+                  onChange={(e) => setEditingTitleValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveMeta();
+                    if (e.key === "Escape") setIsEditingMeta(false);
+                  }}
+                  placeholder="Título da seção..."
+                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-bold text-slate-900 focus:ring-2 focus:ring-slate-400 outline-none"
+                  autoFocus
                 />
               </div>
-
-              {/* Botões de Inserção de Variáveis Ocupacionais */}
-              <div className="space-y-2.5 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span>Inserir Variáveis Automáticas no Texto (Clique para colar)</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {autoVariables.map((v) => (
-                    <button
-                      key={v.key}
-                      type="button"
-                      onClick={() => handleInsertVariable(v.key)}
-                      className="text-left bg-white border border-slate-200 hover:border-slate-400 hover:bg-slate-50 p-2 rounded-lg text-[10px] font-semibold text-slate-700 shadow-2xs hover:shadow-xs transition duration-150 cursor-pointer group"
-                      title={`Substitui pelo valor real: "${v.desc}"`}
-                    >
-                      <span className="font-mono text-slate-900 group-hover:text-black font-bold block truncate">
-                        {v.key}
-                      </span>
-                      <span className="text-slate-400 text-[9px] block truncate">
-                        {v.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Aba de Pré-visualização com Recuo */
-            <div className="space-y-4">
-              <div className="bg-slate-50 p-6 sm:p-8 rounded-xl border border-slate-200 min-h-[300px]">
-                <div className="border-b border-slate-200 pb-3 mb-4 flex justify-between items-center text-xs text-slate-400 font-bold font-sans">
-                  <span>PRÉVIA DE IMPRESSÃO DO LAUDO</span>
-                  <span className="uppercase text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded text-[10px]">
-                    Recuo: {report.paragraphIndent === "none" ? "Sem Recuo" : report.paragraphIndent === "large" ? "Grande (2.5cm)" : "Padrão ABNT (1.5cm)"}
-                  </span>
-                </div>
-                
-                <h3 className="text-base font-extrabold text-slate-900 uppercase tracking-wide border-b border-slate-800 pb-2 mb-4 font-sans">
-                  {activeChapter?.fullTitle || "Capítulo"}
-                </h3>
-                
-                {renderParagraphsWithIndent(
-                  replaceTemplateVariables(getChapterValue(effectiveActiveId), report, assessor),
-                  report.paragraphIndent || "medium"
-                )}
-              </div>
-
-              <div className="bg-blue-50 border border-blue-150 p-4 rounded-xl flex gap-3 text-xs text-blue-800">
-                <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <strong>Formatação garantida:</strong> Esta visualização reproduz exatamente os parágrafos recuados, o título hierárquico e as variáveis preenchidas como aparecerão no PDF gerado.
-                </div>
+              <div className="flex items-center gap-1.5 self-end">
+                <button
+                  type="button"
+                  onClick={handleSaveMeta}
+                  className="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black transition cursor-pointer"
+                >
+                  Salvar Nome
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingMeta(false)}
+                  className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
               </div>
             </div>
           )}
+
+          <A4DocumentEditor
+            chapters={continuousChapters}
+            activeChapterId={effectiveActiveId}
+            scrollToChapterRequest={scrollToChapterRequest}
+            onActiveChapterChange={(chId) => setActiveChapterId(chId)}
+            onChangeChapterText={handleChapterTextChange}
+            paragraphIndent={report.paragraphIndent || "medium"}
+            onChangeIndent={(indent) => onChange({ paragraphIndent: indent })}
+            pageMarginCm={report.pageMargin || "2.5"}
+            onChangeMargin={(margin) => onChange({ pageMargin: margin })}
+            resolvePreviewText={(raw) => replaceTemplateVariables(raw, report, assessor)}
+            autoVariables={autoVariables}
+            report={report}
+            assessor={effectiveAssessor}
+            companyName={report.companyName}
+            companyLogo={resolvedCompanyLogo}
+            showSavedNotification={showSavedNotification}
+            onEditChapterTitle={(chId) => handleStartEditingMeta(chId)}
+            onDeleteChapter={(chId, fullTitle, isStandard) =>
+              handleRequestDelete(chId, fullTitle, isStandard)
+            }
+          />
         </div>
       </div>
 

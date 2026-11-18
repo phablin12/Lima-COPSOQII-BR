@@ -157,6 +157,7 @@ export interface Report {
   excludedChapters?: string[]; // IDs of chapters excluded/deleted from the report (standard or custom)
   chaptersOrder?: string[]; // Unified ordering of chapters (standard + custom)
   paragraphIndent?: "none" | "medium" | "large"; // paragraph indentation control
+  pageMargin?: "1.5" | "2.0" | "2.5" | "3.0"; // A4 page margin in cm
   risksRecognized?: boolean; // Whether the company recognizes the risks (influences chapter 6 & 7 rendering)
   hideChapter5?: boolean; // Whether to hide Chapter 5 in the final report
   hideChapter6?: boolean; // Whether to hide Chapter 6 in the final report

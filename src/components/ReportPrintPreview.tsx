@@ -15,6 +15,7 @@ import { ReportPhases } from "./ReportPhases";
 import { Printer, ShieldAlert, Calendar, User, FileText, ChevronRight, Activity, Target, Shield, CheckSquare, Clock } from "lucide-react";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
 import { getImageSync } from "../imageStore";
+import { isHtmlContent, sanitizeRichHtml } from "../richTextUtils";
 
 const getLevelEmoji = (level: string) => {
   switch (level) {
@@ -243,6 +244,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
       newPageMap[targetId] = currentPage;
 
       const subElements = sec.querySelectorAll("[data-print-subpage-target]");
+      const manualBreakEls = Array.from(sec.querySelectorAll("[data-page-break='true']")) as HTMLElement[];
       const secTop = sec.offsetTop;
 
       subElements.forEach((subNode) => {
@@ -251,12 +253,16 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
         if (!subTargetId) return;
 
         const relativeTop = Math.max(0, sub.offsetTop - secTop);
-        const subPageOffset = Math.floor((relativeTop + 40) / PAGE_HEIGHT_PX);
+        const breaksBeforeSub = manualBreakEls.filter((br) => br.offsetTop < sub.offsetTop).length;
+        const subPageOffset = Math.floor((relativeTop + 40) / PAGE_HEIGHT_PX) + breaksBeforeSub;
         newPageMap[subTargetId] = currentPage + subPageOffset;
       });
 
       const secHeight = sec.offsetHeight || sec.scrollHeight || 0;
-      const pageSpan = Math.max(1, Math.ceil(Math.max(0, secHeight - 80) / PAGE_HEIGHT_PX));
+      const pageSpan = Math.max(
+        1,
+        Math.ceil(Math.max(0, secHeight - 80) / PAGE_HEIGHT_PX) + manualBreakEls.length
+      );
       currentPage += pageSpan;
     });
 
@@ -331,11 +337,21 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
   const renderIndentedText = (text: string) => {
     if (!text) return null;
     const resolvedText = replaceTemplateVariables(text, report, activeAssessor);
-    const paras = resolvedText.split(/\n+/);
-    
-    // Determine the indent class or inline style
     const indent = report.paragraphIndent || "medium";
     const indentCm = indent === "medium" ? "1.5cm" : indent === "large" ? "2.5cm" : "0cm";
+
+    if (isHtmlContent(resolvedText)) {
+      const cleanHtml = sanitizeRichHtml(resolvedText);
+      return (
+        <div
+          className="a4-doc-content"
+          style={{ "--doc-indent": indentCm } as React.CSSProperties}
+          dangerouslySetInnerHTML={{ __html: cleanHtml }}
+        />
+      );
+    }
+
+    const paras = resolvedText.split(/\n+/);
 
     return (
       <div className="space-y-4">
