@@ -122,6 +122,8 @@ interface ReportPrintPreviewProps {
     address: string;
     phone: string;
     logo: string;
+    city?: string;
+    state?: string;
     defaultCoverImage?: string;
   };
 }
@@ -162,7 +164,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
       if (storedCompanies) {
         const companies = JSON.parse(storedCompanies);
         const match = companies.find((c: any) => 
-          (c.cnpj && c.cnpj === report.companyCnpj) || 
+          (c.cnpj && c.cnpj === report.cnpj) || 
           (c.fantasyName && c.fantasyName.toLowerCase() === (report.companyName || "").toLowerCase()) ||
           (c.name && c.name.toLowerCase() === (report.companyName || "").toLowerCase())
         );
@@ -172,7 +174,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
       }
     } catch (e) {}
     return "";
-  }, [report.companyLogo, report.companyCnpj, report.companyName]);
+  }, [report.companyLogo, report.cnpj, report.companyName]);
 
   const resolvedCoverImage = useMemo(() => {
     const raw = report.coverImage || assessor.defaultCoverImage;
@@ -309,7 +311,9 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
     const day = d.getDate();
     const month = months[d.getMonth()];
     const year = d.getFullYear();
-    return `Tangará da Serra - MT, ${day} de ${month} de ${year}`;
+    const city = (activeAssessor as any)?.city || report.companyCity || "Tangará da Serra";
+    const uf = (activeAssessor as any)?.state || report.companyState || "MT";
+    return `${city} - ${uf}, ${day} de ${month} de ${year}`;
   };
 
   const getCompanyFullAddress = () => {
@@ -690,7 +694,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                 Relatório de Avaliação e Conclusão
               </h1>
               <h2 className="text-xl font-bold text-slate-600 uppercase tracking-wide">
-                Metodologia COPSOQ II – BR
+                {isQualitative ? "Metodologia Qualitativa (MPE / NR-01)" : "Metodologia COPSOQ II – BR"}
               </h2>
               <div className="w-24 h-1 bg-slate-800 mx-auto my-6" />
               <h3 className="text-2xl font-black text-slate-900 uppercase leading-snug">
@@ -955,64 +959,91 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                     const phasesStart = parseInt(ch.number.split("–")[0], 10) || 4;
 
                     if (isQualitative) {
-                      if (!hasRecognizedRisks) return null;
                       return (
                         <React.Fragment key={ch.id}>
-                          {/* Phase 1 for Qualitative: Inventário de Riscos */}
+                          {/* Phase 1 for Qualitative: Investigação Qualitativa */}
                           <div className="space-y-1.5">
                             <div className="flex items-end gap-2">
                               <span className="font-bold text-slate-850 uppercase">
-                                {phasesStart}. INVENTÁRIO DE RISCOS PSICOSSOCIAIS
+                                {phasesStart}. INVESTIGAÇÃO QUALITATIVA DO AMBIENTE (MPE)
                               </span>
                               <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
                               <span className="text-slate-500 font-bold font-mono">
-                                {formatPage(pageMap["fases-inventario"])}
+                                {formatPage(pageMap["fases-qualitativa"])}
                               </span>
                             </div>
-                            {report.sectors.filter((s) => s.risksRecognized !== false).map((sector, index) => {
-                              const hasRisks = report.riskInventory.some((r) => r.sectorId === sector.id);
-                              if (!hasRisks) return null;
-                              return (
-                                <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
-                                  <span className="font-medium">
-                                    {phasesStart}.{index + 1}. Riscos de {sector.name}
-                                  </span>
-                                  <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                                  <span className="text-slate-400 font-medium font-mono">
-                                    {formatPage(pageMap[`sector-inventory-${sector.id}`] || pageMap["fases-inventario"])}
-                                  </span>
-                                </div>
-                              );
-                            })}
+                            {report.sectors.map((sector, index) => (
+                              <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                                <span className="font-medium">
+                                  {phasesStart}.{index + 1}. Avaliação Qualitativa: {sector.name}
+                                </span>
+                                <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                                <span className="text-slate-400 font-medium font-mono">
+                                  {formatPage(pageMap[`sector-qualitative-${sector.id}`] || pageMap["fases-qualitativa"])}
+                                </span>
+                              </div>
+                            ))}
                           </div>
 
-                          {/* Phase 2 for Qualitative: Cronograma e Plano de Ação */}
-                          <div className="space-y-1.5">
-                            <div className="flex items-end gap-2">
-                              <span className="font-bold text-slate-850 uppercase">
-                                {phasesStart + 1}. CRONOGRAMA E PLANO DE AÇÃO
-                              </span>
-                              <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                              <span className="text-slate-500 font-bold font-mono">
-                                {formatPage(pageMap["fases-cronograma"])}
-                              </span>
-                            </div>
-                            {report.sectors.filter((s) => s.risksRecognized !== false).map((sector, index) => {
-                              const hasActions = report.riskInventory.some((r) => r.sectorId === sector.id);
-                              if (!hasActions) return null;
-                              return (
-                                <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
-                                  <span className="font-medium">
-                                    {phasesStart + 1}.{index + 1}. Ações de {sector.name}
+                          {hasRecognizedRisks && (
+                            <>
+                              {/* Phase 2 for Qualitative: Inventário de Riscos */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-end gap-2">
+                                  <span className="font-bold text-slate-850 uppercase">
+                                    {phasesStart + 1}. INVENTÁRIO DE RISCOS PSICOSSOCIAIS
                                   </span>
-                                  <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                                  <span className="text-slate-400 font-medium font-mono">
-                                    {formatPage(pageMap[`sector-action-${sector.id}`] || pageMap["fases-cronograma"])}
+                                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                                  <span className="text-slate-500 font-bold font-mono">
+                                    {formatPage(pageMap["fases-inventario"])}
                                   </span>
                                 </div>
-                              );
-                            })}
-                          </div>
+                                {report.sectors.filter((s) => s.risksRecognized !== false).map((sector, index) => {
+                                  const hasRisks = report.riskInventory.some((r) => r.sectorId === sector.id);
+                                  if (!hasRisks) return null;
+                                  return (
+                                    <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                                      <span className="font-medium">
+                                        {phasesStart + 1}.{index + 1}. Riscos de {sector.name}
+                                      </span>
+                                      <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                                      <span className="text-slate-400 font-medium font-mono">
+                                        {formatPage(pageMap[`sector-inventory-${sector.id}`] || pageMap["fases-inventario"])}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Phase 3 for Qualitative: Cronograma e Plano de Ação */}
+                              <div className="space-y-1.5">
+                                <div className="flex items-end gap-2">
+                                  <span className="font-bold text-slate-850 uppercase">
+                                    {phasesStart + 2}. CRONOGRAMA E PLANO DE AÇÃO
+                                  </span>
+                                  <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
+                                  <span className="text-slate-500 font-bold font-mono">
+                                    {formatPage(pageMap["fases-cronograma"])}
+                                  </span>
+                                </div>
+                                {report.sectors.filter((s) => s.risksRecognized !== false).map((sector, index) => {
+                                  const hasActions = report.riskInventory.some((r) => r.sectorId === sector.id);
+                                  if (!hasActions) return null;
+                                  return (
+                                    <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
+                                      <span className="font-medium">
+                                        {phasesStart + 2}.{index + 1}. Ações de {sector.name}
+                                      </span>
+                                      <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
+                                      <span className="text-slate-400 font-medium font-mono">
+                                        {formatPage(pageMap[`sector-action-${sector.id}`] || pageMap["fases-cronograma"])}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
                         </React.Fragment>
                       );
                     }

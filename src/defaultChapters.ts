@@ -26,10 +26,15 @@ O instrumento avalia dimensões-chave que englobam o conteúdo e a organização
 - Dimensões Positivas (onde escores maiores indicam maior proteção/fatores favoráveis): Influência e desenvolvimento, Significado e compromisso, Relações interpessoais, Liderança, Satisfação no trabalho, Valores no local de trabalho, Saúde geral.
 - Dimensões Negativas (onde escores maiores representam maior fator de risco/sobrecarga): Demandas no trabalho, Conflitos família e trabalho, Burnout e estresse.
 
-A classificação dos escores segue a escala técnica padronizada:
-1. Situação Favorável (Escore superior a 3,66): Baixa ou inexistente exposição a fatores de risco. Requer manutenção das boas práticas vigentes.
-2. Situação Moderada (Escore de 2,34 a 3,66): Exposição a fator(es) de risco com necessidade de monitoramento contínuo e preventivo.
-3. Situação Desfavorável (Escore de 0 a 2,33): Exposição significativa a fator(es) de risco, requerendo intervenções organizacionais imediatas.
+A classificação dos escores segue a escala técnica padronizada (0 a 4 pontos):
+• **Dimensões Positivas (Influência, Significado, Relações, Liderança, Satisfação, Valores, Saúde):**
+  - Situação Favorável (**Média > 2,66**): Condição protetora / baixo risco psicossocial;
+  - Situação Moderada (**Média de 1,34 a 2,66**): Atenção moderada, requer monitoramento contínuo;
+  - Situação Desfavorável (**Média ≤ 1,33**): Condição crítica, demanda intervenção prioritária.
+• **Dimensões Negativas (Demandas, Conflitos Família-Trabalho, Burnout e Estresse) — Escala Invertida:**
+  - Situação Favorável (**Média ≤ 1,33**): Baixa exposição aos fatores estressores;
+  - Situação Moderada (**Média de 1,34 a 2,66**): Atenção moderada / zona intermediária;
+  - Situação Desfavorável (**Média > 2,66**): Exposição crítica a sobrecarga/estresse, exigindo medidas imediatas no Plano de Ação.
 
 Após o processamento estatístico preliminar das avaliações dos funcionários, realizou-se uma etapa de Devolutiva Técnica e Diagnóstico de Campo junto aos líderes de cada setor avaliado. Esta etapa qualitativa serviu para correlacionar os indicadores numéricos às situações de trabalho em campo (fontes geradoras), permitindo a estruturação das medidas e planos recomendados.`,
 

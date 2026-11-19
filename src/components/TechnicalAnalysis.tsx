@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Report, Sector, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
-import { AlertTriangle, MessageSquare, ClipboardCheck, Users, HelpCircle, Sparkles, Loader2, Check, RefreshCw, Wand2 } from "lucide-react";
+import { AlertTriangle, MessageSquare, ClipboardCheck, Users, Sparkles, Loader2, Check, Wand2 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
 import { generateSectorSynthesis } from "../aiService";
 
@@ -27,6 +27,12 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
 
   const currentSector = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
 
+  useEffect(() => {
+    if (currentSector && selectedSectorId !== currentSector.id) {
+      setSelectedSectorId(currentSector.id);
+    }
+  }, [currentSector, selectedSectorId]);
+
   if (report.sectors.length === 0) {
     return (
       <div className="bg-white p-8 rounded-2xl border border-slate-100 text-center space-y-4">
@@ -36,19 +42,18 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
         <div className="max-w-md mx-auto space-y-2">
           <h3 className="text-lg font-semibold text-slate-800">Nenhum Setor Cadastrado</h3>
           <p className="text-sm text-slate-500">
-            Cadastre os setores na aba <strong>Informações Gerais</strong> e insira suas notas na aba <strong>Avaliação COPSOQ II</strong> antes de realizar a análise técnica.
+            Cadastre os setores na aba <strong>Cadastro Geral</strong>{" "}
+            {report.methodology === "qualitative"
+              ? "antes de registrar a avaliação qualitativa."
+              : "e insira suas notas na aba Avaliação COPSOQ II antes de realizar a análise técnica."}
           </p>
         </div>
       </div>
     );
   }
 
-  // Ensure currentSector is active
-  if (currentSector && selectedSectorId !== currentSector.id) {
-    setSelectedSectorId(currentSector.id);
-  }
-
   const handleSynthesisChange = (text: string) => {
+    if (!currentSector) return;
     const updatedSectors = report.sectors.map((s) => {
       if (s.id === currentSector.id) {
         return {
@@ -66,12 +71,13 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
     field: "qualitativeEvaluatedText" | "qualitativePerceptionText" | "qualitativeConclusionText",
     text: string
   ) => {
+    if (!currentSector) return;
     const updatedSectors = report.sectors.map((s) => {
       if (s.id === currentSector.id) {
         return {
           ...s,
           [field]: text,
-          // Fallback devolvedSynthesis to qualitativeConclusionText for printing consistency
+          // Keep devolvedSynthesis synced for downstream AI Risk Inventory & print consistency
           ...(field === "qualitativeConclusionText" ? { devolvedSynthesis: text } : {}),
         };
       }
@@ -80,19 +86,23 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
     onChange({ sectors: updatedSectors });
   };
 
-  // Get moderate and unfavorable dimensions for the current sector
+  // Get moderate and unfavorable dimensions for the current sector (score === 0 is valid!)
   const getCriticalDimensions = (sector: Sector) => {
     return COPSOQ_DIMENSIONS.map((dim) => {
-      const score = sector.scores[dim.key] ?? 0.0;
-      const ratingInfo = getDimensionRating(score, dim.type);
+      const rawScore = sector.scores?.[dim.key];
+      const hasScore = typeof rawScore === "number" && !Number.isNaN(rawScore);
+      const ratingInfo = getDimensionRating(hasScore ? rawScore : undefined, dim.type);
       return {
         ...dim,
-        score,
+        score: hasScore ? rawScore : null,
         rating: ratingInfo.rating,
         colorClass: ratingInfo.colorClass,
         bgClass: ratingInfo.bgClass,
       };
-    }).filter((dim) => dim.rating !== "Favorável" && dim.rating !== "Não Avaliado" && dim.score > 0);
+    }).filter(
+      (dim): dim is typeof dim & { score: number } =>
+        dim.score !== null && dim.rating !== "Favorável" && dim.rating !== "Não Avaliado"
+    );
   };
 
   const criticalDimensions = currentSector ? getCriticalDimensions(currentSector) : [];
@@ -148,18 +158,19 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
         <div className="space-y-1">
           <h3 className="text-md font-semibold text-slate-800 flex items-center gap-2">
             <Users className="w-4 h-4 text-slate-600" />
-            {report.methodology === "qualitative" ? "Investigação Qualitativa do Trabalho" : "Análise de Devolutiva Técnica com Líderes"}
+            {report.methodology === "qualitative"
+              ? "Investigação Qualitativa do Trabalho (MPE)"
+              : "Análise de Devolutiva Técnica com Líderes"}
           </h3>
           <p className="text-xs text-slate-500">
-            {report.methodology === "qualitative" 
-              ? "Selecione o setor para registrar os relatos de entrevista, escopo de avaliação e conclusões técnicas do ambiente."
-              : "Selecione o setor para visualizar as dimensões que necessitam de investigação qualitativa e digite a síntese de campo."
-            }
+            {report.methodology === "qualitative"
+              ? "Selecione o setor para registrar o escopo observado, percepção dos colaboradores e parecer técnico."
+              : "Selecione o setor para visualizar as dimensões que necessitam de investigação qualitativa e digite a síntese de campo."}
           </p>
         </div>
 
         <SearchableSelect
-          value={selectedSectorId}
+          value={currentSector?.id || ""}
           onChange={(val) => setSelectedSectorId(val)}
           options={report.sectors.map((s) => ({
             value: s.id,
@@ -178,7 +189,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
           {/* Guia de Entrevista / Orientações */}
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-4 space-y-5 h-fit text-left">
             <div className="border-b border-slate-100 pb-3 flex items-center gap-2">
-              <ClipboardCheck className="w-5 h-5 text-indigo-650" />
+              <ClipboardCheck className="w-5 h-5 text-indigo-600" />
               <h4 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">
                 Orientações de Avaliação
               </h4>
@@ -186,12 +197,12 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
 
             <div className="space-y-4 text-xs text-slate-600 leading-relaxed">
               <p>
-                A <strong>Avaliação Qualitativa</strong> é ideal para Micro e Pequenas Empresas (MPE), onde a amostragem estatística clássica pode não ter significância matemática ideal.
+                A <strong>Avaliação Qualitativa</strong> é indicada para Micro e Pequenas Empresas (MPE), nas quais o diagnóstico qualitativo estruturado substitui a amostragem estatística do COPSOQ II.
               </p>
-              
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-150 space-y-2">
-                <p className="font-bold text-slate-800">💡 Como proceder:</p>
-                <ul className="list-disc list-inside space-y-1 text-slate-500">
+
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-2">
+                <p className="font-bold text-slate-800">Como proceder em campo:</p>
+                <ul className="list-disc list-inside space-y-1 text-slate-600">
                   <li>Observe a rotina real de trabalho no ambiente;</li>
                   <li>Realize entrevistas coletivas ou individuais;</li>
                   <li>Incentive relatos espontâneos e seguros;</li>
@@ -199,17 +210,17 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                 </ul>
               </div>
 
-              <div className="bg-amber-50 border border-amber-100/50 p-3.5 rounded-xl space-y-2 text-amber-900">
-                <p className="font-bold">⚠️ Confidencialidade:</p>
+              <div className="bg-amber-50 border border-amber-200/70 p-3.5 rounded-xl space-y-2 text-amber-900">
+                <p className="font-bold">Confidencialidade (LGPD / Ética SST):</p>
                 <p className="text-amber-800">
-                  Preserve a identidade individual dos colaboradores nas redações. Use expressões genéricas como "a equipe relata", "há relatos na equipe" ou "observou-se no grupo".
+                  Preserve a identidade individual dos colaboradores nas redações. Use expressões consolidadas como "a equipe relata" ou "observou-se no grupo".
                 </p>
               </div>
             </div>
           </div>
 
           {/* Painel de Edição de Textos */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-8 space-y-6 text-left">
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-8 space-y-5 text-left">
             <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h4 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
@@ -217,74 +228,126 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   Elaboração Qualitativa: <span className="text-indigo-600 font-black">{currentSector.name}</span>
                 </h4>
                 <p className="text-xs text-slate-500 mt-1">
-                  Utilize os campos abaixo para descrever o cenário real identificado durante as observações de campo e diálogos com o setor.
+                  Descreva o cenário identificado durante as observações de campo e diálogos com o setor.
                 </p>
               </div>
 
-              <button
-                type="button"
-                disabled={isGeneratingAI}
-                onClick={() => handleGenerateAISynthesis()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 shrink-0"
-                title="Elaborar Parecer Técnico Conclusivo com Inteligência Artificial"
-              >
-                {isGeneratingAI ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Gerando Parecer...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Gerar Parecer com IA
-                  </>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowPromptNotes(!showPromptNotes)}
+                  disabled={isGeneratingAI}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
+                  title="Adicionar instruções específicas para a IA"
+                >
+                  {showPromptNotes ? "Ocultar Instruções" : "Personalizar Prompt"}
+                </button>
+                {!showPromptNotes && (
+                  <button
+                    type="button"
+                    disabled={isGeneratingAI}
+                    onClick={() => handleGenerateAISynthesis()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                    title="Elaborar Parecer Técnico Conclusivo com Inteligência Artificial"
+                  >
+                    {isGeneratingAI ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Gerando Parecer...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Gerar Parecer com IA
+                      </>
+                    )}
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
+
+            {showPromptNotes && (
+              <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2 text-xs">
+                <label className="font-bold text-indigo-900 block">
+                  Instruções ou Observações Adicionais para a IA (Opcional):
+                </label>
+                <textarea
+                  value={promptNotes}
+                  onChange={(e) => setPromptNotes(e.target.value)}
+                  placeholder="Ex: Enfatizar a sobrecarga no atendimento ao balcão e sugerir rodízio de pausas..."
+                  rows={2}
+                  className="w-full p-2 bg-white rounded-lg border border-indigo-200 outline-none text-slate-800 text-xs"
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={isGeneratingAI}
+                    onClick={() => handleGenerateAISynthesis(promptNotes)}
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isGeneratingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    {isGeneratingAI ? "Gerando Parecer..." : "Gerar Parecer com Estas Instruções"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {aiSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600" /> Parecer técnico qualitativo gerado com sucesso pela Inteligência Artificial!
+              </div>
+            )}
+
+            {aiError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center justify-between">
+                <span>{aiError}</span>
+                <button type="button" onClick={() => setAiError(null)} className="text-rose-500 hover:text-rose-700 font-bold ml-2 cursor-pointer">✕</button>
+              </div>
+            )}
 
             <div className="space-y-5">
               {/* Campo 1: O que foi avaliado */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                   1. O que foi Avaliado / Escopo da Observação
                 </label>
                 <textarea
                   value={currentSector.qualitativeEvaluatedText || ""}
                   onChange={(e) => handleQualitativeFieldChange("qualitativeEvaluatedText", e.target.value)}
-                  placeholder="Ex: Foram avaliadas as condições físicas e ambientais do setor de atendimento, as interações interpessoais entre a equipe e a chefia imediata, o fluxo e ritmo de trabalho, a carga mental envolvida na resolução de conflitos com clientes e o grau de autonomia concedido aos funcionários na tomada de decisões."
+                  placeholder="Ex: Foram avaliadas as condições físicas e organizacionais do setor de atendimento, interações com a chefia, ritmo de trabalho e grau de autonomia na tomada de decisões."
                   rows={4}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
                 />
               </div>
 
               {/* Campo 2: Percepção do colaborador */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                   2. Percepção dos Colaboradores (Diálogos e Entrevistas)
                 </label>
                 <textarea
                   value={currentSector.qualitativePerceptionText || ""}
                   onChange={(e) => handleQualitativeFieldChange("qualitativePerceptionText", e.target.value)}
-                  placeholder="Ex: Os colaboradores relataram satisfação com o ambiente de trabalho e com o suporte fornecido pelos colegas de equipe. Contudo, apontaram que o ritmo de trabalho é elevado nos horários de pico, gerando desgaste físico pontual. Referiram também que gostariam de receber mais feedbacks estruturados da gerência sobre o desempenho e resultados alcançados."
+                  placeholder="Ex: Os colaboradores relataram bom relacionamento com colegas, porém apontaram ritmo elevado em horários de pico e necessidade de feedbacks mais estruturados."
                   rows={4}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
                 />
               </div>
 
               {/* Campo 3: Conclusão do setor */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                   3. Conclusão Técnica e Parecer do Avaliador
                 </label>
                 <textarea
                   value={currentSector.qualitativeConclusionText || ""}
                   onChange={(e) => handleQualitativeFieldChange("qualitativeConclusionText", e.target.value)}
-                  placeholder="Ex: Conclui-se que o setor apresenta riscos psicossociais sob controle, com destaque para a alta sinergia e cooperação mútua entre a equipe (fator protetivo). Recomenda-se a adoção de canais formais de comunicação e reuniões rápidas de feedback para mitigar a sensação de distanciamento gerencial, além de um rodízio leve de tarefas nos picos de demanda."
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                  placeholder="Ex: Conclui-se que o setor apresenta fatores psicossociais sob controle, recomendando-se rituais semanais de alinhamento e pausas programadas nos picos de demanda."
+                  rows={5}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
                 />
               </div>
             </div>
@@ -300,7 +363,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                 Riscos Identificados na Avaliação COPSOQ II
               </h4>
               <p className="text-xs text-slate-500 mt-1">
-                Fatores com classificação <strong>Moderada</strong> ou <strong>Desfavorável</strong> que foram sinalizados pelos colaboradores deste setor:
+                Fatores com classificação <strong>Moderada</strong> ou <strong>Desfavorável</strong> sinalizados pelos colaboradores deste setor:
               </p>
             </div>
 
@@ -308,16 +371,16 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
               {criticalDimensions.length === 0 ? (
                 <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-center space-y-2">
                   <p className="text-xs font-bold text-emerald-800">TUDO SOB CONTROLE</p>
-                  <p className="text-xs text-emerald-600">
-                    Todas as dimensões deste setor estão na zona <strong>Favorável</strong>. Nenhuma investigação técnica de desvios é explicitamente obrigatória.
+                  <p className="text-xs text-emerald-700">
+                    Todas as dimensões avaliadas neste setor estão na zona <strong>Favorável</strong> (ou ainda não possuem notas preenchidas).
                   </p>
                 </div>
               ) : (
                 criticalDimensions.map((dim) => (
                   <div key={dim.key} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold text-slate-800 text-xs">{dim.name}</span>
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${dim.bgClass}`}>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md border tabular-nums shrink-0 ${dim.bgClass}`}>
                         {dim.rating} ({dim.score.toFixed(2)})
                       </span>
                     </div>
@@ -336,7 +399,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
           </div>
 
           {/* Síntese Diagnóstica / Devolutiva */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-7 space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs lg:col-span-7 space-y-5">
             <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
@@ -344,7 +407,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   Síntese da Investigação Qualitativa (Devolutiva)
                 </h4>
                 <p className="text-xs text-slate-500 mt-1">
-                  Com base na reunião com os líderes do setor <strong>{currentSector.name}</strong>, registre abaixo quais foram as causas/percepções reais que justificam as notas do COPSOQ II.
+                  Com base na reunião com os líderes do setor <strong>{currentSector.name}</strong>, registre as causas reais que justificam as notas do COPSOQ II.
                 </p>
               </div>
 
@@ -353,30 +416,32 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   type="button"
                   onClick={() => setShowPromptNotes(!showPromptNotes)}
                   disabled={isGeneratingAI}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
                   title="Adicionar instruções específicas para a IA"
                 >
                   {showPromptNotes ? "Ocultar Instruções" : "Personalizar Prompt"}
                 </button>
-                <button
-                  type="button"
-                  disabled={isGeneratingAI}
-                  onClick={() => handleGenerateAISynthesis()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                  title="Gerar automaticamente a síntese técnica correlacionando as notas do setor com IA"
-                >
-                  {isGeneratingAI ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Gerando com IA...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Gerar Síntese com IA
-                    </>
-                  )}
-                </button>
+                {!showPromptNotes && (
+                  <button
+                    type="button"
+                    disabled={isGeneratingAI}
+                    onClick={() => handleGenerateAISynthesis()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                    title="Gerar automaticamente a síntese técnica correlacionando as notas do setor com IA"
+                  >
+                    {isGeneratingAI ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Gerando com IA...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Gerar Síntese com IA
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -397,9 +462,10 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                     type="button"
                     disabled={isGeneratingAI}
                     onClick={() => handleGenerateAISynthesis(promptNotes)}
-                    className="px-3 py-1 bg-indigo-600 text-white rounded font-bold text-xs hover:bg-indigo-700 flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
-                    <Wand2 className="w-3 h-3" /> Gerar com Estas Instruções
+                    {isGeneratingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    {isGeneratingAI ? "Gerando..." : "Gerar Síntese com Estas Instruções"}
                   </button>
                 </div>
               </div>
@@ -414,7 +480,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
             {aiError && (
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center justify-between">
                 <span>{aiError}</span>
-                <button onClick={() => setAiError(null)} className="text-rose-500 hover:text-rose-700 font-bold ml-2 cursor-pointer">✕</button>
+                <button type="button" onClick={() => setAiError(null)} className="text-rose-500 hover:text-rose-700 font-bold ml-2 cursor-pointer">✕</button>
               </div>
             )}
 
@@ -426,7 +492,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                 <textarea
                   value={currentSector.devolvedSynthesis}
                   onChange={(e) => handleSynthesisChange(e.target.value)}
-                  placeholder="Ex: Em reunião de devolutiva realizada no dia XX/XX com a liderança do setor, constatou-se que as notas desfavoráveis em 'Liderança' e 'Conflito de Papéis' se correlacionam à recente fusão de duas equipes de vendas. Os supervisores relatam ambiguidade sobre quem aprova os descontos, e que há ruídos na distribuição de metas. Em relação a 'Demandas', foi apontado um aumento no tempo de atendimento por falta de treinamento na nova plataforma CRM..."
+                  placeholder="Ex: Em reunião de devolutiva realizada com a liderança do setor, constatou-se que as notas desfavoráveis se correlacionam à recente reestruturação da equipe e falta de clareza na divisão de metas..."
                   rows={10}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-sm text-slate-800 font-sans leading-relaxed"
                 />
@@ -437,7 +503,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                 <div className="space-y-1">
                   <h5 className="text-xs font-bold text-blue-900 uppercase">Utilidade deste texto:</h5>
                   <p className="text-[11px] text-blue-700 leading-relaxed">
-                    Este texto preenche o Capítulo de <strong>Análise Técnica dos Riscos</strong> no relatório final. Ele correlaciona os dados brutos numéricos à realidade fática do ambiente de trabalho coletada diretamente com a chefia.
+                    Este texto preenche o Capítulo de <strong>Análise Técnica dos Riscos</strong> no relatório final, correlacionando os dados numéricos à realidade fática coletada com a liderança.
                   </p>
                 </div>
               </div>

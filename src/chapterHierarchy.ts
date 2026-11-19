@@ -373,26 +373,10 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
 
   const hasRisks = report.risksRecognized !== false;
   const isQualitative = report.methodology === "qualitative";
-  const phasesCount = isQualitative ? (hasRisks ? 2 : 0) : (hasRisks ? 4 : 2);
+  const phasesCount = isQualitative ? (hasRisks ? 3 : 1) : (hasRisks ? 4 : 2);
 
   itemsMeta.forEach((item, index) => {
     if (item.type === "phases") {
-      if (phasesCount === 0) {
-        result.push({
-          id: item.id,
-          type: item.type,
-          number: "—",
-          title: "Fases Omitidas (Sem Riscos)",
-          fullTitle: "Fases Omitidas (Sem Riscos)",
-          level: 1,
-          rootChapterId: item.id,
-          isExcluded: true,
-          order: (index + 1) * 10,
-          tip: "A empresa declarou não reconhecer riscos psicossociais nesta avaliação. Capítulos de riscos omitidos.",
-        });
-        return;
-      }
-
       const startNum = mainNumber;
       const endNum = mainNumber + phasesCount - 1;
       const dynamicNumber = startNum === endNum ? String(startNum) : `${startNum}–${endNum}`;
@@ -401,7 +385,9 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
       ancestorStack.length = 0;
 
       const title = isQualitative
-        ? "Inventário de Riscos e Plano de Ação"
+        ? hasRisks
+          ? "Investigação Qualitativa, Inventário GRO e Plano de Ação"
+          : "Investigação Qualitativa e Diagnóstico Psicossocial"
         : item.title;
 
       result.push({
@@ -415,7 +401,9 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
         isExcluded: false,
         order: (index + 1) * 10,
         tip: isQualitative
-          ? "Inventário de Riscos GRO e Cronograma de Ações gerados para os setores com riscos."
+          ? hasRisks
+            ? "Investigação Qualitativa (MPE) por setor, Inventário de Riscos GRO e Cronograma de Ações."
+            : "Investigação Qualitativa (MPE) por setor (sem riscos psicossociais reconhecidos)."
           : item.tip,
       });
       return;

@@ -516,7 +516,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
         const companies = JSON.parse(storedCompanies);
         const match = companies.find(
           (c: any) =>
-            (c.cnpj && c.cnpj === report.companyCnpj) ||
+            (c.cnpj && c.cnpj === report.cnpj) ||
             (c.fantasyName && c.fantasyName.toLowerCase() === (report.companyName || "").toLowerCase()) ||
             (c.name && c.name.toLowerCase() === (report.companyName || "").toLowerCase())
         );
@@ -831,15 +831,6 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
               </div>
             </div>
           )}
-
-          {/* Botão de Adição Rápida */}
-          <button
-            type="button"
-            onClick={() => handleOpenCreateModal()}
-            className="w-full py-2.5 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5 transition cursor-pointer hover:bg-slate-50"
-          >
-            <Plus className="w-4 h-4" /> Adicionar Capítulo / Continuação
-          </button>
         </div>
 
         {/* Editor Paginado de Documento A4 (Estilo Google Docs / Word) */}

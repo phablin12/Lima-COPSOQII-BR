@@ -83,7 +83,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
           ...item,
           actionObjective: match.actionObjective,
           actionProposed: match.actionProposed,
-          recommendation: match.actionProposed,
+          recommendation: item.recommendation || match.actionProposed,
           responsible: match.responsible,
           priority: match.priority,
           periodicity: match.periodicity,
@@ -145,7 +145,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
           ...item,
           actionObjective: actionObjective.trim(),
           actionProposed: actionProposed.trim(),
-          recommendation: actionProposed.trim(), // Keep preventive recommendation synced
+          recommendation: item.recommendation || actionProposed.trim(),
           responsible: responsible.trim(),
           priority,
           periodicity: periodicity.trim(),

@@ -43,11 +43,79 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
   renderHeader,
 }) => {
   const phasesStart = parseInt(ch.number.split("–")[0], 10) || 4;
-  const inventoryChapterNum = isQualitative ? phasesStart : phasesStart + 2;
-  const actionPlanChapterNum = isQualitative ? phasesStart + 1 : phasesStart + 3;
+  const qualChapterNum = phasesStart;
+  const inventoryChapterNum = isQualitative ? phasesStart + 1 : phasesStart + 2;
+  const actionPlanChapterNum = isQualitative ? phasesStart + 2 : phasesStart + 3;
 
   return (
     <React.Fragment key={ch.id}>
+      {isQualitative && (
+        <div
+          data-print-section="true"
+          data-print-page-target="fases-qualitativa"
+          className="space-y-6 print:pt-12 page-break-before"
+        >
+          {renderHeader(`${qualChapterNum}. Investigação Qualitativa`)}
+          <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
+            {qualChapterNum}. Investigação Qualitativa do Ambiente (MPE)
+          </h3>
+          <p className="text-sm text-slate-700">
+            Abaixo estão consolidados os registros da avaliação qualitativa por setor/GES, considerando a observação das rotinas organizacionais, a percepção relatada pelos colaboradores e o parecer técnico conclusivo em conformidade com a NR-01 (GRO/PGR).
+          </p>
+
+          {report.sectors.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Nenhum setor cadastrado no relatório.</p>
+          ) : (
+            <div className="space-y-6">
+              {report.sectors.map((sector) => (
+                <div
+                  key={sector.id}
+                  data-print-subpage-target={`sector-qualitative-${sector.id}`}
+                  className="p-5 border border-slate-200 rounded-xl space-y-4 print:p-0 print:border-none print:pb-6"
+                >
+                  <div className="bg-slate-100 p-3 rounded-lg flex flex-wrap items-center justify-between print:bg-white print:border-b print:rounded-none px-0 pb-2 gap-2">
+                    <span className="font-extrabold text-sm text-slate-900 uppercase">Setor / GES: {sector.name}</span>
+                    <div className="flex gap-4 text-xs font-semibold text-slate-600">
+                      <span>Expostos: {sector.employeeCount || 0} func.</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 text-xs text-slate-700 leading-relaxed text-justify">
+                    <div className="bg-slate-50/70 p-3.5 rounded-lg border border-slate-200 print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                      <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">
+                        1. O que foi Avaliado e Condições de Trabalho
+                      </strong>
+                      <p className="whitespace-pre-wrap">
+                        {sector.qualitativeEvaluatedText?.trim() || "Não informado."}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50/70 p-3.5 rounded-lg border border-slate-200 print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
+                      <strong className="text-slate-800 uppercase text-[9px] tracking-wider block mb-1">
+                        2. Percepção dos Colaboradores
+                      </strong>
+                      <p className="whitespace-pre-wrap">
+                        {sector.qualitativePerceptionText?.trim() || "Não informado."}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 print:bg-white print:border-l-4 print:border-slate-700 print:rounded-none">
+                      <strong className="text-slate-900 uppercase text-[9px] tracking-wider block mb-1">
+                        3. Conclusão Técnica e Parecer Preliminar (GRO)
+                      </strong>
+                      <p className="whitespace-pre-wrap">
+                        {(sector.qualitativeConclusionText || sector.devolvedSynthesis)?.trim() ||
+                          "Conclusão técnica qualitativa ainda não registrada para este setor."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {!isQualitative && (
         <>
           {/* --- FASE 1: APRESENTAÇÃO DOS RESULTADOS (COPSOQ) --- */}
@@ -93,8 +161,9 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
                       </thead>
                       <tbody className="divide-y divide-slate-200">
                         {COPSOQ_DIMENSIONS.map((dim) => {
-                          const score = sector.scores?.[dim.key] ?? 0;
-                          const ratingInfo = getDimensionRating(score, dim.type);
+                          const rawScore = sector.scores?.[dim.key];
+                          const hasScore = typeof rawScore === "number" && !Number.isNaN(rawScore);
+                          const ratingInfo = getDimensionRating(hasScore ? rawScore : undefined, dim.type);
 
                           return (
                             <tr key={dim.key} className="hover:bg-slate-50/50 print:hover:bg-transparent">
@@ -103,7 +172,7 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
                                 {dim.type === "positive" ? "Positiva" : "Negativa"}
                               </td>
                               <td className="p-2 border border-slate-200 text-center font-bold text-slate-800 font-mono">
-                                {score === 0 ? "N/A" : score.toFixed(2)}
+                                {hasScore ? rawScore.toFixed(2) : "N/A"}
                               </td>
                               <td className={`p-2 border border-slate-200 text-center font-bold text-[10px] uppercase ${ratingInfo.bgClass}`}>
                                 {ratingInfo.rating}
@@ -146,10 +215,11 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
               <div className="space-y-6">
                 {report.sectors.map((sector) => {
                   const critical = COPSOQ_DIMENSIONS.map((d) => {
-                    const score = sector.scores?.[d.key] ?? 0.0;
-                    const rat = getDimensionRating(score, d.type);
-                    return { name: d.name, score, rating: rat.rating };
-                  }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score > 0);
+                    const rawScore = sector.scores?.[d.key];
+                    const hasScore = typeof rawScore === "number" && !Number.isNaN(rawScore);
+                    const rat = getDimensionRating(hasScore ? rawScore : undefined, d.type);
+                    return { name: d.name, score: hasScore ? rawScore : -1, rating: rat.rating };
+                  }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score >= 0);
 
                   return (
                     <div

@@ -214,7 +214,33 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
   };
 
   const loadDefaultCover = () => {
-    setDefaultCoverImage("https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=1200&q=80");
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#0f172a"/>
+          <stop offset="100%" stop-color="#1e293b"/>
+        </linearGradient>
+        <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#f59e0b"/>
+          <stop offset="100%" stop-color="#fbbf24"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="1600" fill="url(#bg)"/>
+      <circle cx="1060" cy="220" r="280" fill="#334155" opacity="0.22"/>
+      <circle cx="140" cy="1380" r="320" fill="#0284c7" opacity="0.14"/>
+      <rect x="96" y="140" width="140" height="10" rx="5" fill="url(#accent)"/>
+      <text x="96" y="210" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#94a3b8" letter-spacing="6">NR-01 • GRO / PGR • GESTÃO DE RISCOS</text>
+      <text x="96" y="340" font-family="Arial, sans-serif" font-size="68" font-weight="bold" fill="#ffffff">AVALIAÇÃO DE RISCOS</text>
+      <text x="96" y="425" font-family="Arial, sans-serif" font-size="68" font-weight="bold" fill="#fbbf24">PSICOSSOCIAIS</text>
+      <text x="96" y="500" font-family="Arial, sans-serif" font-size="30" fill="#cbd5e1">Laudo Técnico Ocupacional e Plano de Ação Preventivo</text>
+      <rect x="96" y="610" width="1008" height="2" fill="#334155"/>
+      <rect x="96" y="1330" width="1008" height="130" rx="18" fill="#0f172a" stroke="#334155" stroke-width="2"/>
+      <text x="140" y="1385" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#fbbf24">SAÚDE E SEGURANÇA DO TRABALHO</text>
+      <text x="140" y="1425" font-family="Arial, sans-serif" font-size="20" fill="#94a3b8">Documento Técnico Corporativo • Padrão ABNT / MTE</text>
+    </svg>`;
+    const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    setDefaultCoverImage(dataUrl);
+    saveImageToCache("cover_image", dataUrl);
   };
 
   return (
@@ -269,7 +295,7 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
-        {activeSubTab === "cadastro" ? (
+        {activeSubTab === "cadastro" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
             {/* DADOS JURÍDICOS E CONTATO */}
             <div className="lg:col-span-8 space-y-6">
@@ -568,7 +594,9 @@ export const CompanyCustomization: React.FC<CompanyCustomizationProps> = ({
 
             </div>
           </div>
-        ) : (
+        )}
+
+        {activeSubTab === "sistema" && (
           /* IDENTIDADE VISUAL E SISTEMA */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left">
             <div className="lg:col-span-6 space-y-6">

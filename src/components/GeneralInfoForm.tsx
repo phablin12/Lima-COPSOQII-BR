@@ -78,7 +78,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
         companyCep: chosen.cep || "",
         companyBairro: chosen.bairro || "",
         companyCity: chosen.city || "",
-        companyState: chosen.state || "SP",
+        companyState: chosen.state || "MT",
       });
     }
   };
@@ -313,7 +313,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             <div>
               <span className="font-extrabold text-slate-800 text-sm block">Avaliação Qualitativa (Micro e Pequenas)</span>
               <span className="text-[11px] text-slate-500 leading-normal block mt-1">
-                Método qualitativo direto focado em micro e pequenas empresas (MPE) e no Gerenciamento de Riscos Ocupacionais (GRO/NR-01), direcionando a avaliação diretamente para o Inventário de Riscos e Plano de Ação.
+                Método qualitativo direto focado em micro e pequenas empresas (MPE) e no GRO/NR-01: habilita a etapa de Avaliação Qualitativa por setor seguida pelo Inventário de Riscos e Plano de Ação.
               </span>
             </div>
           </label>
@@ -333,7 +333,13 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             <div className="flex items-center gap-2 text-xs">
               <span className="text-slate-500 font-bold shrink-0">Auto-preencher:</span>
               <SearchableSelect
-                value={companies.find((c) => c.name === report.companyName)?.id || ""}
+                value={
+                  companies.find(
+                    (c) =>
+                      (c.cnpj && report.cnpj && c.cnpj.replace(/\D/g, "") === report.cnpj.replace(/\D/g, "")) ||
+                      c.name === report.companyName
+                  )?.id || ""
+                }
                 onChange={(val) => handleSelectCompany(val)}
                 options={companies.map((c) => ({
                   value: c.id,
@@ -504,7 +510,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
               <div className="col-span-4 space-y-1">
                 <label className="text-sm font-medium text-slate-600">UF</label>
                 <select
-                  value={report.companyState || "SP"}
+                  value={report.companyState || "MT"}
                   onChange={(e) => handleAddField("companyState", e.target.value)}
                   className="w-full px-2 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
                 >
@@ -601,7 +607,13 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             <div className="flex items-center gap-2 text-xs">
               <span className="text-slate-500 font-bold shrink-0">Auto-preencher:</span>
               <SearchableSelect
-                value={professionals.find((p) => p.name === report.professionalName)?.id || ""}
+                value={
+                  professionals.find(
+                    (p) =>
+                      (p.reg && report.professionalReg && p.reg === report.professionalReg && p.name === report.professionalName) ||
+                      p.name === report.professionalName
+                  )?.id || ""
+                }
                 onChange={(val) => handleSelectProfessional(val)}
                 options={professionals.map((p) => ({
                   value: p.id,

@@ -6,15 +6,15 @@
 import React, { useRef, useState } from "react";
 import { Report, ReportChapters } from "../types";
 import { DEFAULT_CHAPTERS, DEFAULT_FINAL_CONSIDERATIONS, DEFAULT_QUALITATIVE_METODOLOGIA } from "../defaultChapters";
-import { FolderHeart, Plus, FileText, Trash2, Copy, Download, Upload, AlertTriangle, ShieldCheck, ChevronRight, Cloud, Sliders, X, Building, Check } from "lucide-react";
+import { FolderHeart, Plus, FileText, Trash2, Copy, Download, Upload, AlertTriangle, ShieldCheck, ChevronRight, Cloud, X, Building, CheckCircle2, AlertCircle } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
 
 interface ReportsDashboardProps {
   reports: Report[];
   companies: any[];
-  onUpdateCompanies: (companies: any[]) => void;
   onSelectReport: (id: string) => void;
   onCreateReport: (newReport: Report) => void;
+  onImportReport?: (importedReport: Report) => void;
   onDeleteReport: (id: string) => void;
   onUpdateAllReports: (reports: Report[]) => void;
   defaultCoverImage?: string;
@@ -25,9 +25,9 @@ interface ReportsDashboardProps {
 export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   reports,
   companies = [],
-  onUpdateCompanies,
   onSelectReport,
   onCreateReport,
+  onImportReport,
   onDeleteReport,
   onUpdateAllReports,
   defaultCoverImage,
@@ -37,31 +37,25 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [reportToDelete, setReportToDelete] = useState<string | null>(null);
   const [reportSearchQuery, setReportSearchQuery] = useState("");
+  const [feedbackBanner, setFeedbackBanner] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Modal creation states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [creationMode, setCreationMode] = useState<"select" | "register">("select");
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [newReportMethodology, setNewReportMethodology] = useState<"copsoq" | "qualitative">("copsoq");
+  const [modalError, setModalError] = useState<string | null>(null);
 
-  // New Company Registration form states
-  const [newCompanyFantasyName, setNewCompanyFantasyName] = useState("");
-  const [newCompanyName, setNewCompanyName] = useState("");
-  const [newCompanyCnpj, setNewCompanyCnpj] = useState("");
-  const [newCompanyCnae, setNewCompanyCnae] = useState("");
-  const [newCompanyRiskDegree, setNewCompanyRiskDegree] = useState("1");
-  const [newCompanyAddress, setNewCompanyAddress] = useState("");
-  const [newCompanyNumber, setNewCompanyNumber] = useState("");
-  const [newCompanyCep, setNewCompanyCep] = useState("");
-  const [newCompanyBairro, setNewCompanyBairro] = useState("");
-  const [newCompanyCity, setNewCompanyCity] = useState("Tangará da Serra");
-  const [newCompanyState, setNewCompanyState] = useState("MT");
-  const [newCompanyLogo, setNewCompanyLogo] = useState("");
-  const [newCompanySector, setNewCompanySector] = useState("");
+  const showFeedback = (type: "success" | "error", message: string) => {
+    setFeedbackBanner({ type, message });
+    setTimeout(() => {
+      setFeedbackBanner((prev) => (prev?.message === message ? null : prev));
+    }, 5000);
+  };
 
   const handleOpenCreateModal = () => {
     setSelectedCompanyId(companies.length > 0 ? companies[0].id : "");
     setNewReportMethodology("copsoq");
+    setModalError(null);
     setIsCreateModalOpen(true);
   };
 
@@ -70,11 +64,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
     
     const chosenCompany = companies.find((c) => c.id === selectedCompanyId);
     if (!chosenCompany) {
-      alert("Por favor, selecione uma empresa cadastrada no sistema.");
+      setModalError("Por favor, selecione uma empresa cadastrada no sistema.");
       return;
     }
     
-    const newChapters = defaultChapters ? { ...defaultChapters } : { ...DEFAULT_CHAPTERS };
+    const newChapters: ReportChapters = { ...DEFAULT_CHAPTERS, ...(defaultChapters || {}) };
     if (newReportMethodology === "qualitative") {
       newChapters.metodologia = DEFAULT_QUALITATIVE_METODOLOGIA;
     }
@@ -116,25 +110,41 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
   const handleDuplicateReport = (reportToCopy: Report, e: React.MouseEvent) => {
     e.stopPropagation(); // Avoid triggering row selection
 
+    const sectorIdMap = new Map<string, string>();
+    const copiedSectors = reportToCopy.sectors.map((s, idx) => {
+      const newId = `sector-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`;
+      sectorIdMap.set(s.id, newId);
+      return {
+        ...s,
+        id: newId,
+        scores: { ...(s.scores || {}) },
+      };
+    });
+
+    const copiedInventory = reportToCopy.riskInventory.map((item, idx) => ({
+      ...item,
+      id: `inv-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+      sectorId: sectorIdMap.get(item.sectorId) || item.sectorId,
+    }));
+
     const duplicated: Report = {
       ...reportToCopy,
       id: "rep-" + Date.now(),
       companyName: `${reportToCopy.companyName} (Cópia)`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      // Deep copy sectors
-      sectors: reportToCopy.sectors.map((s) => ({
-        ...s,
-        id: "sector-" + Math.random(),
-      })),
-      // Deep copy inventory items and adjust sector associations
-      riskInventory: reportToCopy.riskInventory.map((item) => ({
-        ...item,
-        id: "inv-" + Math.random(),
-      })),
+      chapters: { ...DEFAULT_CHAPTERS, ...(reportToCopy.chapters || {}) },
+      customChapters: reportToCopy.customChapters ? reportToCopy.customChapters.map((c) => ({ ...c })) : undefined,
+      chapterTitles: reportToCopy.chapterTitles ? { ...reportToCopy.chapterTitles } : undefined,
+      excludedChapters: reportToCopy.excludedChapters ? [...reportToCopy.excludedChapters] : undefined,
+      chaptersOrder: reportToCopy.chaptersOrder ? [...reportToCopy.chaptersOrder] : undefined,
+      evaluator: reportToCopy.evaluator ? { ...reportToCopy.evaluator } : undefined,
+      sectors: copiedSectors,
+      riskInventory: copiedInventory,
     };
 
     onCreateReport(duplicated);
+    showFeedback("success", `Cópia de "${reportToCopy.companyName}" criada com sucesso.`);
   };
 
   const handleDeleteReport = (id: string, e: React.MouseEvent) => {
@@ -177,18 +187,26 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         
         // Basic schema validation
         if (!importedReport.id || !importedReport.companyName || !Array.isArray(importedReport.sectors)) {
-          alert("Erro: O arquivo selecionado não é um backup de relatório SST válido ou está corrompido.");
+          showFeedback("error", "O arquivo selecionado não é um backup de relatório SST válido ou está corrompido.");
           return;
         }
 
-        // Adjust ID to prevent collisions
+        // Adjust ID and timestamps cleanly
         importedReport.id = "rep-imported-" + Date.now();
         importedReport.companyName = `${importedReport.companyName} (Importado)`;
+        importedReport.updatedAt = new Date().toISOString();
+        if (!importedReport.createdAt) {
+          importedReport.createdAt = importedReport.updatedAt;
+        }
         
-        onUpdateAllReports([importedReport, ...reports]);
-        alert("Relatório importado com sucesso!");
-      } catch (err) {
-        alert("Erro ao ler o arquivo JSON. Certifique-se de selecionar um backup válido.");
+        if (onImportReport) {
+          onImportReport(importedReport);
+        } else {
+          onUpdateAllReports([importedReport, ...reports]);
+        }
+        showFeedback("success", `Relatório "${importedReport.companyName}" importado com sucesso.`);
+      } catch {
+        showFeedback("error", "Erro ao ler o arquivo JSON. Certifique-se de selecionar um backup válido.");
       }
     };
     reader.readAsText(file);
@@ -222,25 +240,51 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
             Gestão de Relatórios & Diagnósticos
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Metodologia COPSOQ II – BR para NR-01 (GRO/PGR)
+            Metodologias COPSOQ II – BR & Qualitativa MPE para NR-01 (GRO/PGR)
           </p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             onClick={handleTriggerImport}
-            className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-lg transition cursor-pointer shadow-2xs"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-lg transition cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
             title="Importar Relatório JSON"
           >
-            Importar JSON
+            <Upload className="w-3.5 h-3.5" /> Importar JSON
           </button>
           <button
             onClick={handleOpenCreateModal}
-            className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-5 py-2.5 rounded-lg transition cursor-pointer shadow-sm"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 px-5 py-2.5 rounded-lg transition cursor-pointer shadow-sm whitespace-nowrap shrink-0"
           >
             <Plus className="w-4 h-4" /> Novo Relatório
           </button>
         </div>
       </div>
+
+      {feedbackBanner && (
+        <div
+          className={`px-4 py-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-3 ${
+            feedbackBanner.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {feedbackBanner.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{feedbackBanner.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFeedbackBanner(null)}
+            className="p-1 rounded-lg hover:bg-black/5 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Tabela / Lista de Relatórios */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
@@ -340,6 +384,13 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                     </span>
 
                     <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => handleExportReport(report, e)}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                        title="Exportar Backup JSON"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={(e) => handleDuplicateReport(report, e)}
                         className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
@@ -460,7 +511,10 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                 {companies.length > 0 ? (
                   <SearchableSelect
                     value={selectedCompanyId}
-                    onChange={(val) => setSelectedCompanyId(val)}
+                    onChange={(val) => {
+                      setSelectedCompanyId(val);
+                      setModalError(null);
+                    }}
                     options={companies.map((c) => ({
                       value: c.id,
                       label: c.fantasyName || c.name,
@@ -478,6 +532,11 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                       Você precisa cadastrar uma empresa na aba <strong>"Empresas"</strong> antes de iniciar um relatório psicossocial.
                     </div>
                   </div>
+                )}
+                {modalError && (
+                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1.5 pt-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {modalError}
+                  </p>
                 )}
               </div>
 

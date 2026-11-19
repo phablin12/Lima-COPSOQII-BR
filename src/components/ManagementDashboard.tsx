@@ -4,12 +4,8 @@
  */
 
 import React, { useState, useMemo } from "react";
-import { Report } from "../types";
+import { Report, COPSOQ_DIMENSIONS } from "../types";
 import { 
-  Building, 
-  FileText, 
-  Users, 
-  Layers, 
   Printer, 
   Calendar, 
   Search, 
@@ -19,9 +15,19 @@ import {
   CheckCircle2, 
   FileCheck, 
   Eye, 
-  Award,
-  ChevronRight
+  ChevronRight,
+  BarChart3
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell,
+  CartesianGrid,
+} from "recharts";
 import { SearchableSelect } from "./SearchableSelect";
 import { getImageSync } from "../imageStore";
 
@@ -37,15 +43,31 @@ interface ManagementDashboardProps {
     phone: string;
     logo: string;
   };
-  onUpdateAssessor: (newAssessor: any) => void;
-  onUpdateAllReports?: (updatedReports: Report[]) => void;
+  onSelectReport?: (id: string) => void;
 }
+
+const parseLocalDate = (dateStr?: string): Date | null => {
+  if (!dateStr) return null;
+  const dateOnly = dateStr.split("T")[0];
+  const parts = dateOnly.split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    const y = Number(parts[0]);
+    const m = Number(parts[1]) - 1;
+    const d = Number(parts[2]);
+    if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d)) {
+      return new Date(y, m, d, 12, 0, 0);
+    }
+  }
+  const parsed = new Date(dateStr);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ 
   reports, 
   companiesCount, 
   professionalsCount,
-  assessor
+  assessor,
+  onSelectReport,
 }) => {
   // --- FILTER & REPORT PERIOD STATES ---
   const [searchTerm, setSearchTerm] = useState("");
@@ -91,8 +113,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
   const availablePeriods = useMemo(() => {
     const periodMap = new Map<string, string>();
     reports.forEach((r) => {
-      const d = new Date(r.createdAt || r.dateStart || Date.now());
-      if (!isNaN(d.getTime())) {
+      const d = parseLocalDate(r.createdAt || r.dateStart);
+      if (d) {
         const y = d.getFullYear();
         const m = d.getMonth() + 1;
         const key = `${y}-${String(m).padStart(2, "0")}`;
@@ -140,8 +162,8 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
 
       // Period match
       if (selectedPeriod !== "all") {
-        const d = new Date(r.createdAt || r.dateStart || Date.now());
-        if (!isNaN(d.getTime())) {
+        const d = parseLocalDate(r.createdAt || r.dateStart);
+        if (d) {
           const y = d.getFullYear();
           const m = String(d.getMonth() + 1).padStart(2, "0");
           if (`${y}-${m}` !== selectedPeriod) return false;
@@ -165,20 +187,24 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
         return false;
       }
 
-      // Date Range match
+      // Date Range match (local date boundaries)
       if (startDate) {
-        const rDate = new Date(r.createdAt || r.dateStart || 0);
-        if (rDate < new Date(startDate)) return false;
+        const rDate = parseLocalDate(r.createdAt || r.dateStart);
+        const sParts = startDate.split("-").map(Number);
+        const sDate = new Date(sParts[0], sParts[1] - 1, sParts[2], 0, 0, 0);
+        if (!rDate || rDate < sDate) return false;
       }
       if (endDate) {
-        const rDate = new Date(r.createdAt || r.dateStart || 0);
-        if (rDate > new Date(endDate + "T23:59:59")) return false;
+        const rDate = parseLocalDate(r.createdAt || r.dateStart);
+        const eParts = endDate.split("-").map(Number);
+        const eDate = new Date(eParts[0], eParts[1] - 1, eParts[2], 23, 59, 59);
+        if (!rDate || rDate > eDate) return false;
       }
 
       return true;
     }).sort((a, b) => {
-      const tA = new Date(a.createdAt || a.dateStart || 0).getTime();
-      const tB = new Date(b.createdAt || b.dateStart || 0).getTime();
+      const tA = parseLocalDate(a.createdAt || a.dateStart)?.getTime() || 0;
+      const tB = parseLocalDate(b.createdAt || b.dateStart)?.getTime() || 0;
       return tB - tA; // Most recent first
     });
   }, [reports, searchTerm, selectedPeriod, selectedCompany, selectedMethodology, selectedProfessional, startDate, endDate]);
@@ -198,10 +224,10 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
     }> = {};
 
     filteredReports.forEach((r) => {
-      const d = new Date(r.createdAt || r.dateStart || Date.now());
+      const d = parseLocalDate(r.createdAt || r.dateStart);
       let key = "Indefinido";
       let label = "Sem Data";
-      if (!isNaN(d.getTime())) {
+      if (d) {
         const y = d.getFullYear();
         const m = d.getMonth() + 1;
         key = `${y}-${String(m).padStart(2, "0")}`;
@@ -237,7 +263,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
         r.riskInventory.forEach((item) => {
           if (item.riskLevel === "Alto" || item.riskLevel === "Grave") {
             g.highRiskCount++;
-          } else if (item.riskLevel === "Médio") {
+          } else if (item.riskLevel === "Moderado") {
             g.medRiskCount++;
           } else {
             g.lowRiskCount++;
@@ -271,7 +297,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
       if (r.riskInventory && Array.isArray(r.riskInventory)) {
         r.riskInventory.forEach((item) => {
           if (item.riskLevel === "Alto" || item.riskLevel === "Grave") highRisks++;
-          else if (item.riskLevel === "Médio") medRisks++;
+          else if (item.riskLevel === "Moderado") medRisks++;
           else lowRisks++;
         });
       }
@@ -288,11 +314,85 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
     };
   }, [filteredReports]);
 
+  // --- ANALYTICS CHARTS DATA ---
+  const riskDistributionData = useMemo(() => {
+    const counts = {
+      Insignificante: 0,
+      Baixo: 0,
+      Moderado: 0,
+      Alto: 0,
+      Grave: 0,
+    };
+    filteredReports.forEach((r) => {
+      (r.riskInventory || []).forEach((item) => {
+        if (item.riskLevel in counts) {
+          counts[item.riskLevel as keyof typeof counts]++;
+        }
+      });
+    });
+
+    return [
+      { level: "Insignificante", total: counts.Insignificante, fill: "#3b82f6" },
+      { level: "Baixo", total: counts.Baixo, fill: "#10b981" },
+      { level: "Moderado", total: counts.Moderado, fill: "#f59e0b" },
+      { level: "Alto", total: counts.Alto, fill: "#f97316" },
+      { level: "Grave", total: counts.Grave, fill: "#e11d48" },
+    ];
+  }, [filteredReports]);
+
+  const totalMappedRisks = useMemo(
+    () => riskDistributionData.reduce((acc, d) => acc + d.total, 0),
+    [riskDistributionData]
+  );
+
+  const copsoqAverageData = useMemo(() => {
+    const accum = COPSOQ_DIMENSIONS.map((dim) => ({
+      key: dim.key,
+      shortName: dim.name.length > 16 ? dim.name.slice(0, 15) + "…" : dim.name,
+      fullName: dim.name,
+      type: dim.type,
+      sum: 0,
+      count: 0,
+    }));
+
+    filteredReports.forEach((r) => {
+      if (r.methodology === "qualitative") return;
+      (r.sectors || []).forEach((s) => {
+        accum.forEach((entry) => {
+          const val = s.scores?.[entry.key];
+          if (typeof val === "number" && !Number.isNaN(val)) {
+            entry.sum += val;
+            entry.count++;
+          }
+        });
+      });
+    });
+
+    return accum
+      .filter((e) => e.count > 0)
+      .map((e) => {
+        const avg = Number((e.sum / e.count).toFixed(2));
+        let fill = "#10b981";
+        if (e.type === "positive") {
+          fill = avg > 2.66 ? "#10b981" : avg >= 1.34 ? "#f59e0b" : "#e11d48";
+        } else {
+          fill = avg <= 1.33 ? "#10b981" : avg <= 2.66 ? "#f59e0b" : "#e11d48";
+        }
+        return {
+          name: e.shortName,
+          fullName: e.fullName,
+          media: avg,
+          amostras: e.count,
+          fill,
+        };
+      });
+  }, [filteredReports]);
+
   // --- FORMATTERS ---
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "N/I";
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    const d = parseLocalDate(dateStr);
+    if (!d) return dateStr;
     const day = String(d.getDate()).padStart(2, "0");
     const month = String(d.getMonth() + 1).padStart(2, "0");
     const year = d.getFullYear();
@@ -623,21 +723,95 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
 
             <div className="bg-slate-800/90 p-2 rounded-lg border border-slate-700 text-left">
               <span className="text-[8px] uppercase font-bold text-slate-400 block">Empresas Clientes</span>
-              <span className="text-base font-black font-mono text-amber-300">{overallMetrics.companiesCount}</span>
-              <span className="text-[7.5px] text-slate-400 block">atendidas no balanço</span>
+              <span className="text-base font-black font-mono text-amber-300 tabular-nums">{overallMetrics.companiesCount}</span>
+              <span className="text-[7.5px] text-slate-400 block">{companiesCount} no cadastro · {professionalsCount} téc.</span>
             </div>
 
             <div className="bg-slate-800/90 p-2 rounded-lg border border-slate-700 text-left">
               <span className="text-[8px] uppercase font-bold text-slate-400 block">Vidas Impactadas</span>
-              <span className="text-base font-black font-mono text-emerald-400">{overallMetrics.totalLives}</span>
+              <span className="text-base font-black font-mono text-emerald-400 tabular-nums">{overallMetrics.totalLives}</span>
               <span className="text-[7.5px] text-slate-400 block">colaboradores diretos</span>
             </div>
 
             <div className="bg-slate-800/90 p-2 rounded-lg border border-slate-700 text-left">
               <span className="text-[8px] uppercase font-bold text-slate-400 block">GES Mapeados</span>
-              <span className="text-base font-black font-mono text-indigo-300">{overallMetrics.totalSectors}</span>
+              <span className="text-base font-black font-mono text-indigo-300 tabular-nums">{overallMetrics.totalSectors}</span>
               <span className="text-[7.5px] text-slate-400 block">setores operacionais</span>
             </div>
+          </div>
+        </div>
+
+        {/* ANALYTICS CHARTS (RISK MATRIX DISTRIBUTION & COPSOQ DIMENSIONS) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 avoid-break">
+          <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                <BarChart3 className="w-4 h-4 text-slate-600" /> Distribuição de Riscos (GRO)
+              </h3>
+              <span className="text-[11px] font-mono text-slate-500 tabular-nums">
+                {totalMappedRisks} {totalMappedRisks === 1 ? "risco" : "riscos"}
+              </span>
+            </div>
+            {totalMappedRisks === 0 ? (
+              <div className="h-44 flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg bg-white">
+                Sem riscos mapeados no inventário para os filtros selecionados.
+              </div>
+            ) : (
+              <div className="h-44 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={riskDistributionData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis dataKey="level" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      cursor={{ fill: "#f1f5f9" }}
+                      contentStyle={{ fontSize: "11px", borderRadius: "8px", border: "1px solid #e2e8f0" }}
+                      formatter={(value: any) => [`${value} itens`, "Quantidade"]}
+                    />
+                    <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                      {riskDistributionData.map((entry) => (
+                        <Cell key={entry.level} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                <BarChart3 className="w-4 h-4 text-slate-600" /> Média por Dimensão COPSOQ II
+              </h3>
+              <span className="text-[11px] font-mono text-slate-500 tabular-nums">Escala 0,00 – 4,00</span>
+            </div>
+            {copsoqAverageData.length === 0 ? (
+              <div className="h-44 flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg bg-white">
+                Sem pontuações COPSOQ II disponíveis nos laudos filtrados.
+              </div>
+            ) : (
+              <div className="h-44 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={copsoqAverageData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#475569" }} interval={0} angle={-18} textAnchor="end" height={42} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 4]} ticks={[0, 1.33, 2.66, 4]} tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      cursor={{ fill: "#f1f5f9" }}
+                      contentStyle={{ fontSize: "11px", borderRadius: "8px", border: "1px solid #e2e8f0" }}
+                      labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ""}
+                      formatter={(value: any) => [`${Number(value).toFixed(2)} pts`, "Média"]}
+                    />
+                    <Bar dataKey="media" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                      {copsoqAverageData.map((entry) => (
+                        <Cell key={entry.fullName} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         </div>
 
@@ -689,14 +863,22 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                         const totalLives = (report.sectors || []).reduce((acc, s) => acc + (s.employeeCount || 0), 0);
                         const totalSectors = (report.sectors || []).length;
                         const highRisks = (report.riskInventory || []).filter(r => r.riskLevel === "Alto" || r.riskLevel === "Grave").length;
-                        const medRisks = (report.riskInventory || []).filter(r => r.riskLevel === "Médio").length;
+                        const medRisks = (report.riskInventory || []).filter(r => r.riskLevel === "Moderado").length;
                         const isQualitative = report.methodology === "qualitative";
 
                         return (
-                          <tr key={report.id} className="hover:bg-slate-50 transition-colors">
+                          <tr
+                            key={report.id}
+                            onClick={() => onSelectReport?.(report.id)}
+                            className={`transition-colors ${onSelectReport ? "hover:bg-slate-50 cursor-pointer" : "hover:bg-slate-50"}`}
+                            title={onSelectReport ? "Clique para abrir este laudo" : undefined}
+                          >
                             {/* Company Name & CNPJ */}
                             <td className="p-1.5 font-bold text-slate-900">
-                              <div className="text-[10px] font-black text-slate-900 leading-tight">{report.companyName}</div>
+                              <div className="flex items-center gap-1 text-[10px] font-black text-slate-900 leading-tight">
+                                <span>{report.companyName}</span>
+                                {onSelectReport && <ChevronRight className="w-3 h-3 text-slate-400 print:hidden shrink-0" />}
+                              </div>
                               {report.companyFantasyName && report.companyFantasyName !== report.companyName && (
                                 <div className="text-[9px] font-medium text-slate-600">{report.companyFantasyName}</div>
                               )}
@@ -725,19 +907,19 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                             </td>
 
                             {/* GES Count */}
-                            <td className="p-1.5 text-center font-mono font-black text-slate-800 text-[10px]">
+                            <td className="p-1.5 text-center font-mono font-black text-slate-800 text-[10px] tabular-nums">
                               {totalSectors}
                             </td>
 
                             {/* Lives Count */}
-                            <td className="p-1.5 text-center font-mono font-black text-indigo-950 bg-indigo-50/60 text-[10px]">
+                            <td className="p-1.5 text-center font-mono font-black text-indigo-950 bg-indigo-50/60 text-[10px] tabular-nums">
                               {totalLives}
                             </td>
 
                             {/* Technical Professional */}
                             <td className="p-1.5 font-medium text-slate-700">
                               <div className="font-bold text-slate-800 leading-tight">{report.professionalName || "N/I"}</div>
-                              <div className="text-[8px] text-slate-500 font-mono">{report.professionalCouncil || ""}</div>
+                              <div className="text-[8px] text-slate-500 font-mono">{report.professionalReg || ""}</div>
                             </td>
 
                             {/* Risk Status Badge */}
@@ -748,7 +930,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({
                                 </span>
                               ) : medRisks > 0 ? (
                                 <span className="text-[8px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-1.5 py-0.5 rounded inline-block">
-                                  {medRisks} Médio
+                                  {medRisks} Moderado
                                 </span>
                               ) : (
                                 <span className="text-[8px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">

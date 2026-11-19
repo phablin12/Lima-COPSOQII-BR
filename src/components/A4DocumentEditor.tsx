@@ -342,6 +342,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
 
   const pageCountRef = useRef<number>(1);
   const layoutRafRef = useRef<number | null>(null);
+  const layoutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollSyncRafRef = useRef<number | null>(null);
   const programmaticScrollUntilRef = useRef<number>(0);
   const isPaginatingRef = useRef<boolean>(false);
@@ -359,6 +360,11 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   const activeChapter = useMemo(
     () => chapters.find((c) => c.id === activeChapterId) || chapters[0],
     [chapters, activeChapterId]
+  );
+
+  const chaptersSignature = useMemo(
+    () => chapters.map((c) => `${c.id}:${c.level}:${c.fullTitle}`).join("|"),
+    [chapters]
   );
 
   // Responsive scale calculation so A4 sheet never clips horizontally
@@ -764,23 +770,48 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
     });
   }, [viewMode, scale, marginPx]);
 
-  const schedulePaginationLayout = useCallback(() => {
-    if (layoutRafRef.current !== null) {
-      cancelAnimationFrame(layoutRafRef.current);
-    }
-    layoutRafRef.current = requestAnimationFrame(() => {
-      layoutRafRef.current = null;
-      runPaginationLayout();
-    });
-  }, [runPaginationLayout]);
+  const schedulePaginationLayout = useCallback(
+    (immediate = false) => {
+      if (layoutDebounceRef.current !== null) {
+        clearTimeout(layoutDebounceRef.current);
+        layoutDebounceRef.current = null;
+      }
+      if (layoutRafRef.current !== null) {
+        cancelAnimationFrame(layoutRafRef.current);
+        layoutRafRef.current = null;
+      }
 
-  // Re-run layout when chapter order, count, view mode, margins, indent, or zoom changes
+      const queueRaf = () => {
+        layoutRafRef.current = requestAnimationFrame(() => {
+          layoutRafRef.current = null;
+          runPaginationLayout();
+        });
+      };
+
+      if (immediate) {
+        queueRaf();
+      } else {
+        layoutDebounceRef.current = setTimeout(() => {
+          layoutDebounceRef.current = null;
+          queueRaf();
+        }, 160);
+      }
+    },
+    [runPaginationLayout]
+  );
+
+  const requestDebouncedLayout = useCallback(() => {
+    schedulePaginationLayout(false);
+  }, [schedulePaginationLayout]);
+
+  // Re-run layout immediately when structural chapter order/titles, view mode, margins, indent, or zoom changes
   useEffect(() => {
-    schedulePaginationLayout();
-  }, [chapters, pageMarginCm, paragraphIndent, scale, viewMode, schedulePaginationLayout]);
+    schedulePaginationLayout(true);
+  }, [chaptersSignature, pageMarginCm, paragraphIndent, scale, viewMode, schedulePaginationLayout]);
 
   useEffect(() => {
     return () => {
+      if (layoutDebounceRef.current !== null) clearTimeout(layoutDebounceRef.current);
       if (layoutRafRef.current !== null) cancelAnimationFrame(layoutRafRef.current);
       if (scrollSyncRafRef.current !== null) cancelAnimationFrame(scrollSyncRafRef.current);
     };
@@ -1106,7 +1137,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
       const cleanHtml = serializeEditorHtml(editorEl);
       lastEmittedByChapterRef.current.set(chapterId, cleanHtml);
       onChangeChapterText(chapterId, cleanHtml);
-      schedulePaginationLayout();
+      schedulePaginationLayout(true);
     },
     [onChangeChapterText, schedulePaginationLayout]
   );
@@ -1286,37 +1317,6 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
           >
             {activeChapter?.title || "Documento Completo"}
           </h4>
-
-          {activeChapter && activeChapter.type !== "phases" && (
-            <div className="flex items-center gap-1 ml-1 shrink-0">
-              {onEditChapterTitle && (
-                <button
-                  type="button"
-                  onClick={() => onEditChapterTitle(activeChapter.id)}
-                  className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                  title="Editar nome deste capítulo"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                </button>
-              )}
-              {onDeleteChapter && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onDeleteChapter(
-                      activeChapter.id,
-                      activeChapter.fullTitle,
-                      activeChapter.type === "standard"
-                    )
-                  }
-                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                  title="Excluir capítulo"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Status + Toggle Modo Edição / Visualização Real */}
@@ -1655,11 +1655,11 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
           <div className="flex items-center gap-2 text-xs text-slate-600 px-1 py-1">
             <Printer className="w-4 h-4 text-slate-700 shrink-0" />
             <span className="font-semibold text-slate-800 whitespace-nowrap">
-              Visualização Real (Laudo Completo A4)
+              Visualização de Conteúdo A4
             </span>
             <span aria-hidden="true">·</span>
             <span className="text-slate-500 hidden md:inline">
-              Guias ocultas, variáveis preenchidas e capítulos contínuos prontos para impressão.
+              Prévia das folhas e variáveis preenchidas. Para Capa, Sumário e PDF oficial use a aba Visualizar Laudo.
             </span>
           </div>
         )}
@@ -2088,7 +2088,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                         onChangeValue={onChangeChapterText}
                         onFocusChapter={handleFocusChapter}
                         onSelectionActivity={updateToolbarStateForEditor}
-                        onRequestLayout={schedulePaginationLayout}
+                        onRequestLayout={requestDebouncedLayout}
                         registerEditorRef={registerEditorRef}
                         setLastEmittedExternal={setLastEmittedExternal}
                         getLastEmittedExternal={getLastEmittedExternal}

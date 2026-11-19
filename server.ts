@@ -71,6 +71,9 @@ async function callGemini(options: {
 // ---------------------------------------------------------------------------
 app.post("/api/ai/sector-synthesis", async (req, res) => {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "Chave GEMINI_API_KEY não configurada no servidor." });
+    }
     const {
       sectorName,
       employeeCount,
@@ -80,7 +83,20 @@ app.post("/api/ai/sector-synthesis", async (req, res) => {
       criticalDimensions,
       qualitativeContext,
       userInstructions,
-    } = req.body;
+    } = req.body ?? {};
+
+    if (!sectorName || typeof sectorName !== "string" || !sectorName.trim()) {
+      return res.status(400).json({ error: "Nome do setor é obrigatório." });
+    }
+
+    const safeSectorName = sectorName.trim().slice(0, 200);
+    const safeCompanyName = typeof companyName === "string" && companyName.trim() ? companyName.trim().slice(0, 200) : "Empresa Avaliada";
+    const safeCompanySector = typeof companySector === "string" && companySector.trim() ? companySector.trim().slice(0, 200) : "Não especificado";
+    const safeEmployeeCount = Number.isFinite(Number(employeeCount)) ? Math.max(1, Math.min(100000, Math.round(Number(employeeCount)))) : 1;
+    const safeDims = Array.isArray(criticalDimensions) ? criticalDimensions.slice(0, 20) : [];
+    const safeEvalText = typeof qualitativeContext?.evaluatedText === "string" ? qualitativeContext.evaluatedText.slice(0, 3000) : "";
+    const safePercepText = typeof qualitativeContext?.perceptionText === "string" ? qualitativeContext.perceptionText.slice(0, 3000) : "";
+    const safeInstructions = typeof userInstructions === "string" ? userInstructions.slice(0, 2000) : "";
 
     const systemInstruction = `Você é um especialista sênior em Segurança e Saúde no Trabalho (SST), Ergonomia e Psicologia Organizacional do Trabalho no Brasil (em conformidade com a NR-01 - GRO/PGR, NR-17 e COPSOQ II - BR).
 Sua função é redigir um relato técnico aprofundado, coeso, profissional e humanizado da devolutiva técnica / investigação qualitativa de campo para o setor avaliado.
@@ -91,30 +107,22 @@ O texto deve:
 4. Apresentar uma análise diagnóstica que subsidie o Inventário Geral de Riscos e o Plano de Ação.
 5. Manter tom estritamente técnico, imparcial, respeitoso e construtivo. Não use gírias ou clichês vazios. Escreva em parágrafos corridos bem articulados.`;
 
-    const prompt = `Empresa: ${companyName || "Empresa Avaliada"}
-Atividade/Ramo: ${companySector || "Não especificado"}
-Setor/GES Avaliado: ${sectorName || "Setor Operacional"}
-Colaboradores expostos no setor: ${employeeCount || 1}
+    const prompt = `Empresa: ${safeCompanyName}
+Atividade/Ramo: ${safeCompanySector}
+Setor/GES Avaliado: ${safeSectorName}
+Colaboradores expostos no setor: ${safeEmployeeCount}
 Metodologia utilizada: ${methodology === "qualitative" ? "Avaliação Qualitativa do Trabalho" : "COPSOQ II - BR (Quantitativa/Qualitativa)"}
 
 ${
-  criticalDimensions && criticalDimensions.length > 0
+  safeDims.length > 0
     ? `Dimensões com resultados que demandam atenção ou são críticas no COPSOQ II:
-${criticalDimensions.map((d: any) => `- ${d.name} (${d.type === "positive" ? "Dimensão Protetiva" : "Dimensão Saturadora"}): Pontuação ${d.score} - Classificação: ${d.rating}`).join("\n")}`
+${safeDims.map((d: any) => `- ${String(d?.name || "").slice(0, 100)} (${d?.type === "positive" ? "Dimensão Protetiva" : "Dimensão Saturadora"}): Pontuação ${d?.score ?? "N/A"} - Classificação: ${String(d?.rating || "").slice(0, 40)}`).join("\n")}`
     : "Não há dimensões com pontuação alarmante registrada até o momento; redija um diagnóstico preventivo amplo de manutenção do bem-estar e controle de sobrecarga."
 }
 
-${
-  qualitativeContext?.evaluatedText
-    ? `Observações preliminares de campo: ${qualitativeContext.evaluatedText}`
-    : ""
-}
-${
-  qualitativeContext?.perceptionText
-    ? `Percepção relatada pelos colaboradores: ${qualitativeContext.perceptionText}`
-    : ""
-}
-${userInstructions ? `Instruções ou apontamentos adicionais do perito/avaliador: ${userInstructions}` : ""}
+${safeEvalText ? `Observações preliminares de campo: ${safeEvalText}` : ""}
+${safePercepText ? `Percepção relatada pelos colaboradores: ${safePercepText}` : ""}
+${safeInstructions ? `Instruções ou apontamentos adicionais do perito/avaliador: ${safeInstructions}` : ""}
 
 Redija a Síntese Técnica de Devolutiva do setor em 3 a 5 parágrafos técnicos detalhados e formais para compor o laudo oficial:`;
 
@@ -136,6 +144,9 @@ Redija a Síntese Técnica de Devolutiva do setor em 3 a 5 parágrafos técnicos
 // ---------------------------------------------------------------------------
 app.post("/api/ai/generate-risks", async (req, res) => {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "Chave GEMINI_API_KEY não configurada no servidor." });
+    }
     const {
       sectorName,
       sectorEmployees,
@@ -144,10 +155,23 @@ app.post("/api/ai/generate-risks", async (req, res) => {
       criticalDimensions,
       sectorSynthesis,
       count = 3,
-    } = req.body;
+    } = req.body ?? {};
+
+    if (!sectorName || typeof sectorName !== "string" || !sectorName.trim()) {
+      return res.status(400).json({ error: "Setor alvo é obrigatório para gerar riscos." });
+    }
+
+    const parsedCount = Number(count);
+    const safeCount = Number.isFinite(parsedCount) ? Math.min(10, Math.max(1, Math.round(parsedCount))) : 3;
+    const safeSectorName = sectorName.trim().slice(0, 200);
+    const safeEmployees = Number.isFinite(Number(sectorEmployees)) ? Math.max(1, Math.min(100000, Math.round(Number(sectorEmployees)))) : 1;
+    const safeCompanyName = typeof companyName === "string" && companyName.trim() ? companyName.trim().slice(0, 200) : "Empresa Avaliada";
+    const safeActivity = typeof companyActivity === "string" && companyActivity.trim() ? companyActivity.trim().slice(0, 200) : "Geral";
+    const safeSynthesis = typeof sectorSynthesis === "string" ? sectorSynthesis.slice(0, 3000) : "";
+    const safeDims = Array.isArray(criticalDimensions) ? criticalDimensions.slice(0, 20) : [];
 
     const systemInstruction = `Você é um engenheiro de segurança do trabalho e psicólogo organizacional especialista em inventários de riscos psicossociais (NR-01 GRO/PGR e Matriz de Riscos 5x5).
-Gere uma lista de ${count} riscos psicossociais rigorosamente técnicos e fundamentados para o setor informado.
+Gere uma lista de ${safeCount} riscos psicossociais rigorosamente técnicos e fundamentados para o setor informado.
 Para cada risco, defina com precisão técnica:
 - riskName: Nome técnico claro do risco psicossocial.
 - sourcesField: Perigos, fontes geradoras e circunstâncias organizacionais específicas.
@@ -163,14 +187,14 @@ Para cada risco, defina com precisão técnica:
 - efficacyIndicator: Indicador ou métrica de eficácia (KPI).
 - deadline: Prazo sugerido de implantação (ex: "Mês 1 (Imediato)", "Mês 2", "Mês 3").`;
 
-    const prompt = `Empresa: ${companyName || "Empresa Avaliada"}
-Atividade Principal: ${companyActivity || "Geral"}
-Setor/GES: ${sectorName || "Setor Operacional"}
-Colaboradores Expostos: ${sectorEmployees || 1}
-${sectorSynthesis ? `Síntese / Devolutiva do setor: ${sectorSynthesis}` : ""}
+    const prompt = `Empresa: ${safeCompanyName}
+Atividade Principal: ${safeActivity}
+Setor/GES: ${safeSectorName}
+Colaboradores Expostos: ${safeEmployees}
+${safeSynthesis ? `Síntese / Devolutiva do setor: ${safeSynthesis}` : ""}
 ${
-  criticalDimensions && criticalDimensions.length > 0
-    ? `Dimensões críticas ou desfavoráveis no setor: ${criticalDimensions.map((d: any) => `${d.name} (${d.rating})`).join(", ")}`
+  safeDims.length > 0
+    ? `Dimensões críticas ou desfavoráveis no setor: ${safeDims.map((d: any) => `${String(d?.name || "").slice(0, 100)} (${String(d?.rating || "").slice(0, 40)})`).join(", ")}`
     : ""
 }
 
@@ -231,19 +255,22 @@ Gere uma lista de riscos psicossociais estruturados para o inventário do setor.
 // ---------------------------------------------------------------------------
 app.post("/api/ai/enrich-risk", async (req, res) => {
   try {
-    const { riskName, sectorName, companyName, companyActivity } = req.body;
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "Chave GEMINI_API_KEY não configurada no servidor." });
+    }
+    const { riskName, sectorName, companyName, companyActivity } = req.body ?? {};
 
-    if (!riskName || !riskName.trim()) {
+    if (!riskName || typeof riskName !== "string" || !riskName.trim()) {
       return res.status(400).json({ error: "Nome do risco é obrigatório." });
     }
 
     const systemInstruction = `Você é um perito em Engenharia de Segurança e Psicologia Organizacional do Trabalho (NR-01 e COPSOQ II).
 Recebendo o nome de um risco psicossocial e o setor correspondente, elabore o preenchimento técnico completo de todos os campos da ficha de inventário e plano de ação.`;
 
-    const prompt = `Risco Psicossocial: "${riskName}"
-Setor / GES: "${sectorName || "Geral"}"
-Empresa: "${companyName || "Empresa"}"
-Ramo: "${companyActivity || "Comércio e Serviços"}"
+    const prompt = `Risco Psicossocial: "${riskName.trim().slice(0, 200)}"
+Setor / GES: "${typeof sectorName === "string" && sectorName.trim() ? sectorName.trim().slice(0, 150) : "Geral"}"
+Empresa: "${typeof companyName === "string" && companyName.trim() ? companyName.trim().slice(0, 200) : "Empresa"}"
+Ramo: "${typeof companyActivity === "string" && companyActivity.trim() ? companyActivity.trim().slice(0, 200) : "Comércio e Serviços"}"
 
 Elabore a caracterização técnica do risco e diretrizes de controle.`;
 
@@ -297,11 +324,18 @@ Elabore a caracterização técnica do risco e diretrizes de controle.`;
 // ---------------------------------------------------------------------------
 app.post("/api/ai/action-plan-schedule", async (req, res) => {
   try {
-    const { companyName, companyActivity, items } = req.body;
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "Chave GEMINI_API_KEY não configurada no servidor." });
+    }
+    const { companyName, companyActivity, items } = req.body ?? {};
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "Nenhum item de risco fornecido." });
     }
+
+    const safeItems = items.slice(0, 60);
+    const safeCompanyName = typeof companyName === "string" && companyName.trim() ? companyName.trim().slice(0, 200) : "Empresa";
+    const safeActivity = typeof companyActivity === "string" && companyActivity.trim() ? companyActivity.trim().slice(0, 200) : "Geral";
 
     const systemInstruction = `Você é um consultor líder de Gestão de Riscos Ocupacionais (GRO/PGR) especialista na metodologia 5W2H e cronogramas de implantação de medidas preventivas psicossociais.
 Para cada risco fornecido, você deve estruturar o plano de ação e cronograma contendo:
@@ -314,18 +348,18 @@ Para cada risco fornecido, você deve estruturar o plano de ação e cronograma 
 - deadline: Prazo realista no cronograma de 12 meses (escalonando ações: "Mês 1 (Imediato)", "Mês 2", "Mês 3", "Trimestre 2", "Semestre 2").
 - efficacyIndicator: Indicador objetivo de eficácia e acompanhamento contínuo.`;
 
-    const prompt = `Empresa: ${companyName || "Empresa"}
-Ramo: ${companyActivity || "Geral"}
+    const prompt = `Empresa: ${safeCompanyName}
+Ramo: ${safeActivity}
 
 Riscos no inventário para elaboração do plano de ação e cronograma:
 ${JSON.stringify(
-  items.map((i: any) => ({
-    id: i.id,
-    riskName: i.riskName,
-    sectorName: i.sectorName,
-    riskLevel: i.riskLevel,
-    riskScore: i.riskScore,
-    currentRecommendation: i.recommendation,
+  safeItems.map((i: any) => ({
+    id: String(i?.id || ""),
+    riskName: String(i?.riskName || "").slice(0, 160),
+    sectorName: String(i?.sectorName || "Geral").slice(0, 120),
+    riskLevel: String(i?.riskLevel || "Moderado").slice(0, 40),
+    riskScore: Number(i?.riskScore) || 0,
+    currentRecommendation: String(i?.recommendation || "").slice(0, 300),
   })),
   null,
   2

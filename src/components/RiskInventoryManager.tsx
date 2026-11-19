@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { Report, Sector, CatalogRisk, RiskInventoryItem } from "../types";
 import { getMatrixCell, getColorClass, PROBABILITY_LEVELS, SEVERITY_LEVELS } from "../matrixUtils";
-import { AlertCircle, Plus, Trash2, Edit2, ShieldAlert, FileSpreadsheet, Eye, HelpCircle, Sparkles, Loader2, Wand2, X, Check, CheckSquare } from "lucide-react";
+import { AlertCircle, Plus, Trash2, Edit2, ShieldAlert, FileSpreadsheet, Eye, HelpCircle, Sparkles, Loader2, Wand2, X, Check, CheckSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
 import { generateSectorRisks, enrichRiskItem, GeneratedRiskItem } from "../aiService";
 
@@ -23,9 +23,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     recognizedSectors.length > 0 ? recognizedSectors[0].id : ""
   );
 
-  const [selectedCatalogRiskId, setSelectedCatalogRiskId] = useState<string>(
-    catalog.length > 0 ? catalog[0].id : "custom"
-  );
+  const [selectedCatalogRiskId, setSelectedCatalogRiskId] = useState<string>("custom");
 
   // AI Modal and Generation States
   const [showAIModal, setShowAIModal] = useState(false);
@@ -72,6 +70,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
   const [efficacyIndicator, setEfficacyIndicator] = useState("");
 
   const [isAdding, setIsAdding] = useState(false);
+  const [showAdvanced5W2H, setShowAdvanced5W2H] = useState(false);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
@@ -109,9 +108,42 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     }, 100);
   };
 
+  const handleSelectCatalogRisk = (val: string) => {
+    setSelectedCatalogRiskId(val);
+    if (val === "custom") {
+      setCustomRiskName("");
+      setSourcesField("");
+      setPossibleInjuries("");
+      return;
+    }
+    const risk = catalog.find((r) => r.id === val);
+    if (risk) {
+      setCustomRiskName(risk.name);
+      setSourcesField(risk.source);
+      setPossibleInjuries(risk.possibleInjuries);
+      if (risk.existingControls) setExistingControls(risk.existingControls);
+      if (risk.diseaseHistory) setDiseaseHistory(risk.diseaseHistory);
+      if (risk.probability) setProbability(risk.probability);
+      if (risk.severity) setSeverity(risk.severity);
+      if (risk.uncertainty) setUncertainty(risk.uncertainty);
+      if (risk.recommendation) setRecommendation(risk.recommendation);
+      if (risk.priority) setPriority(risk.priority);
+      if (risk.responsible) setResponsible(risk.responsible);
+      if (risk.status) setStatus(risk.status);
+      if (risk.deadline) setDeadline(risk.deadline);
+      if (risk.monitoring) setMonitoring(risk.monitoring);
+      if (risk.measureResults) setMeasureResults(risk.measureResults);
+      if (risk.actionObjective) setActionObjective(risk.actionObjective);
+      if (risk.actionProposed) setActionProposed(risk.actionProposed);
+      if (risk.periodicity) setPeriodicity(risk.periodicity);
+      if (risk.efficacyIndicator) setEfficacyIndicator(risk.efficacyIndicator);
+    }
+  };
+
   const handleCancelEdit = () => {
     setEditingItemId(null);
     setIsAdding(false);
+    setSelectedCatalogRiskId("custom");
     // Reset Form fields
     setCustomRiskName("");
     setSourcesField("");
@@ -136,24 +168,9 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
     setExposedCount(sect ? (sect.employeeCount || 1) : 1);
   };
 
-  // Sync inputs when selected risk from catalog changes
+  // Sync exposed employees when sector changes or sectors load (skip overwriting active edit)
   useEffect(() => {
-    if (selectedCatalogRiskId === "custom") {
-      setCustomRiskName("");
-      setSourcesField("");
-      setPossibleInjuries("");
-    } else {
-      const risk = catalog.find((r) => r.id === selectedCatalogRiskId);
-      if (risk) {
-        setCustomRiskName(risk.name);
-        setSourcesField(risk.source);
-        setPossibleInjuries(risk.possibleInjuries);
-      }
-    }
-  }, [selectedCatalogRiskId, catalog]);
-
-  // Sync exposed employees when sector changes or sectors load
-  useEffect(() => {
+    if (editingItemId) return;
     if (recognizedSectors.length > 0) {
       const sect = recognizedSectors.find((s) => s.id === selectedSectorId);
       if (sect) {
@@ -164,7 +181,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
         setExposedCount(first.employeeCount || 1);
       }
     }
-  }, [selectedSectorId, report.sectors]);
+  }, [selectedSectorId, report.sectors, editingItemId]);
 
   if (report.sectors.length === 0) {
     return (
@@ -266,6 +283,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
 
     // Reset Form
     setIsAdding(false);
+    setSelectedCatalogRiskId("custom");
     setCustomRiskName("");
     setSourcesField("");
     setPossibleInjuries("");
@@ -496,12 +514,12 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                 <label className="text-xs font-semibold text-slate-600">Puxar do Catálogo ou Personalizar</label>
                 <SearchableSelect
                   value={selectedCatalogRiskId}
-                  onChange={(val) => setSelectedCatalogRiskId(val)}
+                  onChange={handleSelectCatalogRisk}
                   options={[
                     ...catalog.map((risk) => ({
                       value: risk.id,
                       label: risk.name,
-                      subLabel: `Categoria: ${risk.category}`
+                      subLabel: `Nível padrão: ${risk.defaultLevel}`
                     })),
                     { value: "custom", label: "[Risco Personalizado / Não listado]", subLabel: "Crie um risco personalizado abaixo" }
                   ]}
@@ -712,8 +730,11 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                 <textarea
                   value={recommendation}
                   onChange={(e) => {
-                    setRecommendation(e.target.value);
-                    setActionProposed(e.target.value); // Sync to proposed action by default
+                    const val = e.target.value;
+                    setRecommendation(val);
+                    if (!actionProposed || actionProposed === recommendation) {
+                      setActionProposed(val);
+                    }
                   }}
                   placeholder="Ex: Realizar rodadas de feedback individual com a nova equipe de faturamento e treinamento instrucional do novo CRM de forma urgente."
                   rows={2}
@@ -800,57 +821,79 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
               </div>
             </div>
 
-            {/* Campos adicionais requeridos para o plano de ação */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Campos Avançados do Plano de Ação</span>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Objetivo Específico da Ação</label>
-                  <input
-                    type="text"
-                    value={actionObjective}
-                    onChange={(e) => setActionObjective(e.target.value)}
-                    placeholder="Ex: Ajustar o fluxo informacional e diminuir ruídos de competência no setor."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
-                  />
+            {/* Campos adicionais opcionais (também editáveis no Plano de Ação) */}
+            <div className="bg-slate-50 rounded-xl border border-slate-200/70 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced5W2H((prev) => !prev)}
+                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-100/70 transition cursor-pointer"
+              >
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
+                    Detalhes Avançados 5W2H do Plano de Ação
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Opcional neste momento — você também pode editar na aba Plano de Ação
+                  </span>
                 </div>
+                {showAdvanced5W2H ? (
+                  <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
+                )}
+              </button>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Ação Proposta Detalhada</label>
-                  <input
-                    type="text"
-                    value={actionProposed}
-                    onChange={(e) => setActionProposed(e.target.value)}
-                    placeholder="Ex: Elaborar fluxo organizacional formal indicando papéis de aprovação das faturas."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
-                  />
-                </div>
-              </div>
+              {showAdvanced5W2H && (
+                <div className="p-4 pt-2 border-t border-slate-200/70 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-600">Objetivo Específico da Ação</label>
+                      <input
+                        type="text"
+                        value={actionObjective}
+                        onChange={(e) => setActionObjective(e.target.value)}
+                        placeholder="Ex: Ajustar o fluxo informacional e diminuir ruídos de competência no setor."
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
+                      />
+                    </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Periodicidade da Ação</label>
-                  <input
-                    type="text"
-                    value={periodicity}
-                    onChange={(e) => setPeriodicity(e.target.value)}
-                    placeholder="Ex: Mensal / Eventual"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
-                  />
-                </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-600">Ação Proposta Detalhada</label>
+                      <input
+                        type="text"
+                        value={actionProposed}
+                        onChange={(e) => setActionProposed(e.target.value)}
+                        placeholder="Ex: Elaborar fluxo organizacional formal indicando papéis de aprovação das faturas."
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
+                      />
+                    </div>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Indicador de Eficácia</label>
-                  <input
-                    type="text"
-                    value={efficacyIndicator}
-                    onChange={(e) => setEfficacyIndicator(e.target.value)}
-                    placeholder="Ex: Índice de conformidade em faturamento ou índice de reavaliação COPSOQ."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-600">Periodicidade da Ação</label>
+                      <input
+                        type="text"
+                        value={periodicity}
+                        onChange={(e) => setPeriodicity(e.target.value)}
+                        placeholder="Ex: Mensal / Eventual"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-600">Indicador de Eficácia</label>
+                      <input
+                        type="text"
+                        value={efficacyIndicator}
+                        onChange={(e) => setEfficacyIndicator(e.target.value)}
+                        placeholder="Ex: Índice de conformidade em faturamento ou índice de reavaliação COPSOQ."
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-800"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -1071,11 +1114,11 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                               let cellBg = "bg-slate-200 text-slate-500";
                               if (isActive) {
                                 cellBg = cell.color === "red"
-                                  ? "bg-rose-500 text-white animate-pulse"
+                                  ? "bg-rose-600 text-white ring-2 ring-rose-300"
                                   : cell.color === "orange"
-                                  ? "bg-amber-500 text-white animate-pulse"
+                                  ? "bg-amber-500 text-white ring-2 ring-amber-300"
                                   : cell.color === "yellow"
-                                  ? "bg-yellow-400 text-slate-900"
+                                  ? "bg-yellow-400 text-slate-900 ring-2 ring-yellow-200"
                                   : cell.color === "blue"
                                   ? "bg-blue-400 text-white"
                                   : "bg-emerald-500 text-white";

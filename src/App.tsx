@@ -136,10 +136,50 @@ function pruneLargeStrings(
   return obj;
 }
 
+function safeSetLocalStorageItem(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error: any) {
+    if (error?.name === "QuotaExceededError" || error?.code === 22 || error?.code === 1014) {
+      if (key.startsWith("sst_img_")) {
+        return false;
+      }
+      try {
+        localStorage.removeItem("sst_psicossocial_catalog");
+        localStorage.removeItem("sst_fast_assessor_logo");
+        localStorage.removeItem("sst_fast_cover_image");
+        if (key !== "sst_psicossocial_reports") {
+          localStorage.removeItem("sst_psicossocial_reports");
+        }
+        localStorage.setItem(key, value);
+        return true;
+      } catch {
+        // Quota still exceeded; IndexedDB + Firestore retain full copies
+        return false;
+      }
+    }
+    return false;
+  }
+}
+
+function safeSetLocalStorageJson(
+  key: string,
+  data: unknown,
+  options?: { isAssessorSettings?: boolean }
+): boolean {
+  try {
+    const pruned = pruneLargeStrings(data, undefined, options);
+    const serialized = JSON.stringify(pruned);
+    return safeSetLocalStorageItem(key, serialized);
+  } catch {
+    return false;
+  }
+}
+
 // Proactive storage cleanup on startup to shrink any bloated legacy caches and free quota before app mounts
 function proactiveStorageCleanup() {
   try {
-    // Clean up legacy duplicated fast keys if any remain
     try {
       localStorage.removeItem("sst_fast_assessor_logo");
       localStorage.removeItem("sst_fast_cover_image");
@@ -162,7 +202,7 @@ function proactiveStorageCleanup() {
           const pruned = pruneLargeStrings(parsed, undefined, { isAssessorSettings: isAssessor });
           const prunedStr = JSON.stringify(pruned);
           if (prunedStr.length < val.length) {
-            localStorage.setItem(key, prunedStr);
+            safeSetLocalStorageItem(key, prunedStr);
           }
         } catch {
           // Ignore parse errors
@@ -176,55 +216,6 @@ function proactiveStorageCleanup() {
 
 // Run proactive storage cleanup before hydrating state
 proactiveStorageCleanup();
-
-// Safe localStorage wrapper to prune bloated JSON payloads and handle quota gracefully without noisy error spam
-try {
-  const originalSetItem = localStorage.setItem;
-  localStorage.setItem = function (key: string, value: string) {
-    let prunedValue = value;
-    const isProtected =
-      key.startsWith("sst_img_") ||
-      key.startsWith("sst_nav_") ||
-      key === "sst_cached_user";
-
-    if (!isProtected && value && (value.startsWith("{") || value.startsWith("["))) {
-      try {
-        const parsed = JSON.parse(value);
-        const pruned = pruneLargeStrings(parsed, undefined, {
-          isAssessorSettings: key === "sst_psicossocial_assessor",
-        });
-        prunedValue = JSON.stringify(pruned);
-      } catch {
-        // Fallback to original value if parsing fails
-      }
-    }
-
-    try {
-      originalSetItem.call(localStorage, key, prunedValue);
-    } catch (error: any) {
-      if (error?.name === "QuotaExceededError" || error?.code === 22 || error?.code === 1014) {
-        // For optional image slots, skip silently (IndexedDB already holds the image)
-        if (key.startsWith("sst_img_")) {
-          return;
-        }
-        try {
-          // Evict expendable cache items to make room for current write
-          localStorage.removeItem("sst_psicossocial_catalog");
-          localStorage.removeItem("sst_fast_assessor_logo");
-          localStorage.removeItem("sst_fast_cover_image");
-          if (key !== "sst_psicossocial_reports") {
-            localStorage.removeItem("sst_psicossocial_reports");
-          }
-          originalSetItem.call(localStorage, key, prunedValue);
-        } catch {
-          // Quota still exceeded; rely on IndexedDB + Firestore without crashing or spamming warnings
-        }
-      }
-    }
-  };
-} catch {
-  // Ignore patch failure in restricted environments
-}
 
 // Helper to read initial navigation state from URL query parameters or localStorage
 const getInitialNavState = () => {
@@ -320,8 +311,8 @@ export default function App() {
         params.set("reportId", currentReportId);
         params.set("tab", activeTab);
         params.delete("view");
-        localStorage.setItem("sst_nav_currentReportId", currentReportId);
-        localStorage.setItem("sst_nav_activeTab", activeTab);
+        safeSetLocalStorageItem("sst_nav_currentReportId", currentReportId);
+        safeSetLocalStorageItem("sst_nav_activeTab", activeTab);
         localStorage.removeItem("sst_nav_homeTab");
       } else {
         params.delete("reportId");
@@ -329,7 +320,7 @@ export default function App() {
         params.set("view", homeTab);
         localStorage.removeItem("sst_nav_currentReportId");
         localStorage.removeItem("sst_nav_activeTab");
-        localStorage.setItem("sst_nav_homeTab", homeTab);
+        safeSetLocalStorageItem("sst_nav_homeTab", homeTab);
       }
 
       const newSearch = params.toString();
@@ -370,9 +361,36 @@ export default function App() {
   // Debounce & fresh state refs for report saving
   const latestReportToSaveRef = useRef<Report | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportLocalPersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingLocalPersistReportsRef = useRef<Report[] | null>(null);
   const reportsRef = useRef<Report[]>(reports);
   reportsRef.current = reports;
   const pendingCloudSyncsRef = useRef<Map<string, () => Promise<void>>>(new Map());
+
+  const persistReportsLocally = (list: Report[]) => {
+    if (reportLocalPersistTimeoutRef.current) {
+      clearTimeout(reportLocalPersistTimeoutRef.current);
+      reportLocalPersistTimeoutRef.current = null;
+    }
+    pendingLocalPersistReportsRef.current = null;
+    saveJsonToCache("reports", list);
+    safeSetLocalStorageJson("sst_psicossocial_reports", list);
+    setLastSaved(new Date().toLocaleTimeString());
+  };
+
+  const flushLocalReportsPersistence = () => {
+    if (reportLocalPersistTimeoutRef.current) {
+      clearTimeout(reportLocalPersistTimeoutRef.current);
+      reportLocalPersistTimeoutRef.current = null;
+    }
+    if (pendingLocalPersistReportsRef.current) {
+      const pendingList = pendingLocalPersistReportsRef.current;
+      pendingLocalPersistReportsRef.current = null;
+      saveJsonToCache("reports", pendingList);
+      safeSetLocalStorageJson("sst_psicossocial_reports", pendingList);
+      setLastSaved(new Date().toLocaleTimeString());
+    }
+  };
 
   // Seeding check refs to prevent deleted items from reappearing when database is empty
   const hasCheckedReportsSeedingRef = useRef(false);
@@ -571,7 +589,13 @@ export default function App() {
     setSyncErrorDetail(null);
 
     try {
+      flushLocalReportsPersistence();
+
       // Flush any debounced report edit immediately
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
       if (latestReportToSaveRef.current) {
         const pendingReport = latestReportToSaveRef.current;
         await saveReportToFirestore(pendingReport);
@@ -604,7 +628,7 @@ export default function App() {
     }
   };
 
-  // Monitor browser online/offline transitions and auto-flush queued cloud syncs
+  // Monitor browser online/offline transitions, flush pending local edits on tab hide/unload
   useEffect(() => {
     const onOnline = () => {
       handleRetryCloudSync();
@@ -613,11 +637,26 @@ export default function App() {
       setSyncState("offline");
       setSyncErrorDetail("Sem conexão com a internet. Seus dados continuam salvos localmente.");
     };
+    const onBeforeUnload = () => {
+      flushLocalReportsPersistence();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushLocalReportsPersistence();
+      }
+    };
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onBeforeUnload);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
+      flushLocalReportsPersistence();
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onBeforeUnload);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
@@ -629,11 +668,11 @@ export default function App() {
       setAuthSessionReady(true);
       try {
         if (currentUser) {
-          localStorage.setItem("sst_cached_user", JSON.stringify({
+          safeSetLocalStorageJson("sst_cached_user", {
             uid: currentUser.uid,
             email: currentUser.email,
             displayName: currentUser.displayName
-          }));
+          });
           testFirestoreConnection();
         } else {
           localStorage.removeItem("sst_cached_user");
@@ -826,7 +865,7 @@ export default function App() {
           reportsRef.current = mergedList;
           setReports(mergedList);
           saveJsonToCache("reports", mergedList);
-          localStorage.setItem("sst_psicossocial_reports", JSON.stringify(mergedList));
+          safeSetLocalStorageJson("sst_psicossocial_reports", mergedList);
         } else {
           // Firestore is empty - try to seed from IndexedDB or local storage if available, keeping local state
           if (!hasCheckedReportsSeedingRef.current) {
@@ -846,7 +885,7 @@ export default function App() {
               if (prev && prev.length > 0) {
                 return prev;
               }
-              localStorage.setItem("sst_psicossocial_reports", JSON.stringify([]));
+              safeSetLocalStorageJson("sst_psicossocial_reports", []);
               return [];
             });
           }
@@ -872,12 +911,10 @@ export default function App() {
 
         if (list.length > 0) {
           hasCheckedCompaniesSeedingRef.current = true;
-          // Sort alphabetically
           list.sort((a, b) => (a.fantasyName || a.name || "").localeCompare(b.fantasyName || b.name || ""));
           setCompanies(list);
-          localStorage.setItem("sst_psicossocial_companies", JSON.stringify(list));
+          safeSetLocalStorageJson("sst_psicossocial_companies", list);
         } else {
-          // Firestore is empty - seed from local
           if (!hasCheckedCompaniesSeedingRef.current) {
             hasCheckedCompaniesSeedingRef.current = true;
             const stored = localStorage.getItem("sst_psicossocial_companies");
@@ -893,12 +930,11 @@ export default function App() {
               setCompanies([]);
             }
           } else {
-            // Only clear state if there are indeed no companies in active memory
             setCompanies((prev) => {
               if (prev && prev.length > 0) {
                 return prev;
               }
-              localStorage.setItem("sst_psicossocial_companies", JSON.stringify([]));
+              safeSetLocalStorageJson("sst_psicossocial_companies", []);
               return [];
             });
           }
@@ -926,9 +962,8 @@ export default function App() {
           hasCheckedProfessionalsSeedingRef.current = true;
           list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
           setProfessionals(list);
-          localStorage.setItem("sst_psicossocial_professionals", JSON.stringify(list));
+          safeSetLocalStorageJson("sst_psicossocial_professionals", list);
         } else {
-          // Firestore is empty - seed from local
           if (!hasCheckedProfessionalsSeedingRef.current) {
             hasCheckedProfessionalsSeedingRef.current = true;
             const stored = localStorage.getItem("sst_psicossocial_professionals");
@@ -944,12 +979,11 @@ export default function App() {
               setProfessionals([]);
             }
           } else {
-            // Only clear state if there are indeed no professionals in active memory
             setProfessionals((prev) => {
               if (prev && prev.length > 0) {
                 return prev;
               }
-              localStorage.setItem("sst_psicossocial_professionals", JSON.stringify([]));
+              safeSetLocalStorageJson("sst_psicossocial_professionals", []);
               return [];
             });
           }
@@ -977,9 +1011,8 @@ export default function App() {
           hasCheckedEvaluatorsSeedingRef.current = true;
           list.sort((a, b) => (a.fantasyName || "").localeCompare(b.fantasyName || ""));
           setEvaluators(list);
-          localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify(list));
+          safeSetLocalStorageJson("sst_psicossocial_evaluators", list);
         } else {
-          // Firestore is empty - seed from local
           if (!hasCheckedEvaluatorsSeedingRef.current) {
             hasCheckedEvaluatorsSeedingRef.current = true;
             const stored = localStorage.getItem("sst_psicossocial_evaluators");
@@ -995,12 +1028,11 @@ export default function App() {
               setEvaluators([]);
             }
           } else {
-            // Only clear state if there are indeed no evaluators in active memory
             setEvaluators((prev) => {
               if (prev && prev.length > 0) {
                 return prev;
               }
-              localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify([]));
+              safeSetLocalStorageJson("sst_psicossocial_evaluators", []);
               return [];
             });
           }
@@ -1026,9 +1058,8 @@ export default function App() {
 
         if (list.length > 0) {
           setGlobalCatalog(list);
-          localStorage.setItem("sst_psicossocial_catalog", JSON.stringify(list));
+          safeSetLocalStorageJson("sst_psicossocial_catalog", list);
         } else {
-          // Seed Firestore with default catalog if database is empty
           try {
             const storedCatalog = localStorage.getItem("sst_psicossocial_catalog");
             const catalogToSave = storedCatalog ? JSON.parse(storedCatalog) : DEFAULT_RISK_CATALOG;
@@ -1074,7 +1105,7 @@ export default function App() {
                     : getImageSync("cover_image")),
           }));
           saveJsonToCache("assessor", data);
-          localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(data));
+          safeSetLocalStorageJson("sst_psicossocial_assessor", data, { isAssessorSettings: true });
         } else {
           try {
             await saveAssessorToFirestore(assessor);
@@ -1101,24 +1132,23 @@ export default function App() {
     };
   }, [user, authSessionReady]);
 
-  // 1b. Helper to persist companies
+  // 1b. Helper to persist companies (incremental diff + parallel Firestore writes)
   const handleUpdateCompanies = async (newCompanies: typeof companies) => {
     const prevCompanies = companies;
     setCompanies(newCompanies);
-    try {
-      localStorage.setItem("sst_psicossocial_companies", JSON.stringify(newCompanies));
-    } catch (err) {
-      console.error("Erro ao salvar empresas no localStorage:", err);
-    }
+    safeSetLocalStorageJson("sst_psicossocial_companies", newCompanies);
 
     const syncFn = async () => {
+      const prevById = new Map(prevCompanies.map((item) => [item.id, item]));
       const deleted = prevCompanies.filter((oc) => !newCompanies.some((nc) => nc.id === oc.id));
-      for (const dc of deleted) {
-        await deleteCompanyFromFirestore(dc.id);
-      }
-      for (const nc of newCompanies) {
-        await saveCompanyToFirestore(nc);
-      }
+      const changedOrAdded = newCompanies.filter((nc) => {
+        const prev = prevById.get(nc.id);
+        return !prev || JSON.stringify(prev) !== JSON.stringify(nc);
+      });
+      await Promise.all([
+        ...deleted.map((dc) => deleteCompanyFromFirestore(dc.id)),
+        ...changedOrAdded.map((nc) => saveCompanyToFirestore(nc)),
+      ]);
     };
 
     setSyncState("syncing");
@@ -1135,24 +1165,23 @@ export default function App() {
     }
   };
 
-  // 1c. Helper to persist professionals
+  // 1c. Helper to persist professionals (incremental diff + parallel Firestore writes)
   const handleUpdateProfessionals = async (newProfs: typeof professionals) => {
     const prevProfs = professionals;
     setProfessionals(newProfs);
-    try {
-      localStorage.setItem("sst_psicossocial_professionals", JSON.stringify(newProfs));
-    } catch (err) {
-      console.error("Erro ao salvar profissionais no localStorage:", err);
-    }
+    safeSetLocalStorageJson("sst_psicossocial_professionals", newProfs);
 
     const syncFn = async () => {
+      const prevById = new Map(prevProfs.map((item) => [item.id, item]));
       const deleted = prevProfs.filter((op) => !newProfs.some((np) => np.id === op.id));
-      for (const dp of deleted) {
-        await deleteProfessionalFromFirestore(dp.id);
-      }
-      for (const np of newProfs) {
-        await saveProfessionalToFirestore(np);
-      }
+      const changedOrAdded = newProfs.filter((np) => {
+        const prev = prevById.get(np.id);
+        return !prev || JSON.stringify(prev) !== JSON.stringify(np);
+      });
+      await Promise.all([
+        ...deleted.map((dp) => deleteProfessionalFromFirestore(dp.id)),
+        ...changedOrAdded.map((np) => saveProfessionalToFirestore(np)),
+      ]);
     };
 
     setSyncState("syncing");
@@ -1169,24 +1198,23 @@ export default function App() {
     }
   };
 
-  // 1c-2. Helper to persist evaluators
+  // 1c-2. Helper to persist evaluators (incremental diff + parallel Firestore writes)
   const handleUpdateEvaluators = async (newEvaluators: Assessor[]) => {
     const prevEvaluators = evaluators;
     setEvaluators(newEvaluators);
-    try {
-      localStorage.setItem("sst_psicossocial_evaluators", JSON.stringify(newEvaluators));
-    } catch (err) {
-      console.error("Erro ao salvar avaliadores no localStorage:", err);
-    }
+    safeSetLocalStorageJson("sst_psicossocial_evaluators", newEvaluators);
 
     const syncFn = async () => {
+      const prevById = new Map(prevEvaluators.map((item) => [item.id, item]));
       const deleted = prevEvaluators.filter((ev) => !newEvaluators.some((nv) => nv.id === ev.id));
-      for (const dev of deleted) {
-        await deleteEvaluatorFromFirestore(dev.id);
-      }
-      for (const nev of newEvaluators) {
-        await saveEvaluatorToFirestore(nev);
-      }
+      const changedOrAdded = newEvaluators.filter((nev) => {
+        const prev = prevById.get(nev.id);
+        return !prev || JSON.stringify(prev) !== JSON.stringify(nev);
+      });
+      await Promise.all([
+        ...deleted.map((dev) => deleteEvaluatorFromFirestore(dev.id)),
+        ...changedOrAdded.map((nev) => saveEvaluatorToFirestore(nev)),
+      ]);
     };
 
     setSyncState("syncing");
@@ -1213,11 +1241,7 @@ export default function App() {
     }
     setAssessor(newAssessor);
     saveJsonToCache("assessor", newAssessor);
-    try {
-      localStorage.setItem("sst_psicossocial_assessor", JSON.stringify(newAssessor));
-    } catch (err) {
-      console.error("Erro ao salvar dados da assessora no localStorage:", err);
-    }
+    safeSetLocalStorageJson("sst_psicossocial_assessor", newAssessor, { isAssessorSettings: true });
 
     const syncFn = async () => {
       await saveAssessorToFirestore(newAssessor);
@@ -1239,20 +1263,16 @@ export default function App() {
 
   // 2. Import / save multiple reports to Firestore
   const handleUpdateAllReports = async (updatedReports: Report[]) => {
+    flushLocalReportsPersistence();
     reportsRef.current = updatedReports;
     setReports(updatedReports);
-    saveJsonToCache("reports", updatedReports);
-    try {
-      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updatedReports));
-    } catch (err) {
-      console.error("Erro ao persistir relatórios localmente:", err);
-    }
+    persistReportsLocally(updatedReports);
 
     const syncFn = async () => {
       const latestMap = new Map(reportsRef.current.map((r) => [r.id, r]));
-      for (const r of updatedReports) {
-        await saveReportToFirestore(latestMap.get(r.id) || r);
-      }
+      await Promise.all(
+        updatedReports.map((r) => saveReportToFirestore(latestMap.get(r.id) || r))
+      );
     };
 
     setSyncState("syncing");
@@ -1269,14 +1289,37 @@ export default function App() {
     }
   };
 
+  // 2b. Import single report JSON backup (saves only the imported report)
+  const handleImportReport = async (importedReport: Report) => {
+    flushLocalReportsPersistence();
+    const updated = [importedReport, ...reportsRef.current];
+    reportsRef.current = updated;
+    setReports(updated);
+    persistReportsLocally(updated);
+
+    const syncFn = async () => {
+      const latest = reportsRef.current.find((r) => r.id === importedReport.id) || importedReport;
+      await saveReportToFirestore(latest);
+    };
+
+    setSyncState("syncing");
+    try {
+      await syncFn();
+      pendingCloudSyncsRef.current.delete(`report:${importedReport.id}`);
+      if (pendingCloudSyncsRef.current.size === 0 && !latestReportToSaveRef.current) {
+        setSyncState("synced");
+        setSyncErrorDetail(null);
+      }
+    } catch (err) {
+      console.error("Erro ao importar relatório no Firestore:", err);
+      recordCloudFailure(err, `report:${importedReport.id}`, syncFn);
+    }
+  };
+
   // 3. Persist catalog to localStorage and Firestore
   const handleUpdateCatalog = async (newCatalog: CatalogRisk[]) => {
     setGlobalCatalog(newCatalog);
-    try {
-      localStorage.setItem("sst_psicossocial_catalog", JSON.stringify(newCatalog));
-    } catch (err) {
-      console.error("Erro ao persistir catálogo no localStorage:", err);
-    }
+    safeSetLocalStorageJson("sst_psicossocial_catalog", newCatalog);
 
     const syncFn = async () => {
       await saveCatalogToFirestore(newCatalog);
@@ -1298,21 +1341,15 @@ export default function App() {
 
   // 4. Create new report
   const handleCreateReport = async (newReport: Report) => {
-    // Immediate optimistic local update using fresh reportsRef
+    flushLocalReportsPersistence();
     const updated = [newReport, ...reportsRef.current];
     reportsRef.current = updated;
     setReports(updated);
-    saveJsonToCache("reports", updated);
-    try {
-      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updated));
-      setLastSaved(new Date().toLocaleTimeString());
-    } catch (err) {
-      console.error("Erro ao salvar relatório localmente:", err);
-    }
+    persistReportsLocally(updated);
 
     latestReportToSaveRef.current = newReport;
     setCurrentReportId(newReport.id);
-    setActiveTab("cadastro"); // Reset to first step on new report
+    setActiveTab("cadastro");
 
     const syncFn = async () => {
       const latest = reportsRef.current.find((r) => r.id === newReport.id) || newReport;
@@ -1338,17 +1375,11 @@ export default function App() {
 
   // 5. Delete report
   const handleDeleteReport = async (id: string) => {
-    // Immediate optimistic local update using fresh reportsRef
+    flushLocalReportsPersistence();
     const updated = reportsRef.current.filter((r) => r.id !== id);
     reportsRef.current = updated;
     setReports(updated);
-    saveJsonToCache("reports", updated);
-    try {
-      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updated));
-      setLastSaved(new Date().toLocaleTimeString());
-    } catch (err) {
-      console.error("Erro ao remover relatório localmente:", err);
-    }
+    persistReportsLocally(updated);
 
     if (latestReportToSaveRef.current?.id === id) {
       latestReportToSaveRef.current = null;
@@ -1375,7 +1406,7 @@ export default function App() {
     }
   };
 
-  // 6. Update current report attributes (uses reportsRef so rapid updates never clobber each other)
+  // 6. Update current report attributes (uses reportsRef + debounced local/cloud persistence for smooth typing)
   const handleUpdateCurrentReport = (updatedFields: Partial<Report>) => {
     if (!currentReportId) return;
 
@@ -1389,17 +1420,25 @@ export default function App() {
       updatedAt: new Date().toISOString(),
     };
 
-    // Immediate optimistic local update for fluid UI experience
     const updatedReports = latestReports.map((r) => (r.id === currentReportId ? updatedReport : r));
     reportsRef.current = updatedReports;
     setReports(updatedReports);
-    saveJsonToCache("reports", updatedReports);
-    try {
-      localStorage.setItem("sst_psicossocial_reports", JSON.stringify(updatedReports));
-      setLastSaved(new Date().toLocaleTimeString());
-    } catch (err) {
-      console.error("Erro ao atualizar relatório localmente:", err);
+
+    // Debounce local JSON serialization + IndexedDB snapshot during rapid typing
+    pendingLocalPersistReportsRef.current = updatedReports;
+    if (reportLocalPersistTimeoutRef.current) {
+      clearTimeout(reportLocalPersistTimeoutRef.current);
     }
+    reportLocalPersistTimeoutRef.current = setTimeout(() => {
+      reportLocalPersistTimeoutRef.current = null;
+      if (pendingLocalPersistReportsRef.current) {
+        const toPersist = pendingLocalPersistReportsRef.current;
+        pendingLocalPersistReportsRef.current = null;
+        saveJsonToCache("reports", toPersist);
+        safeSetLocalStorageJson("sst_psicossocial_reports", toPersist);
+        setLastSaved(new Date().toLocaleTimeString());
+      }
+    }, 600);
 
     // Schedule debounced Firestore save
     latestReportToSaveRef.current = updatedReport;
@@ -1441,13 +1480,17 @@ export default function App() {
           async () => saveReportToFirestore(latestReportToSaveRef.current || reportToSave)
         );
       }
-    }, 1000); // 1-second debounce
+    }, 1000);
   };
 
   // Get active report
   const currentReport = reports.find((r) => r.id === currentReportId);
 
   const handleSelectReport = (id: string | null) => {
+    flushLocalReportsPersistence();
+    if (saveTimeoutRef.current && latestReportToSaveRef.current) {
+      void handleRetryCloudSync();
+    }
     setCurrentReportId(id);
     if (id) {
       setActiveTab("cadastro");
@@ -1560,7 +1603,7 @@ export default function App() {
                   </span>
                   
                   <button
-                    onClick={() => handleNavClick(() => setCurrentReportId(null))}
+                    onClick={() => handleNavClick(() => handleSelectReport(null))}
                     className="w-full mt-1.5 flex items-center justify-center gap-1.5 text-[10px] font-bold text-rose-650 hover:text-rose-750 bg-rose-50 hover:bg-rose-100 py-1.5 px-3 rounded-lg transition-colors cursor-pointer border border-rose-100"
                   >
                     <LogOut className="w-3 h-3" /> Fechar Editor / Voltar
@@ -1583,8 +1626,8 @@ export default function App() {
                     1. Cadastro Geral
                   </button>
 
-                  {/* Metodologia Quantitativa (COPSOQ II) */}
-                  {currentReport.methodology !== "qualitative" && (
+                  {/* Metodologia Quantitativa (COPSOQ II) ou Qualitativa (MPE) */}
+                  {currentReport.methodology !== "qualitative" ? (
                     <>
                       <button
                         onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
@@ -1606,6 +1649,16 @@ export default function App() {
                         3. Devolutivas
                       </button>
                     </>
+                  ) : (
+                    <button
+                      onClick={() => handleNavClick(() => setActiveTab("qualitativa"))}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
+                        activeTab === "qualitativa" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <MessageSquare className="w-4 h-4 shrink-0 text-slate-450" />
+                      2. Avaliação Qualitativa
+                    </button>
                   )}
 
                   {/* Se nenhum setor reconhece riscos, ocultamos as abas do Inventário e Plano de Ação */}
@@ -1618,7 +1671,7 @@ export default function App() {
                         }`}
                       >
                         <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-450" />
-                        {currentReport.methodology === "qualitative" ? "2. Inventário (GRO)" : "4. Inventário (GRO)"}
+                        {currentReport.methodology === "qualitative" ? "3. Inventário (GRO)" : "4. Inventário (GRO)"}
                       </button>
 
                       <button
@@ -1628,7 +1681,7 @@ export default function App() {
                         }`}
                       >
                         <ClipboardList className="w-4 h-4 shrink-0 text-slate-450" />
-                        {currentReport.methodology === "qualitative" ? "3. Plano de Ação" : "5. Plano de Ação"}
+                        {currentReport.methodology === "qualitative" ? "4. Plano de Ação" : "5. Plano de Ação"}
                       </button>
                     </>
                   )}
@@ -1641,7 +1694,7 @@ export default function App() {
                   >
                     <BookOpenCheck className="w-4 h-4 shrink-0 text-slate-450" />
                     {currentReport.methodology === "qualitative"
-                      ? (hasRecognizedRisks ? "4. Texto Capítulos" : "2. Texto Capítulos")
+                      ? (hasRecognizedRisks ? "5. Texto Capítulos" : "3. Texto Capítulos")
                       : (hasRecognizedRisks ? "6. Texto Capítulos" : "4. Texto Capítulos")
                     }
                   </button>
@@ -1654,7 +1707,7 @@ export default function App() {
                   >
                     <FileText className="w-4 h-4 shrink-0 text-slate-450" />
                     {currentReport.methodology === "qualitative"
-                      ? (hasRecognizedRisks ? "5. Visualizar Laudo" : "3. Visualizar Laudo")
+                      ? (hasRecognizedRisks ? "6. Visualizar Laudo" : "4. Visualizar Laudo")
                       : (hasRecognizedRisks ? "7. Visualizar Laudo" : "5. Visualizar Laudo")
                     }
                   </button>
@@ -1773,7 +1826,7 @@ export default function App() {
 
         {/* Rodapé do Sidebar */}
         <div className="p-4 border-t border-slate-100 text-center text-[10px] text-slate-450 font-bold">
-          v1.2 (COPSOQ II)
+          v1.3 (COPSOQ II · MPE)
         </div>
       </aside>
 
@@ -1836,16 +1889,13 @@ export default function App() {
                 <span className="hidden xs:inline">Sem Conexão</span>
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={handleRetryCloudSync}
-                title={syncErrorDetail || "Erro ao sincronizar na nuvem. Clique para reenviar."}
-                className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 transition cursor-pointer whitespace-nowrap shrink-0"
+              <div
+                title={syncErrorDetail || "Falha ao sincronizar com a nuvem."}
+                className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-rose-50 text-rose-700 border-rose-200 whitespace-nowrap shrink-0"
               >
                 <CloudOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                <span className="hidden xs:inline">Erro na Nuvem · Reenviar</span>
-                <RefreshCw className="w-3 h-3 text-rose-500 shrink-0" />
-              </button>
+                <span className="hidden xs:inline">Erro na Nuvem</span>
+              </div>
             )}
 
             {currentReport && lastSaved && (
@@ -1858,11 +1908,13 @@ export default function App() {
         </header>
 
         {/* Banner discreto de diagnóstico apenas quando houver falha ativa na nuvem */}
-        {syncState === "error" && syncErrorDetail && (
+        {syncState === "error" && (
           <div className="bg-rose-50 border-b border-rose-200 px-6 py-2 flex items-center justify-between gap-3 text-xs text-rose-800 print:hidden">
             <div className="flex items-center gap-2 min-w-0">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span className="font-semibold truncate">{syncErrorDetail}</span>
+              <span className="font-semibold truncate">
+                {syncErrorDetail || "Falha ao sincronizar alterações com o servidor."}
+              </span>
             </div>
             <button
               type="button"
@@ -1885,17 +1937,16 @@ export default function App() {
                   companiesCount={companies.length}
                   professionalsCount={professionals.length}
                   assessor={assessor}
-                  onUpdateAssessor={handleUpdateAssessor}
-                  onUpdateAllReports={handleUpdateAllReports}
+                  onSelectReport={handleSelectReport}
                 />
               )}
               {homeTab === "reports" && (
                 <ReportsDashboard
                   reports={reports}
                   companies={companies}
-                  onUpdateCompanies={handleUpdateCompanies}
                   onSelectReport={handleSelectReport}
                   onCreateReport={handleCreateReport}
+                  onImportReport={handleImportReport}
                   onDeleteReport={handleDeleteReport}
                   onUpdateAllReports={handleUpdateAllReports}
                   defaultCoverImage={assessor.defaultCoverImage}
@@ -1941,12 +1992,12 @@ export default function App() {
               {/* Workspace Tab Render */}
               {(() => {
                 const isQualitative = currentReport.methodology === "qualitative";
-                const hasRecognizedRisks = currentReport.sectors.length > 0
-                  ? currentReport.sectors.some((s) => s.risksRecognized !== false)
-                  : (currentReport.risksRecognized !== false);
-                const effectiveTab = isQualitative && (activeTab === "copsoq" || activeTab === "devolutivas")
-                  ? (hasRecognizedRisks ? "inventario" : "cadastro")
-                  : activeTab;
+                const effectiveTab =
+                  isQualitative && (activeTab === "copsoq" || activeTab === "devolutivas")
+                    ? "qualitativa"
+                    : !isQualitative && activeTab === "qualitativa"
+                      ? "devolutivas"
+                      : activeTab;
 
                 return (
                   <div className="min-h-[500px]">
@@ -1966,12 +2017,13 @@ export default function App() {
                         onChange={handleUpdateCurrentReport}
                       />
                     )}
-                    {effectiveTab === "devolutivas" && !isQualitative && (
+                    {(effectiveTab === "devolutivas" && !isQualitative) ||
+                    (effectiveTab === "qualitativa" && isQualitative) ? (
                       <TechnicalAnalysis
                         report={currentReport}
                         onChange={handleUpdateCurrentReport}
                       />
-                    )}
+                    ) : null}
                     {effectiveTab === "inventario" && (
                       <RiskInventoryManager
                         report={currentReport}
