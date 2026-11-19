@@ -10,7 +10,7 @@ export const DEFAULT_CHAPTERS: ReportChapters = {
 
 A saúde mental e o bem-estar dos trabalhadores têm sido identificados como componentes essenciais da saúde ocupacional global. Ambientes laborais caracterizados por demandas excessivas, baixa autonomia, suporte social fragilizado e conflitos de papéis influenciam diretamente o desenvolvimento de patologias ocupacionais, tais como a Síndrome de Burnout, depressão, transtornos de ansiedade e agravos osteomusculares secundários à tensão psicofisiológica.
 
-O objetivo deste documento é diagnosticar a percepção dos colaboradores acerca de suas condições psicossociais de trabalho, analisar tecnicamente os desvios evidenciados através de devolutivas estruturadas com a liderança e formalizar um plano de ação preventivo e corretivo focado na promoção de saúde mental ocupacional e melhoria contínua dos processos organizacionais.`,
+O objetivo deste documento é diagnosticar a percepção dos colaboradores acerca de suas condições psicossociais de trabalho, analisar tecnicamente os desvios evidenciados nos setores avaliados e formalizar um plano de ação preventivo e corretivo focado na promoção de saúde mental ocupacional e melhoria contínua dos processos organizacionais.`,
 
   fundamentacao: `Os riscos psicossociais originam-se de deficiências no projeto, na organização e na gestão do trabalho, bem como de um contexto social adverso. Suas consequências podem ser tanto de natureza psicológica (estresse, ansiedade, burnout) quanto física (cardiopatias, distúrbios osteomusculares devido à tensão constante).
 
@@ -36,7 +36,7 @@ A classificação dos escores segue a escala técnica padronizada (0 a 4 pontos)
   - Situação Moderada (**Média de 1,34 a 2,66**): Atenção moderada / zona intermediária;
   - Situação Desfavorável (**Média > 2,66**): Exposição crítica a sobrecarga/estresse, exigindo medidas imediatas no Plano de Ação.
 
-Após o processamento estatístico preliminar das avaliações dos funcionários, realizou-se uma etapa de Devolutiva Técnica e Diagnóstico de Campo junto aos líderes de cada setor avaliado. Esta etapa qualitativa serviu para correlacionar os indicadores numéricos às situações de trabalho em campo (fontes geradoras), permitindo a estruturação das medidas e planos recomendados.`,
+Após o processamento estatístico das avaliações dos funcionários, realizou-se a análise técnica dos indicadores setoriais correlacionando os escores às situações reais de trabalho (fontes geradoras), subsidiando o Inventário Geral de Riscos (GRO) e a estruturação das medidas preventivas do Plano de Ação.`,
 
   referencias: `1. ASSOCIAÇÃO BRASILEIRA DE NORMAS TÉCNICAS. ABNT ISO 45003:2021 - Gestão da saúde e segurança ocupacional - Saúde psicológica e segurança no trabalho - Diretrizes para gerenciar riscos psicossociais. Rio de Janeiro: ABNT, 2021.
 2. BRASIL. Ministério do Trabalho e Emprego. Norma Regulamentadora nº 01 (NR-01) - Disposições Gerais e Gerenciamento de Riscos Ocupacionais. Brasília: MTE, Portaria SEPRT n.º 6.730/2020.

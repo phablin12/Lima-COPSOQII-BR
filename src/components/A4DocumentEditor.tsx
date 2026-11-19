@@ -141,6 +141,7 @@ interface A4DocumentEditorProps {
   companyLogo?: string;
   showSavedNotification?: boolean;
   onEditChapterTitle?: (chapterId: string) => void;
+  onRenameChapterTitle?: (chapterId: string, newTitle: string) => void;
   onDeleteChapter?: (chapterId: string, fullTitle: string, isStandard: boolean) => void;
 }
 
@@ -390,6 +391,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   companyLogo,
   showSavedNotification = false,
   onEditChapterTitle,
+  onRenameChapterTitle,
   onDeleteChapter,
 }) => {
   const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
@@ -402,6 +404,8 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   const [showColorMenu, setShowColorMenu] = useState<boolean>(false);
   const [showHighlightMenu, setShowHighlightMenu] = useState<boolean>(false);
   const [showTableMenu, setShowTableMenu] = useState<boolean>(false);
+  const [inlineEditingTitleId, setInlineEditingTitleId] = useState<string | null>(null);
+  const [inlineTitleDraft, setInlineTitleDraft] = useState<string>("");
 
   const [activeFormats, setActiveFormats] = useState({
     bold: false,
@@ -2413,6 +2417,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                       const target = e.target as HTMLElement;
                       if (
                         target.closest("[data-chapter-editor]") ||
+                        target.closest("[data-flow-heading]") ||
                         target.closest("button") ||
                         target.closest("a") ||
                         target.closest("input")
@@ -2433,27 +2438,115 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                       }`}
                     >
                       <div className="flex-1 min-w-0">
-                        {ch.level === 1 ? (
-                          <h3 className="text-[17px] font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-                            {ch.fullTitle}
-                          </h3>
-                        ) : ch.level === 2 ? (
-                          <h4 className="text-[14.5px] font-bold text-slate-900 border-b border-slate-200 pb-1 uppercase tracking-wide">
-                            {ch.fullTitle}
-                          </h4>
-                        ) : (
-                          <h5 className="text-[13.5px] font-bold text-slate-800 tracking-wide">
-                            {ch.fullTitle}
-                          </h5>
-                        )}
+                        {viewMode === "edit" && inlineEditingTitleId === ch.id ? (
+                          <div
+                            className={`flex items-center gap-1.5 ${
+                              ch.level === 1
+                                ? "text-[17px] font-extrabold text-slate-900 border-b-2 border-indigo-500 pb-2 uppercase tracking-wide"
+                                : ch.level === 2
+                                ? "text-[14.5px] font-bold text-slate-900 border-b border-indigo-400 pb-1 uppercase tracking-wide"
+                                : "text-[13.5px] font-bold text-slate-800 border-b border-indigo-400 pb-0.5 tracking-wide"
+                            }`}
+                          >
+                            {ch.number && <span className="shrink-0">{ch.number}.</span>}
+                            <input
+                              type="text"
+                              value={inlineTitleDraft}
+                              onChange={(e) => setInlineTitleDraft(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={() => {
+                                const trimmed = inlineTitleDraft.trim();
+                                if (trimmed && onRenameChapterTitle) {
+                                  onRenameChapterTitle(ch.id, trimmed);
+                                }
+                                setInlineEditingTitleId(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const trimmed = inlineTitleDraft.trim();
+                                  if (trimmed && onRenameChapterTitle) {
+                                    onRenameChapterTitle(ch.id, trimmed);
+                                  }
+                                  setInlineEditingTitleId(null);
+                                } else if (e.key === "Escape") {
+                                  e.preventDefault();
+                                  setInlineEditingTitleId(null);
+                                }
+                              }}
+                              autoFocus
+                              onFocus={(e) => e.target.select()}
+                              placeholder="Título do capítulo..."
+                              className={`flex-1 min-w-0 bg-indigo-50/50 rounded px-1.5 py-0.5 outline-none ring-2 ring-indigo-300 ${
+                                ch.level <= 2 ? "uppercase" : ""
+                              }`}
+                            />
+                          </div>
+                        ) : (() => {
+                          const canQuickEdit = viewMode === "edit" && Boolean(onRenameChapterTitle);
+                          const startQuickEdit = (e: React.MouseEvent) => {
+                            if (!canQuickEdit) return;
+                            e.stopPropagation();
+                            setInlineEditingTitleId(ch.id);
+                            setInlineTitleDraft(ch.title);
+                            onActiveChapterChange(ch.id);
+                          };
+
+                          if (ch.level === 1) {
+                            return (
+                              <h3
+                                onClick={startQuickEdit}
+                                title={canQuickEdit ? "Clique para editar este título" : undefined}
+                                className={`text-[17px] font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide ${
+                                  canQuickEdit ? "cursor-text hover:bg-slate-100/70 rounded-t px-1 -mx-1 transition-colors" : ""
+                                }`}
+                              >
+                                {ch.fullTitle}
+                              </h3>
+                            );
+                          }
+                          if (ch.level === 2) {
+                            return (
+                              <h4
+                                onClick={startQuickEdit}
+                                title={canQuickEdit ? "Clique para editar este título" : undefined}
+                                className={`text-[14.5px] font-bold text-slate-900 border-b border-slate-200 pb-1 uppercase tracking-wide ${
+                                  canQuickEdit ? "cursor-text hover:bg-slate-100/70 rounded-t px-1 -mx-1 transition-colors" : ""
+                                }`}
+                              >
+                                {ch.fullTitle}
+                              </h4>
+                            );
+                          }
+                          return (
+                            <h5
+                              onClick={startQuickEdit}
+                              title={canQuickEdit ? "Clique para editar este título" : undefined}
+                              className={`text-[13.5px] font-bold text-slate-800 tracking-wide ${
+                                canQuickEdit ? "cursor-text hover:bg-slate-100/70 rounded px-1 -mx-1 transition-colors" : ""
+                              }`}
+                            >
+                              {ch.fullTitle}
+                            </h5>
+                          );
+                        })()}
                       </div>
 
                       {viewMode === "edit" && (
                         <div className="flex items-center gap-0.5 opacity-0 group-hover/heading:opacity-100 focus-within:opacity-100 transition-opacity shrink-0 pt-0.5">
-                          {onEditChapterTitle && (
+                          {(onRenameChapterTitle || onEditChapterTitle) && (
                             <button
                               type="button"
-                              onClick={() => onEditChapterTitle(ch.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onRenameChapterTitle) {
+                                  setInlineEditingTitleId(ch.id);
+                                  setInlineTitleDraft(ch.title);
+                                  onActiveChapterChange(ch.id);
+                                } else if (onEditChapterTitle) {
+                                  onEditChapterTitle(ch.id);
+                                }
+                              }}
                               className="p-1 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded transition cursor-pointer"
                               title="Editar título do capítulo"
                             >
@@ -2463,9 +2556,10 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                           {onDeleteChapter && (
                             <button
                               type="button"
-                              onClick={() =>
-                                onDeleteChapter(ch.id, ch.fullTitle, ch.type === "standard")
-                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteChapter(ch.id, ch.fullTitle, ch.type === "standard");
+                              }}
                               className="p-1 text-rose-400 hover:text-rose-700 hover:bg-rose-50 rounded transition cursor-pointer"
                               title="Excluir capítulo"
                             >

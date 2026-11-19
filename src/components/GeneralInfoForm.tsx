@@ -119,7 +119,6 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
       employeeCount: Math.max(1, empCount),
       risksRecognized: newSectorRecognized,
       scores: {},
-      devolvedSynthesis: "",
     };
 
     const updatedSectors = [...report.sectors, newSector];

@@ -29,7 +29,7 @@ export interface SectorSynthesisRequest {
   companyName?: string;
   companySector?: string;
   methodology?: "copsoq" | "qualitative";
-  mode?: "copsoq_perception" | "devolutive" | "qualitative";
+  mode?: "copsoq_perception" | "qualitative";
   allDimensions?: DimensionSummaryPayload[];
   criticalDimensions?: DimensionSummaryPayload[];
   qualitativeContext?: {

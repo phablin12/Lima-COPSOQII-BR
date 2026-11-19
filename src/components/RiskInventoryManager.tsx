@@ -361,7 +361,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
         sectorEmployees: targetSector.employeeCount,
         companyName: report.companyName,
         companyActivity: report.companySector,
-        sectorSynthesis: targetSector.devolvedSynthesis || targetSector.qualitativeConclusionText,
+        sectorSynthesis: targetSector.qualitativeConclusionText || targetSector.generalAnalysis,
         count: aiRiskCount,
       });
 
@@ -1258,7 +1258,7 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                 {(() => {
                   const targetSec = report.sectors.find((s) => s.id === (aiTargetSectorId || report.sectors[0]?.id));
                   if (!targetSec) return null;
-                  const hasSynthesis = Boolean(targetSec.devolvedSynthesis || targetSec.qualitativeConclusionText);
+                  const hasSynthesis = Boolean(targetSec.qualitativeConclusionText || targetSec.generalAnalysis);
                   return (
                     <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/80 text-[11px] text-slate-600">
                       <span>
@@ -1267,11 +1267,11 @@ export const RiskInventoryManager: React.FC<RiskInventoryManagerProps> = ({ repo
                       <span className="text-slate-300">•</span>
                       {hasSynthesis ? (
                         <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                          <Check className="w-3 h-3 text-emerald-600" /> Síntese da devolutiva deste setor carregada para guiar a IA
+                          <Check className="w-3 h-3 text-emerald-600" /> Análise do setor carregada para guiar a IA
                         </span>
                       ) : (
                         <span className="text-slate-500">
-                          (Dica: preencher a Síntese da Devolutiva na etapa anterior torna os riscos ainda mais precisos)
+                          (Dica: preencher a análise geral do setor na etapa anterior torna os riscos ainda mais precisos)
                         </span>
                       )}
                     </div>

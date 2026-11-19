@@ -1089,37 +1089,13 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                           ))}
                         </div>
 
-                        {/* Phase 2: Análise Técnica dos Riscos e Devolutivas */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-end gap-2">
-                            <span className="font-bold text-slate-850 uppercase">
-                              {phasesStart + 1}. ANÁLISE TÉCNICA E DEVOLUTIVAS
-                            </span>
-                            <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
-                            <span className="text-slate-500 font-bold font-mono">
-                              {formatPage(pageMap["fases-devolutivas"])}
-                            </span>
-                          </div>
-                          {report.sectors.map((sector, index) => (
-                            <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
-                              <span className="font-medium">
-                                {phasesStart + 1}.{index + 1}. Diagnóstico Qualitativo: {sector.name}
-                              </span>
-                              <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
-                              <span className="text-slate-400 font-medium font-mono">
-                                {formatPage(pageMap[`sector-devolutiva-${sector.id}`] || pageMap["fases-devolutivas"])}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-
                         {hasRecognizedRisks && (
                           <>
-                            {/* Phase 3: Inventário de Riscos */}
+                            {/* Phase 2: Inventário de Riscos */}
                             <div className="space-y-1.5">
                               <div className="flex items-end gap-2">
                                 <span className="font-bold text-slate-850 uppercase">
-                                  {phasesStart + 2}. INVENTÁRIO DE RISCOS PSICOSSOCIAIS
+                                  {phasesStart + 1}. INVENTÁRIO DE RISCOS PSICOSSOCIAIS
                                 </span>
                                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
                                 <span className="text-slate-500 font-bold font-mono">
@@ -1132,7 +1108,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 return (
                                   <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                                     <span className="font-medium">
-                                      {phasesStart + 2}.{index + 1}. Riscos de {sector.name}
+                                      {phasesStart + 1}.{index + 1}. Riscos de {sector.name}
                                     </span>
                                     <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
                                     <span className="text-slate-400 font-medium font-mono">
@@ -1143,11 +1119,11 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                               })}
                             </div>
 
-                            {/* Phase 4: Cronograma e Plano de Ação */}
+                            {/* Phase 3: Cronograma e Plano de Ação */}
                             <div className="space-y-1.5">
                               <div className="flex items-end gap-2">
                                 <span className="font-bold text-slate-850 uppercase">
-                                  {phasesStart + 3}. CRONOGRAMA E PLANO DE AÇÃO
+                                  {phasesStart + 2}. CRONOGRAMA E PLANO DE AÇÃO
                                 </span>
                                 <div className="flex-grow border-b border-dotted border-slate-300 mb-1"></div>
                                 <span className="text-slate-500 font-bold font-mono">
@@ -1160,7 +1136,7 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
                                 return (
                                   <div key={sector.id} className="flex items-end gap-2 pl-6 text-[11px] text-slate-600">
                                     <span className="font-medium">
-                                      {phasesStart + 3}.{index + 1}. Ações de {sector.name}
+                                      {phasesStart + 2}.{index + 1}. Ações de {sector.name}
                                     </span>
                                     <div className="flex-grow border-b border-dotted border-slate-200 mb-0.5"></div>
                                     <span className="text-slate-400 font-medium font-mono">

@@ -89,7 +89,7 @@ function buildAgentTrainingBlock(agentConfigRaw: any, stage?: AgentStage): strin
   }
 
   if (stage === "copsoq" && cfg.copsoqInstructions) {
-    parts.push(`Instruções Específicas para Etapa COPSOQ II & Devolutivas:\n${cfg.copsoqInstructions}`);
+    parts.push(`Instruções Específicas para Etapa COPSOQ II (Percepção):\n${cfg.copsoqInstructions}`);
   } else if (stage === "qualitative" && cfg.qualitativeInstructions) {
     parts.push(`Instruções Específicas para Avaliação Qualitativa (MPE):\n${cfg.qualitativeInstructions}`);
   } else if (stage === "inventory" && cfg.inventoryInstructions) {
@@ -175,7 +175,7 @@ app.get("/api/ai/health", (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 1. ENDPOINT: Síntese COPSOQ / Devolutiva / Investigação Qualitativa do Setor
+// 1. ENDPOINT: Síntese COPSOQ / Investigação Qualitativa do Setor
 // ---------------------------------------------------------------------------
 app.post("/api/ai/sector-synthesis", async (req, res) => {
   try {
@@ -188,7 +188,7 @@ app.post("/api/ai/sector-synthesis", async (req, res) => {
       companyName,
       companySector,
       methodology,
-      mode = "devolutive",
+      mode = methodology === "qualitative" ? "qualitative" : "copsoq_perception",
       allDimensions,
       criticalDimensions,
       qualitativeContext,
@@ -230,13 +230,13 @@ O texto deve:
 2. Destacar primeiro os pontos fortes / fatores protetivos (dimensões classificadas como Favorável) que sustentam a saúde e engajamento da equipe.
 3. Analisar com precisão os pontos de atenção e fragilidades (dimensões Moderadas e Desfavoráveis, ordenadas das mais críticas às intermediárias), relacionando dimensões positivas baixas e dimensões negativas elevadas (ex: Demandas, Conflito Trabalho-Família, Burnout e Estresse).
 4. Manter linguagem técnica, objetiva, coesa, imparcial e sem clichês, em 2 a 4 parágrafos corridos prontos para compor o campo "Análise Geral do Setor" do laudo.`
-      : `Você é um especialista sênior em Segurança e Saúde no Trabalho (SST), Ergonomia e Psicologia Organizacional do Trabalho no Brasil (em conformidade com a NR-01 - GRO/PGR, NR-17 e COPSOQ II - BR).
-Sua função é redigir um relato técnico aprofundado, coeso, profissional e humanizado da devolutiva técnica / investigação qualitativa de campo para o setor avaliado.
+      : `Você é um especialista sênior em Segurança e Saúde no Trabalho (SST), Ergonomia e Psicologia Organizacional do Trabalho no Brasil (em conformidade com a NR-01 - GRO/PGR e NR-17).
+Sua função é redigir um parecer técnico aprofundado, coeso, profissional e humanizado para a investigação qualitativa de campo (MPE) do setor avaliado.
 O texto deve:
-1. Contextualizar a reunião de devolutiva com os líderes do setor e a dinâmica real de trabalho.
-2. Identificar e correlacionar claramente as causas organizacionais que explicam os riscos ou pontuações do setor.
+1. Contextualizar o escopo avaliado e a dinâmica real de trabalho observada no setor.
+2. Identificar e correlacionar claramente os fatores organizacionais e a percepção relatada pelos trabalhadores.
 3. Abordar aspectos como ritmo de trabalho, clareza de papéis, liderança, cobrança de metas, suporte social e exigências emocionais.
-4. Apresentar uma análise diagnóstica que subsidie o Inventário Geral de Riscos e o Plano de Ação.
+4. Apresentar uma análise diagnóstica conclusiva que subsidie o Inventário Geral de Riscos (GRO) e o Plano de Ação.
 5. Manter tom técnico, imparcial, respeitoso e construtivo, em parágrafos corridos bem articulados.${trainingBlock}`;
 
     const fullSystemInstruction = isCopsoqPerception ? `${systemInstruction}${trainingBlock}` : systemInstruction;
@@ -272,7 +272,7 @@ ${safeInstructions ? `Instruções específicas do perito/avaliador para esta ge
 ${
   isCopsoqPerception
     ? "Redija a Análise Geral da Percepção dos Trabalhadores deste setor em 2 a 4 parágrafos técnicos corridos:"
-    : "Redija a Síntese Técnica de Devolutiva / Parecer do setor em 3 a 5 parágrafos técnicos formais para compor o laudo oficial:"
+    : "Redija a Conclusão Técnica e Parecer Preliminar do setor em 3 a 5 parágrafos técnicos formais para compor o laudo oficial:"
 }`;
 
     const response = await callGemini({
@@ -348,7 +348,7 @@ Para cada risco, defina com precisão técnica:
 Atividade Principal: ${safeActivity}
 Setor/GES: ${safeSectorName}
 Colaboradores Expostos: ${safeEmployees}
-${safeSynthesis ? `Síntese / Devolutiva do setor: ${safeSynthesis}` : ""}
+${safeSynthesis ? `Análise / Parecer técnico do setor: ${safeSynthesis}` : ""}
 ${
   safeDims.length > 0
     ? `Dimensões críticas ou desfavoráveis no setor: ${safeDims

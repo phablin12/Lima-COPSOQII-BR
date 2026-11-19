@@ -233,8 +233,19 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
       {/* Lista do Plano de Ação */}
       <div className="space-y-4">
         {report.riskInventory.length === 0 ? (
-          <div className="bg-white p-12 text-center text-slate-400 text-sm rounded-2xl border border-slate-100">
-            Nenhum plano de ação gerado ainda. Primeiro, adicione riscos ao seu <strong>Inventário de Riscos</strong>.
+          <div className="bg-white p-12 text-center text-slate-500 text-sm rounded-2xl border border-slate-100 space-y-2">
+            {report.sectors.length > 0 && report.sectors.every((s) => s.risksRecognized === false) ? (
+              <>
+                <p className="font-semibold text-slate-700">Nenhum Setor com Riscos Reconhecidos</p>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Todos os setores estão marcados com <strong>"Reconhece Riscos: Não"</strong> em <strong>1. Cadastro Geral</strong>. Altere ao menos um setor para <strong>Sim</strong> para cadastrar riscos e gerar o cronograma de ação.
+                </p>
+              </>
+            ) : (
+              <p className="text-slate-400">
+                Nenhum plano de ação gerado ainda. Primeiro, adicione riscos ao seu <strong>Inventário de Riscos</strong>.
+              </p>
+            )}
           </div>
         ) : (
           /* Visualização de Cards Individuais */

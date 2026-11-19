@@ -44,8 +44,8 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
 }) => {
   const phasesStart = parseInt(ch.number.split("–")[0], 10) || 4;
   const qualChapterNum = phasesStart;
-  const inventoryChapterNum = isQualitative ? phasesStart + 1 : phasesStart + 2;
-  const actionPlanChapterNum = isQualitative ? phasesStart + 2 : phasesStart + 3;
+  const inventoryChapterNum = phasesStart + 1;
+  const actionPlanChapterNum = phasesStart + 2;
 
   return (
     <React.Fragment key={ch.id}>
@@ -104,7 +104,7 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
                         3. Conclusão Técnica e Parecer Preliminar (GRO)
                       </strong>
                       <p className="whitespace-pre-wrap">
-                        {(sector.qualitativeConclusionText || sector.devolvedSynthesis)?.trim() ||
+                        {sector.qualitativeConclusionText?.trim() ||
                           "Conclusão técnica qualitativa ainda não registrada para este setor."}
                       </p>
                     </div>
@@ -191,75 +191,6 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
                     )}
                   </div>
                 ))}
-              </div>
-            )}
-          </div>
-
-          {/* --- FASE 2: ANÁLISE TÉCNICA DOS RISCOS E DEVOLUTIVAS --- */}
-          <div
-            data-print-section="true"
-            data-print-page-target="fases-devolutivas"
-            className="space-y-6 print:pt-12 page-break-before"
-          >
-            {renderHeader(`${phasesStart + 1}. Análise de Campo e Devolutivas`)}
-            <h3 className="text-lg font-extrabold text-slate-900 border-b-2 border-slate-800 pb-2 uppercase tracking-wide">
-              {phasesStart + 1}. Análise Técnica dos Riscos e Devolutivas
-            </h3>
-            <p className="text-sm text-slate-700">
-              Abaixo estão registradas as conclusões qualitativas das sessões de devolutiva mantidas com a liderança de cada setor. O escopo foca especificamente no cruzamento dos riscos percebidos desfavoráveis/moderados com o ambiente real de trabalho.
-            </p>
-
-            {report.sectors.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Nenhum dado cadastrado.</p>
-            ) : (
-              <div className="space-y-6">
-                {report.sectors.map((sector) => {
-                  const critical = COPSOQ_DIMENSIONS.map((d) => {
-                    const rawScore = sector.scores?.[d.key];
-                    const hasScore = typeof rawScore === "number" && !Number.isNaN(rawScore);
-                    const rat = getDimensionRating(hasScore ? rawScore : undefined, d.type);
-                    return { name: d.name, score: hasScore ? rawScore : -1, rating: rat.rating };
-                  }).filter((d) => d.rating !== "Favorável" && d.rating !== "Não Avaliado" && d.score >= 0);
-
-                  return (
-                    <div
-                      key={sector.id}
-                      data-print-subpage-target={`sector-devolutiva-${sector.id}`}
-                      className="p-5 border border-slate-200 rounded-xl space-y-3 print:p-0 print:border-none print:pb-6"
-                    >
-                      <h4 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-1.5 uppercase">
-                        Diagnóstico de Campo: {sector.name}
-                      </h4>
-
-                      <div className="flex flex-wrap gap-2 text-[10px] items-center">
-                        <strong className="text-slate-500 uppercase tracking-wider">Fatores Investigados:</strong>
-                        {critical.length === 0 ? (
-                          <span className="text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-                            Nenhum desvio detectado
-                          </span>
-                        ) : (
-                          critical.map((c, i) => (
-                            <span key={i} className={`px-2 py-0.5 rounded border font-semibold ${
-                              c.rating === "Desfavorável" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-amber-50 text-amber-800 border-amber-200"
-                            }`}>
-                              {c.name} ({c.score.toFixed(2)})
-                            </span>
-                          ))
-                        )}
-                      </div>
-
-                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 text-xs text-justify leading-relaxed text-slate-700 whitespace-pre-wrap print:bg-white print:border-l-4 print:border-slate-400 print:rounded-none">
-                        {sector.devolvedSynthesis ? (
-                          sector.devolvedSynthesis
-                        ) : (
-                          <span className="text-slate-400 italic">
-                            Ainda não foi preenchido o relatório técnico de devolutiva para este setor.
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             )}
           </div>

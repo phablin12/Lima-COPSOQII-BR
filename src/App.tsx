@@ -1564,7 +1564,19 @@ export default function App() {
               isSidebarExpanded ? "p-5 justify-between" : "py-5 px-3 justify-center"
             }`}
           >
-            <div className={`flex items-center min-w-0 ${isSidebarExpanded ? "gap-3" : "justify-center"}`}>
+            <button
+              type="button"
+              onClick={() =>
+                handleNavClick(() => {
+                  handleSelectReport(null);
+                  setHomeTab("dashboard");
+                })
+              }
+              title="Ir para o início do aplicativo"
+              className={`flex items-center min-w-0 cursor-pointer hover:opacity-80 transition text-left ${
+                isSidebarExpanded ? "gap-3" : "justify-center"
+              }`}
+            >
               {(() => {
                 const effectiveLogo =
                   assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]"
@@ -1608,7 +1620,7 @@ export default function App() {
                   </p>
                 </div>
               )}
-            </div>
+            </button>
 
             {/* Fechar no mobile */}
             <button
@@ -1644,23 +1656,8 @@ export default function App() {
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                 }`;
 
-              const chaptersLabel =
-                currentReport.methodology === "qualitative"
-                  ? hasRecognizedRisks
-                    ? "5. Texto Capítulos"
-                    : "3. Texto Capítulos"
-                  : hasRecognizedRisks
-                    ? "6. Texto Capítulos"
-                    : "4. Texto Capítulos";
-
-              const previewLabel =
-                currentReport.methodology === "qualitative"
-                  ? hasRecognizedRisks
-                    ? "6. Visualizar Laudo"
-                    : "4. Visualizar Laudo"
-                  : hasRecognizedRisks
-                    ? "7. Visualizar Laudo"
-                    : "5. Visualizar Laudo";
+              const chaptersLabel = hasRecognizedRisks ? "5. Texto Capítulos" : "3. Texto Capítulos";
+              const previewLabel = hasRecognizedRisks ? "6. Visualizar Laudo" : "4. Visualizar Laudo";
 
               return (
                 <div className="space-y-4">
@@ -1707,25 +1704,14 @@ export default function App() {
 
                     {/* Metodologia Quantitativa (COPSOQ II) ou Qualitativa (MPE) */}
                     {currentReport.methodology !== "qualitative" ? (
-                      <>
-                        <button
-                          onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
-                          title="2. Pontuação COPSOQ II"
-                          className={reportNavBtnClass(activeTab === "copsoq")}
-                        >
-                          <Sliders className="w-4 h-4 shrink-0" />
-                          {isSidebarExpanded && <span className="truncate">2. Pontuação COPSOQ II</span>}
-                        </button>
-
-                        <button
-                          onClick={() => handleNavClick(() => setActiveTab("devolutivas"))}
-                          title="3. Devolutivas"
-                          className={reportNavBtnClass(activeTab === "devolutivas")}
-                        >
-                          <MessageSquare className="w-4 h-4 shrink-0" />
-                          {isSidebarExpanded && <span className="truncate">3. Devolutivas</span>}
-                        </button>
-                      </>
+                      <button
+                        onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
+                        title="2. Pontuação COPSOQ II"
+                        className={reportNavBtnClass(activeTab === "copsoq")}
+                      >
+                        <Sliders className="w-4 h-4 shrink-0" />
+                        {isSidebarExpanded && <span className="truncate">2. Pontuação COPSOQ II</span>}
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleNavClick(() => setActiveTab("qualitativa"))}
@@ -1742,40 +1728,20 @@ export default function App() {
                       <>
                         <button
                           onClick={() => handleNavClick(() => setActiveTab("inventario"))}
-                          title={
-                            currentReport.methodology === "qualitative"
-                              ? "3. Inventário (GRO)"
-                              : "4. Inventário (GRO)"
-                          }
+                          title="3. Inventário (GRO)"
                           className={reportNavBtnClass(activeTab === "inventario")}
                         >
                           <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                          {isSidebarExpanded && (
-                            <span className="truncate">
-                              {currentReport.methodology === "qualitative"
-                                ? "3. Inventário (GRO)"
-                                : "4. Inventário (GRO)"}
-                            </span>
-                          )}
+                          {isSidebarExpanded && <span className="truncate">3. Inventário (GRO)</span>}
                         </button>
 
                         <button
                           onClick={() => handleNavClick(() => setActiveTab("plano"))}
-                          title={
-                            currentReport.methodology === "qualitative"
-                              ? "4. Plano de Ação"
-                              : "5. Plano de Ação"
-                          }
+                          title="4. Plano de Ação"
                           className={reportNavBtnClass(activeTab === "plano")}
                         >
                           <ClipboardList className="w-4 h-4 shrink-0" />
-                          {isSidebarExpanded && (
-                            <span className="truncate">
-                              {currentReport.methodology === "qualitative"
-                                ? "4. Plano de Ação"
-                                : "5. Plano de Ação"}
-                            </span>
-                          )}
+                          {isSidebarExpanded && <span className="truncate">4. Plano de Ação</span>}
                         </button>
                       </>
                     )}
@@ -2087,12 +2053,18 @@ export default function App() {
               {/* Workspace Tab Render */}
               {(() => {
                 const isQualitative = currentReport.methodology === "qualitative";
+                const hasRecognizedRisks =
+                  currentReport.sectors.length > 0
+                    ? currentReport.sectors.some((s) => s.risksRecognized !== false)
+                    : currentReport.risksRecognized !== false;
                 const effectiveTab =
-                  isQualitative && (activeTab === "copsoq" || activeTab === "devolutivas")
-                    ? "qualitativa"
-                    : !isQualitative && activeTab === "qualitativa"
-                      ? "devolutivas"
-                      : activeTab;
+                  !hasRecognizedRisks && (activeTab === "inventario" || activeTab === "plano")
+                    ? "cadastro"
+                    : isQualitative && (activeTab === "copsoq" || activeTab === "devolutivas")
+                      ? "qualitativa"
+                      : !isQualitative && (activeTab === "qualitativa" || activeTab === "devolutivas")
+                        ? "copsoq"
+                        : activeTab;
 
                 return (
                   <div className="min-h-[500px]">
@@ -2112,13 +2084,12 @@ export default function App() {
                         onChange={handleUpdateCurrentReport}
                       />
                     )}
-                    {(effectiveTab === "devolutivas" && !isQualitative) ||
-                    (effectiveTab === "qualitativa" && isQualitative) ? (
+                    {effectiveTab === "qualitativa" && isQualitative && (
                       <TechnicalAnalysis
                         report={currentReport}
                         onChange={handleUpdateCurrentReport}
                       />
-                    ) : null}
+                    )}
                     {effectiveTab === "inventario" && (
                       <RiskInventoryManager
                         report={currentReport}

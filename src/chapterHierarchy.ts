@@ -33,14 +33,14 @@ export const STANDARD_CHAPTERS: StandardChapterDefinition[] = [
   },
   {
     id: "consideracoes",
-    number: "8",
-    label: "8. Considerações Finais",
+    number: "7",
+    label: "7. Considerações Finais",
     tip: "Conclua resumindo a importância do engajamento de líderes, periodicidade sugerida de reavaliação (12 a 24 meses) e integração ao PGR.",
   },
   {
     id: "referencias",
-    number: "9",
-    label: "9. Referências Bibliográficas",
+    number: "8",
+    label: "8. Referências Bibliográficas",
     tip: "Liste as normas regulamentadoras federais, leis trabalhistas e artigos de referência científica utilizados na elaboração.",
   },
 ];
@@ -60,7 +60,7 @@ export const STANDARD_CHAPTER_DEFAULTS: Record<string, { title: string; tip: str
   },
   "fases-automaticas": {
     title: "Fases Automáticas Tabuladas",
-    tip: "Resultados, Devolutivas, Inventário GRO e Cronograma de Ações tabulados automaticamente.",
+    tip: "Resultados, Inventário GRO e Cronograma de Ações tabulados automaticamente.",
   },
   consideracoes: {
     title: "Considerações Finais",
@@ -371,9 +371,12 @@ export const getUnifiedChapters = (report: Report): UnifiedChapter[] => {
 
   const result: UnifiedChapter[] = [];
 
-  const hasRisks = report.risksRecognized !== false;
+  const hasRisks =
+    report.sectors.length > 0
+      ? report.sectors.some((s) => s.risksRecognized !== false)
+      : report.risksRecognized !== false;
   const isQualitative = report.methodology === "qualitative";
-  const phasesCount = isQualitative ? (hasRisks ? 3 : 1) : (hasRisks ? 4 : 2);
+  const phasesCount = hasRisks ? 3 : 1;
 
   itemsMeta.forEach((item, index) => {
     if (item.type === "phases") {

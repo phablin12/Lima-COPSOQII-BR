@@ -123,7 +123,7 @@ export const AiAgentSettings: React.FC<AiAgentSettingsProps> = ({ assessor, onUp
     }
   > = {
     copsoq: {
-      label: "COPSOQ II & Devolutivas",
+      label: "COPSOQ II (Percepção)",
       field: "copsoqInstructions",
       icon: <Sliders className="w-3.5 h-3.5" />,
       placeholder: "Ex: Sempre relacione notas de Demandas e Burnout ao ritmo de picos sazonais e cite se há suporte da liderança...",

@@ -8,9 +8,8 @@ export interface Sector {
   name: string;
   employeeCount: number;
   respondentsCount?: number; // Number of employees who responded
-  risksRecognized?: boolean; // Whether the company/sector recognizes risks in the devolution
+  risksRecognized?: boolean; // Whether the company/sector recognizes psychosocial risks
   scores: Record<string, number | undefined>; // dimensionKey -> score (0 to 4)
-  devolvedSynthesis: string; // Synth for moderate/unfavorable risks during devolution with leaders
   generalAnalysis?: string; // Optional general analysis text
   qualitativeEvaluatedText?: string; // O que foi avaliado no ambiente
   qualitativePerceptionText?: string; // Percepção do colaborador

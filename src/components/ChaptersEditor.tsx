@@ -430,6 +430,35 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     triggerSavedIndicator();
   };
 
+  const handleRenameChapterTitle = useCallback(
+    (targetId: string, rawTitle: string) => {
+      const cleanTitle = cleanChapterTitle(rawTitle.trim()) || rawTitle.trim();
+      if (!cleanTitle) return;
+
+      if (["introducao", "fundamentacao", "metodologia", "consideracoes", "referencias"].includes(targetId)) {
+        onChange({
+          chapterTitles: {
+            ...(report.chapterTitles || {}),
+            [targetId]: cleanTitle,
+          },
+        });
+      } else {
+        const updatedCustoms = customChaptersList.map((c) => {
+          if (c.id === targetId) {
+            return {
+              ...c,
+              title: cleanTitle,
+            };
+          }
+          return c;
+        });
+        onChange({ customChapters: updatedCustoms });
+      }
+      triggerSavedIndicator();
+    },
+    [onChange, report.chapterTitles, customChaptersList, triggerSavedIndicator]
+  );
+
   // Start editing title
   const handleStartEditingMeta = (targetId?: string) => {
     const chId = targetId || effectiveActiveId;
@@ -444,29 +473,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
 
   const handleSaveMeta = () => {
     const targetId = editingTargetChapterId || effectiveActiveId;
-    const cleanTitle = cleanChapterTitle(editingTitleValue.trim()) || editingTitleValue.trim();
-    if (!cleanTitle) return;
-
-    if (["introducao", "fundamentacao", "metodologia", "consideracoes", "referencias"].includes(targetId)) {
-      onChange({
-        chapterTitles: {
-          ...(report.chapterTitles || {}),
-          [targetId]: cleanTitle,
-        },
-      });
-    } else {
-      const updatedCustoms = customChaptersList.map((c) => {
-        if (c.id === targetId) {
-          return {
-            ...c,
-            title: cleanTitle,
-          };
-        }
-        return c;
-      });
-      onChange({ customChapters: updatedCustoms });
-    }
-
+    handleRenameChapterTitle(targetId, editingTitleValue);
     setIsEditingMeta(false);
   };
 
@@ -631,7 +638,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
                 Fases Automáticas Tabuladas
               </span>
               <span className={`text-[10px] block truncate ${isActive ? "text-slate-300" : "text-slate-400"}`}>
-                Resultados · Devolutivas · GRO · Ações
+                {report.methodology === "qualitative" ? "Qualitativa · GRO · Ações" : "Resultados · GRO · Ações"}
               </span>
             </div>
           </div>
@@ -941,6 +948,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
             companyLogo={resolvedCompanyLogo}
             showSavedNotification={showSavedNotification}
             onEditChapterTitle={(chId) => handleStartEditingMeta(chId)}
+            onRenameChapterTitle={handleRenameChapterTitle}
             onDeleteChapter={(chId, fullTitle, isStandard) =>
               handleRequestDelete(chId, fullTitle, isStandard)
             }
