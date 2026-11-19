@@ -6,14 +6,26 @@
 import React, { useState } from "react";
 import { Report, Sector, Assessor } from "../types";
 import { DEFAULT_CHAPTERS, DEFAULT_QUALITATIVE_METODOLOGIA } from "../defaultChapters";
-import { Building, Calendar, User, ShieldAlert, Plus, Trash2, Edit2, Users, FileCheck2, ToggleLeft, CheckCircle2, Shield, ShieldCheck, Sliders } from "lucide-react";
+import {
+  Building,
+  Calendar,
+  User,
+  ShieldAlert,
+  Plus,
+  Trash2,
+  Edit2,
+  Users,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { compressImage } from "../imageUtils";
 import { SearchableSelect } from "./SearchableSelect";
 
 const ESTADOS_BRASILEIROS = [
-  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", 
-  "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", 
-  "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO",
+  "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI",
+  "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
 ];
 
 interface GeneralInfoFormProps {
@@ -57,6 +69,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
   const [editingEmployees, setEditingEmployees] = useState<string>("");
   const [editingRecognized, setEditingRecognized] = useState(true);
   const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
+  const [showCompanyOverride, setShowCompanyOverride] = useState(false);
 
   const handleAddField = (field: keyof Report, value: any) => {
     onChange({ [field]: value });
@@ -157,21 +170,9 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
       return s;
     });
 
-    // Synchronize risk inventory items that belong to this sector (or remove them if risks are not recognized)
     const updatedInventory = (report.riskInventory || [])
-      .filter((item) => {
-        if (item.sectorId === id && !editingRecognized) return false;
-        return true;
-      })
-      .map((item) => {
-        if (item.sectorId === id) {
-          return {
-            ...item,
-            exposedCount: finalCount,
-          };
-        }
-        return item;
-      });
+      .filter((item) => !(item.sectorId === id && !editingRecognized))
+      .map((item) => (item.sectorId === id ? { ...item, exposedCount: finalCount } : item));
 
     const hasAnyRecognized = updatedSectors.some((s) => s.risksRecognized !== false);
 
@@ -183,7 +184,6 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
     setEditingSectorId(null);
   };
 
-  // Find current active evaluator details to display in the UI
   const currentEvaluator = report.evaluator || defaultAssessor;
 
   const handleSelectEvaluator = (evaluatorId: string) => {
@@ -197,600 +197,521 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
     }
   };
 
-
   return (
-    <div className="space-y-8" id="general-info-container">
-      {/* Empresa Avaliadora Responsável */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
-          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-slate-600" />
-            Empresa Avaliadora (Responsável Técnica)
-          </h3>
-
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-500 font-bold shrink-0">Alterar Responsável:</span>
-            <SearchableSelect
-              value={report.evaluator?.id || "matriz"}
-              onChange={(val) => handleSelectEvaluator(val)}
-              options={[
-                { value: "matriz", label: "Empresa Matriz / Principal (Padrão)", subLabel: "Configuração geral do sistema" },
-                ...evaluators.map((ev) => ({
-                  value: ev.id,
-                  label: ev.fantasyName || ev.socialName,
-                  subLabel: ev.cnpj ? `CNPJ: ${ev.cnpj}` : undefined
-                }))
-              ]}
-              placeholder="Selecione um avaliador..."
-              className="w-64"
-              required
-            />
+    <div className="space-y-5" id="general-info-container">
+      {/* Barra compacta contextual da Empresa & Metodologia (sem repetição de formulários completos por padrão) */}
+      <div className="bg-white rounded-xl border border-slate-200 px-5 py-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {report.companyLogo ? (
+              <img
+                src={report.companyLogo}
+                alt=""
+                className="w-8 h-8 rounded-lg object-contain border border-slate-200 bg-white shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                <Building className="w-4 h-4" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                <span className="text-sm font-bold text-slate-900 truncate">
+                  {report.companyFantasyName || report.companyName}
+                </span>
+                <span className="text-xs text-slate-400">·</span>
+                <span className="text-xs font-mono text-slate-500">
+                  {report.cnpj || "CNPJ não informado"}
+                </span>
+                <span className="text-xs text-slate-400">·</span>
+                <span className="text-xs font-semibold text-indigo-700">
+                  {report.methodology === "qualitative" ? "Avaliação Qualitativa (MPE)" : "COPSOQ II-BR"}
+                </span>
+              </div>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowCompanyOverride(!showCompanyOverride)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer whitespace-nowrap shrink-0"
+          >
+            {showCompanyOverride ? "Ocultar dados da empresa" : "Editar empresa / método"}
+            {showCompanyOverride ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
         </div>
 
-        {currentEvaluator && (
-          <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex items-start gap-4">
-            <div className="w-12 h-12 border border-slate-200 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0">
-              {currentEvaluator.logo ? (
-                <img src={currentEvaluator.logo} alt="Logo" className="max-w-full max-h-full object-contain p-0.5" />
-              ) : (
-                <Building className="w-6 h-6 text-slate-350" />
+        {/* Edição opcional colapsável da Empresa / Metodologia */}
+        {showCompanyOverride && (
+          <div className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+              {companies.length > 0 && (
+                <div className="md:col-span-5 space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Trocar Empresa Cadastrada</label>
+                  <SearchableSelect
+                    value={
+                      companies.find(
+                        (c) =>
+                          (c.cnpj && report.cnpj && c.cnpj.replace(/\D/g, "") === report.cnpj.replace(/\D/g, "")) ||
+                          c.name === report.companyName
+                      )?.id || ""
+                    }
+                    onChange={(val) => handleSelectCompany(val)}
+                    options={companies.map((c) => ({
+                      value: c.id,
+                      label: c.fantasyName || c.name,
+                      subLabel: c.cnpj ? `CNPJ: ${c.cnpj}` : undefined,
+                    }))}
+                    placeholder="Selecione uma empresa..."
+                    searchPlaceholder="Buscar empresa..."
+                  />
+                </div>
               )}
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-slate-800 text-sm leading-tight">
-                  {currentEvaluator.fantasyName}
-                </span>
-                {(!report.evaluator || report.evaluator.id === "matriz") && (
-                  <span className="text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-150 font-black px-1.5 py-0.5 rounded uppercase">
-                    Matriz / Configuração Geral
-                  </span>
-                )}
+
+              <div className={companies.length > 0 ? "md:col-span-4 space-y-1" : "md:col-span-6 space-y-1"}>
+                <label className="text-xs font-semibold text-slate-600">Metodologia do Laudo</label>
+                <select
+                  value={report.methodology || "copsoq"}
+                  onChange={(e) => {
+                    const next = e.target.value as "copsoq" | "qualitative";
+                    const updatedChapters = { ...report.chapters };
+                    updatedChapters.metodologia =
+                      next === "qualitative" ? DEFAULT_QUALITATIVE_METODOLOGIA : DEFAULT_CHAPTERS.metodologia;
+                    onChange({ methodology: next, chapters: updatedChapters });
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-slate-400 outline-none"
+                >
+                  <option value="copsoq">COPSOQ II-BR (Quantitativa)</option>
+                  <option value="qualitative">Avaliação Qualitativa (MPE)</option>
+                </select>
               </div>
-              <p className="text-[11px] text-slate-500 leading-normal">
-                <span className="font-bold text-slate-650">{currentEvaluator.socialName}</span> • CNPJ: {currentEvaluator.cnpj} <br />
-                {currentEvaluator.address && <span>{currentEvaluator.address}, {currentEvaluator.city} - {currentEvaluator.state} • </span>}
-                {currentEvaluator.phone && <span>Contato: {currentEvaluator.phone}</span>}
-              </p>
+
+              <div className="md:col-span-3 space-y-1">
+                <label className="text-xs font-semibold text-slate-600">Grau de Risco</label>
+                <select
+                  value={report.companyRiskDegree || "1"}
+                  onChange={(e) => handleAddField("companyRiskDegree", parseInt(e.target.value) || 1)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-slate-400 outline-none"
+                >
+                  <option value="1">Grau 1</option>
+                  <option value="2">Grau 2</option>
+                  <option value="3">Grau 3</option>
+                  <option value="4">Grau 4</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">Razão Social</label>
+                <input
+                  type="text"
+                  value={report.companyName}
+                  onChange={(e) => handleAddField("companyName", e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">Nome Fantasia</label>
+                <input
+                  type="text"
+                  value={report.companyFantasyName || ""}
+                  onChange={(e) => handleAddField("companyFantasyName", e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">CNPJ / CAEPF</label>
+                <input
+                  type="text"
+                  value={report.cnpj}
+                  onChange={(e) => handleAddField("cnpj", e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">CNAE Principal</label>
+                <input
+                  type="text"
+                  value={report.companyCnae || ""}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 7);
+                    let masked = digits;
+                    if (digits.length > 4 && digits.length <= 5) {
+                      masked = `${digits.slice(0, 4)}-${digits.slice(4)}`;
+                    } else if (digits.length > 5) {
+                      masked = `${digits.slice(0, 4)}-${digits.slice(4, 5)}/${digits.slice(5)}`;
+                    }
+                    handleAddField("companyCnae", masked);
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs font-medium text-slate-600">Ramo / Atividade</label>
+                <input
+                  type="text"
+                  value={report.companySector || ""}
+                  onChange={(e) => handleAddField("companySector", e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">Logradouro</label>
+                <input
+                  type="text"
+                  value={report.companyAddress || ""}
+                  onChange={(e) => handleAddField("companyAddress", e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none focus:ring-2 focus:ring-slate-400"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">Nº</label>
+                  <input
+                    type="text"
+                    value={report.companyNumber || ""}
+                    onChange={(e) => handleAddField("companyNumber", e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">Cidade</label>
+                  <input
+                    type="text"
+                    value={report.companyCity || ""}
+                    onChange={(e) => handleAddField("companyCity", e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">UF</label>
+                  <select
+                    value={report.companyState || "MT"}
+                    onChange={(e) => handleAddField("companyState", e.target.value)}
+                    className="w-full px-2 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 bg-white outline-none"
+                  >
+                    {ESTADOS_BRASILEIROS.map((uf) => (
+                      <option key={uf} value={uf}>{uf}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              {report.companyLogo ? (
+                <div className="relative w-12 h-12 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center shrink-0">
+                  <img src={report.companyLogo} alt="Logo Cliente" className="max-w-full max-h-full object-contain" />
+                  <button
+                    type="button"
+                    onClick={() => handleAddField("companyLogo", "")}
+                    className="absolute inset-0 bg-black/55 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-[10px] font-bold cursor-pointer"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ) : (
+                <label className="w-12 h-12 border border-dashed border-slate-300 hover:border-slate-500 rounded-lg flex flex-col items-center justify-center cursor-pointer transition bg-slate-50 shrink-0">
+                  <Plus className="w-4 h-4 text-slate-400" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const compressed = await compressImage(file, 300, 300, 0.8);
+                          handleAddField("companyLogo", compressed);
+                        } catch (err) {
+                          console.error("Erro ao comprimir logo do cliente:", err);
+                        }
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              )}
+              <span className="text-xs text-slate-500">Logomarca da empresa cliente (exibida na capa e cabeçalho A4)</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Seleção de Metodologia */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
-          <Sliders className="w-5 h-5 text-slate-600" />
-          Metodologia do Laudo Psicossocial
-        </h3>
-        <p className="text-xs text-slate-500">
-          Selecione o método de análise psicossocial para este relatório. A alteração de metodologia preencherá automaticamente os textos predefinidos das etapas correspondentes.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
-            (report.methodology === "copsoq" || !report.methodology)
-              ? "border-slate-800 bg-slate-50/50"
-              : "border-slate-200 hover:border-slate-350 bg-white"
-          }`}>
-            <input
-              type="radio"
-              name="methodology_edit"
-              value="copsoq"
-              checked={report.methodology === "copsoq" || !report.methodology}
-              onChange={() => {
-                const updatedChapters = { ...report.chapters };
-                updatedChapters.metodologia = DEFAULT_CHAPTERS.metodologia;
-                onChange({ methodology: "copsoq", chapters: updatedChapters });
-              }}
-              className="sr-only"
-            />
-            <div>
-              <span className="font-extrabold text-slate-800 text-sm block">Metodologia COPSOQ II-BR</span>
-              <span className="text-[11px] text-slate-500 leading-normal block mt-1">
-                Método clássico quantitativo com escala de 0 a 4 pontos em 10 dimensões psicossociais. Recomendado para médias e grandes empresas.
-              </span>
+      {/* Grid Principal de Cards Operacionais */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        {/* Card 1: Empresa Avaliadora & Período */}
+        <div className="lg:col-span-5 bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between gap-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-slate-600" />
+                Empresa Avaliadora
+              </h3>
             </div>
-          </label>
 
-          <label className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
-            report.methodology === "qualitative"
-              ? "border-slate-800 bg-slate-50/50"
-              : "border-slate-200 hover:border-slate-350 bg-white"
-          }`}>
-            <input
-              type="radio"
-              name="methodology_edit"
-              value="qualitative"
-              checked={report.methodology === "qualitative"}
-              onChange={() => {
-                const updatedChapters = { ...report.chapters };
-                updatedChapters.metodologia = DEFAULT_QUALITATIVE_METODOLOGIA;
-                onChange({ methodology: "qualitative", chapters: updatedChapters });
-              }}
-              className="sr-only"
-            />
-            <div>
-              <span className="font-extrabold text-slate-800 text-sm block">Avaliação Qualitativa (Micro e Pequenas)</span>
-              <span className="text-[11px] text-slate-500 leading-normal block mt-1">
-                Método qualitativo direto focado em micro e pequenas empresas (MPE) e no GRO/NR-01: habilita a etapa de Avaliação Qualitativa por setor seguida pelo Inventário de Riscos e Plano de Ação.
-              </span>
-            </div>
-          </label>
-        </div>
-      </div>
-
-
-      {/* Dados da Empresa */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
-          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <Building className="w-5 h-5 text-slate-600" />
-            Dados da Empresa Avaliada
-          </h3>
-
-          {companies.length > 0 && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500 font-bold shrink-0">Auto-preencher:</span>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600 block">Unidade Responsável</label>
               <SearchableSelect
-                value={
-                  companies.find(
-                    (c) =>
-                      (c.cnpj && report.cnpj && c.cnpj.replace(/\D/g, "") === report.cnpj.replace(/\D/g, "")) ||
-                      c.name === report.companyName
-                  )?.id || ""
-                }
-                onChange={(val) => handleSelectCompany(val)}
-                options={companies.map((c) => ({
-                  value: c.id,
-                  label: c.fantasyName || c.name,
-                  subLabel: c.cnpj ? `CNPJ: ${c.cnpj}` : undefined
-                }))}
-                placeholder="Selecione uma empresa salva..."
-                searchPlaceholder="Buscar empresa..."
-                className="w-64"
-              />
-            </div>
-          )}
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600">Nome Fantasia</label>
-            <input
-              type="text"
-              value={report.companyFantasyName || ""}
-              onChange={(e) => handleAddField("companyFantasyName", e.target.value)}
-              placeholder="Ex: Filial Sul"
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600">Razão Social / Nome da Empresa</label>
-            <input
-              type="text"
-              value={report.companyName}
-              onChange={(e) => handleAddField("companyName", e.target.value)}
-              placeholder="Ex: Indústrias Metalúrgicas Alfa S/A"
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600">CNPJ / CAEPF da Empresa</label>
-            <input
-              type="text"
-              value={report.cnpj}
-              onChange={(e) => handleAddField("cnpj", e.target.value)}
-              placeholder="Ex: 00.000.000/0001-00"
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600">CNAE Principal</label>
-            <input
-              type="text"
-              value={report.companyCnae || ""}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, "").slice(0, 7);
-                let masked = digits;
-                if (digits.length > 4 && digits.length <= 5) {
-                  masked = `${digits.slice(0, 4)}-${digits.slice(4)}`;
-                } else if (digits.length > 5) {
-                  masked = `${digits.slice(0, 4)}-${digits.slice(4, 5)}/${digits.slice(5)}`;
-                }
-                handleAddField("companyCnae", masked);
-              }}
-              placeholder="Ex: 1234-5/67"
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="space-y-1 md:col-span-1">
-            <label className="text-sm font-medium text-slate-600">Grau de Risco</label>
-            <select
-              value={report.companyRiskDegree || "1"}
-              onChange={(e) => handleAddField("companyRiskDegree", parseInt(e.target.value) || 1)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            >
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-            </select>
-          </div>
-
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-sm font-medium text-slate-600">Setor / Atividade</label>
-            <input
-              type="text"
-              value={report.companySector || ""}
-              onChange={(e) => handleAddField("companySector", e.target.value)}
-              placeholder="Ex: Produção Pesada"
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
-          </div>
-        </div>
-
-        {/* Endereço Detalhado */}
-        <div className="border-t border-slate-100 pt-4 space-y-4">
-          <span className="text-[10px] font-black uppercase text-slate-400 block tracking-widest">Endereço da Empresa</span>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="space-y-1 md:col-span-3">
-              <label className="text-sm font-medium text-slate-600">Logradouro / Endereço</label>
-              <input
-                type="text"
-                value={report.companyAddress || ""}
-                onChange={(e) => handleAddField("companyAddress", e.target.value)}
-                placeholder="Ex: Av. das Palmeiras"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+                value={report.evaluator?.id || "matriz"}
+                onChange={(val) => handleSelectEvaluator(val)}
+                options={[
+                  { value: "matriz", label: defaultAssessor?.fantasyName || "Empresa Matriz (Padrão)", subLabel: "Configuração principal" },
+                  ...evaluators.map((ev) => ({
+                    value: ev.id,
+                    label: ev.fantasyName || ev.socialName,
+                    subLabel: ev.cnpj ? `CNPJ: ${ev.cnpj}` : undefined,
+                  })),
+                ]}
+                placeholder="Selecione a empresa avaliadora..."
+                required
               />
             </div>
 
-            <div className="space-y-1 md:col-span-1">
-              <label className="text-sm font-medium text-slate-600">Número</label>
-              <input
-                type="text"
-                value={report.companyNumber || ""}
-                onChange={(e) => handleAddField("companyNumber", e.target.value)}
-                placeholder="Ex: 500-A"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-              />
-            </div>
+            {currentEvaluator && (
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="w-10 h-10 border border-slate-200 rounded-lg overflow-hidden bg-white flex items-center justify-center shrink-0">
+                  {currentEvaluator.logo ? (
+                    <img src={currentEvaluator.logo} alt="Logo" className="max-w-full max-h-full object-contain p-0.5" />
+                  ) : (
+                    <Building className="w-4 h-4 text-slate-400" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-800 truncate">{currentEvaluator.fantasyName}</div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    {currentEvaluator.cnpj} {currentEvaluator.city ? `· ${currentEvaluator.city}-${currentEvaluator.state}` : ""}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-600">CEP</label>
+              <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                Data de Início
+              </label>
               <input
-                type="text"
-                value={report.companyCep || ""}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
-                  let masked = digits;
-                  if (digits.length > 5) {
-                    masked = `${digits.slice(0, 5)}-${digits.slice(5)}`;
-                  }
-                  handleAddField("companyCep", masked);
-                }}
-                placeholder="Ex: 78250-000"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+                type="date"
+                value={report.dateStart}
+                onChange={(e) => handleAddField("dateStart", e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-medium text-slate-800 bg-white tabular-nums"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-600">Bairro</label>
+              <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                Data de Conclusão
+              </label>
               <input
-                type="text"
-                value={report.companyBairro || ""}
-                onChange={(e) => handleAddField("companyBairro", e.target.value)}
-                placeholder="Ex: Centro"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+                type="date"
+                value={report.dateEnd}
+                onChange={(e) => handleAddField("dateEnd", e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-medium text-slate-800 bg-white tabular-nums"
               />
             </div>
+          </div>
+        </div>
 
-            <div className="grid grid-cols-12 gap-2">
-              <div className="col-span-8 space-y-1">
-                <label className="text-sm font-medium text-slate-600">Cidade</label>
+        {/* Card 2: Responsável Técnico (SST) */}
+        <div className="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between gap-4">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <User className="w-4 h-4 text-slate-600" />
+                Responsável Técnico (SST)
+              </h3>
+
+              {professionals.length > 0 && (
+                <div className="w-full sm:w-64">
+                  <SearchableSelect
+                    value={
+                      professionals.find(
+                        (p) =>
+                          (p.reg && report.professionalReg && p.reg === report.professionalReg && p.name === report.professionalName) ||
+                          p.name === report.professionalName
+                      )?.id || ""
+                    }
+                    onChange={(val) => handleSelectProfessional(val)}
+                    options={professionals.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      subLabel: `${p.role} · ${p.reg}`,
+                    }))}
+                    placeholder="Selecionar profissional salvo..."
+                    searchPlaceholder="Buscar profissional..."
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs font-semibold text-slate-600">Nome Completo do Profissional</label>
                 <input
                   type="text"
-                  value={report.companyCity || ""}
-                  onChange={(e) => handleAddField("companyCity", e.target.value)}
-                  placeholder="Cidade"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
+                  value={report.professionalName}
+                  onChange={(e) => handleAddField("professionalName", e.target.value)}
+                  placeholder="Ex: Carlos de Souza Santos"
+                  className="w-full px-3.5 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
                 />
               </div>
-              <div className="col-span-4 space-y-1">
-                <label className="text-sm font-medium text-slate-600">UF</label>
-                <select
-                  value={report.companyState || "MT"}
-                  onChange={(e) => handleAddField("companyState", e.target.value)}
-                  className="w-full px-2 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-                >
-                  {ESTADOS_BRASILEIROS.map((uf) => (
-                    <option key={uf} value={uf}>{uf}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="space-y-1 border-t border-slate-100 pt-4">
-          <label className="text-sm font-medium text-slate-600 block">Logo do Cliente (Laudo Atual)</label>
-          <div className="flex items-center gap-3">
-            {report.companyLogo ? (
-              <div className="relative w-16 h-16 border border-slate-200 rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center">
-                <img src={report.companyLogo} alt="Logo Cliente" className="max-w-full max-h-full object-contain" />
-                <button
-                  type="button"
-                  onClick={() => handleAddField("companyLogo", "")}
-                  className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-xs cursor-pointer"
-                >
-                  Remover
-                </button>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600">Cargo / Função Técnica</label>
+                <SearchableSelect
+                  value={report.professionalRole}
+                  onChange={(val) => onChange({ professionalRole: val as any })}
+                  options={[
+                    { value: "Técnico de Segurança do Trabalho", label: "Técnico de Segurança do Trabalho" },
+                    { value: "Engenheiro de Segurança do Trabalho", label: "Engenheiro de Segurança do Trabalho" },
+                    { value: "Psicólogo Organizacional", label: "Psicólogo Organizacional" },
+                    { value: "Outro", label: "Outro Profissional de SST" },
+                  ]}
+                  placeholder="Selecione o cargo..."
+                  required
+                />
               </div>
-            ) : (
-              <label className="w-16 h-16 border-2 border-dashed border-slate-200 hover:border-slate-400 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50">
-                <Plus className="w-5 h-5 text-slate-400" />
-                <span className="text-[9px] text-slate-400 font-bold uppercase mt-1">Enviar</span>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600">Registro (MTE / CREA / CRP)</label>
                 <input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      try {
-                        const compressed = await compressImage(file, 300, 300, 0.8);
-                        handleAddField("companyLogo", compressed);
-                      } catch (err) {
-                        console.error("Erro ao comprimir logo do cliente:", err);
-                      }
-                    }
-                  }}
-                  className="hidden"
+                  type="text"
+                  value={report.professionalReg}
+                  onChange={(e) => handleAddField("professionalReg", e.target.value)}
+                  placeholder="Ex: MTE nº 12.345 / CREA-MT"
+                  className="w-full px-3.5 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-sm text-slate-800 bg-white"
                 />
-              </label>
-            )}
-            <div className="text-xs text-slate-400">
-              <span className="font-bold block text-slate-500">Logomarca do Cliente</span>
-              Selecione uma imagem para figurar no cabeçalho e na capa das páginas geradas para este laudo.
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600 flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              Data de Início da Avaliação
-            </label>
-            <input
-              type="date"
-              value={report.dateStart}
-              onChange={(e) => handleAddField("dateStart", e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600 flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              Data de Conclusão da Avaliação
-            </label>
-            <input
-              type="date"
-              value={report.dateEnd}
-              onChange={(e) => handleAddField("dateEnd", e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
           </div>
         </div>
       </div>
 
-      {/* Dados do Responsável Técnico */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-3">
-          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <User className="w-5 h-5 text-slate-600" />
-            Dados do Responsável Técnico (SST)
+      {/* Card 3: Cadastro dos Setores / GES */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-slate-600" />
+            Setores e Grupos de Exposição Similar (GES)
           </h3>
-
-          {professionals.length > 0 && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500 font-bold shrink-0">Auto-preencher:</span>
-              <SearchableSelect
-                value={
-                  professionals.find(
-                    (p) =>
-                      (p.reg && report.professionalReg && p.reg === report.professionalReg && p.name === report.professionalName) ||
-                      p.name === report.professionalName
-                  )?.id || ""
-                }
-                onChange={(val) => handleSelectProfessional(val)}
-                options={professionals.map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                  subLabel: `${p.role} • Reg: ${p.reg}`
-                }))}
-                placeholder="Selecione um profissional salvo..."
-                searchPlaceholder="Buscar profissional..."
-                className="w-64"
-              />
-            </div>
-          )}
+          <span className="text-xs font-mono font-semibold text-slate-500 tabular-nums">
+            {report.sectors.length} {report.sectors.length === 1 ? "setor" : "setores"} ·{" "}
+            {report.sectors.reduce((acc, s) => acc + (s.employeeCount || 0), 0)} trabalhadores
+          </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="space-y-1 md:col-span-1">
-            <label className="text-sm font-medium text-slate-600">Nome do Profissional</label>
-            <input
-              type="text"
-              value={report.professionalName}
-              onChange={(e) => handleAddField("professionalName", e.target.value)}
-              placeholder="Ex: Carlos de Souza Santos"
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600">Cargo / Função Técnica</label>
-            <SearchableSelect
-              value={report.professionalRole}
-              onChange={(val) => onChange({ professionalRole: val as any })}
-              options={[
-                { value: "Técnico de Segurança do Trabalho", label: "Técnico de Segurança do Trabalho" },
-                { value: "Engenheiro de Segurança do Trabalho", label: "Engenheiro de Segurança do Trabalho" },
-                { value: "Psicólogo Organizacional", label: "Psicólogo Organizacional" },
-                { value: "Outro", label: "Outro Profissional de SST" }
-              ]}
-              placeholder="Selecione o cargo/função..."
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-600">Registro Profissional (MTE/CREA/CRP)</label>
-            <input
-              type="text"
-              value={report.professionalReg}
-              onChange={(e) => handleAddField("professionalReg", e.target.value)}
-              placeholder="Ex: MTE nº 12.345 / CREA RS-54321"
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-slate-800 bg-white"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Setores / GES Avaliados */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-6">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-slate-600" />
-            Setores, Funções ou Grupos de Exposição Similar (GES)
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Cadastre os setores ou grupos de exposição similar (GES) participantes, a quantidade de trabalhadores e se há reconhecimento de riscos psicossociais. As etapas de Inventário de Riscos (GRO) e Cronograma serão direcionadas automaticamente aos setores com riscos reconhecidos.
-          </p>
-        </div>
-
-        {/* Formulário para Novo Setor */}
-        <form onSubmit={handleAddSector} className="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
-          <div className="space-y-1 lg:col-span-5">
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Identificação do Setor / GES</label>
+        {/* Formulário inline para Novo Setor */}
+        <form onSubmit={handleAddSector} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+          <div className="space-y-1 md:col-span-5">
+            <label className="text-xs font-semibold text-slate-600">Nome do Setor / GES</label>
             <input
               type="text"
               required
               value={newSectorName}
               onChange={(e) => setNewSectorName(e.target.value)}
-              placeholder="Ex: Setor Administrativo (Faturamento e RH)"
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 bg-white outline-none text-sm text-slate-800"
+              placeholder="Ex: Administrativo (Faturamento e RH)"
+              className="w-full px-3.5 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 bg-white outline-none text-sm text-slate-800"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3 items-end lg:col-span-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1">
-                <Users className="w-3 h-3 text-slate-400" /> N.º de Funcionários
-              </label>
-              <input
-                type="number"
-                min="1"
-                required
-                value={newSectorEmployees}
-                onChange={(e) => setNewSectorEmployees(e.target.value)}
-                placeholder="Ex: 10"
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 bg-white outline-none text-sm text-slate-800"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block text-center">Reconhece riscos?</label>
-              <button
-                type="button"
-                onClick={() => setNewSectorRecognized(!newSectorRecognized)}
-                className={`w-full font-bold text-xs py-2 px-3 rounded-lg border transition-all cursor-pointer ${
-                  newSectorRecognized
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : "bg-slate-100 border-slate-200 text-slate-500"
-                }`}
-              >
-                {newSectorRecognized ? "Sim" : "Não"}
-              </button>
-            </div>
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-slate-400" /> Trabalhadores
+            </label>
+            <input
+              type="number"
+              min="1"
+              required
+              value={newSectorEmployees}
+              onChange={(e) => setNewSectorEmployees(e.target.value)}
+              placeholder="Ex: 12"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 bg-white outline-none text-sm text-slate-800 tabular-nums"
+            />
           </div>
 
-          <div className="lg:col-span-3 flex justify-end">
+          <div className="space-y-1 md:col-span-2">
+            <label className="text-xs font-semibold text-slate-600 block">Reconhece Riscos?</label>
+            <button
+              type="button"
+              onClick={() => setNewSectorRecognized(!newSectorRecognized)}
+              className={`w-full font-bold text-xs py-2 px-3 rounded-lg border transition cursor-pointer ${
+                newSectorRecognized
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                  : "bg-slate-100 border-slate-200 text-slate-500"
+              }`}
+            >
+              {newSectorRecognized ? "Sim" : "Não"}
+            </button>
+          </div>
+
+          <div className="md:col-span-3">
             <button
               type="submit"
-              className="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium text-sm py-2 px-6 rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              className="w-full bg-slate-900 hover:bg-black text-white font-bold text-xs py-2.5 px-4 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" /> Cadastrar Setor
+              <Plus className="w-4 h-4" /> Adicionar Setor
             </button>
           </div>
         </form>
 
-        {/* Lista de Setores Cadastrados */}
-        <div className="overflow-hidden border border-slate-100 rounded-xl">
+        {/* Tabela de Setores */}
+        <div className="overflow-x-auto border border-slate-200 rounded-xl">
           <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome do Setor / GES</th>
-                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-44 text-center">N.º de Funcionários</th>
-                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-36 text-center">Reconhece Riscos?</th>
-                <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-28 text-right">Ações</th>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wider">Setor / GES</th>
+                <th className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wider w-40 text-center">Trabalhadores</th>
+                <th className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wider w-36 text-center">Reconhece Riscos</th>
+                <th className="px-4 py-2.5 text-[11px] font-bold text-slate-600 uppercase tracking-wider w-28 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {report.sectors.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-slate-400 text-sm">
-                    Nenhum setor cadastrado ainda. Use o formulário acima para adicionar os setores avaliados.
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-400 text-xs">
+                    Nenhum setor cadastrado. Adicione os setores avaliados no formulário acima.
                   </td>
                 </tr>
               ) : (
                 report.sectors.map((sector) => (
-                  <tr key={sector.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4">
+                  <tr key={sector.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-4 py-3">
                       {editingSectorId === sector.id ? (
                         <input
                           type="text"
                           value={editingName}
                           onChange={(e) => setEditingName(e.target.value)}
-                          className="w-full px-3 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-slate-400 outline-none text-slate-800"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-400 outline-none text-slate-800"
                         />
                       ) : (
                         <span className="font-semibold text-slate-800 text-sm">{sector.name}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-3 text-center">
                       {editingSectorId === sector.id ? (
                         <input
                           type="number"
                           min="1"
                           value={editingEmployees}
                           onChange={(e) => setEditingEmployees(e.target.value)}
-                          className="w-24 px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-slate-400 outline-none text-center text-slate-800"
+                          className="w-20 px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-400 outline-none text-center text-slate-800 tabular-nums"
                         />
                       ) : (
-                        <span className="text-slate-700 text-sm bg-slate-100 px-3 py-1 rounded-full font-mono font-semibold">
+                        <span className="text-slate-700 text-sm font-mono font-semibold tabular-nums">
                           {sector.employeeCount}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-3 text-center">
                       {editingSectorId === sector.id ? (
                         <button
                           type="button"
                           onClick={() => setEditingRecognized(!editingRecognized)}
-                          className={`text-xs px-2.5 py-1 border rounded font-semibold ${
+                          className={`text-xs px-2.5 py-1 border rounded-lg font-semibold cursor-pointer ${
                             editingRecognized
                               ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                               : "bg-slate-100 text-slate-500 border-slate-200"
@@ -799,30 +720,32 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                           {editingRecognized ? "Sim" : "Não"}
                         </button>
                       ) : (
-                        <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded border ${
-                          sector.risksRecognized !== false
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-                            : "bg-slate-100 text-slate-400 border-slate-200"
-                        }`}>
+                        <span
+                          className={`inline-flex items-center text-xs font-bold px-2.5 py-0.5 rounded-md border ${
+                            sector.risksRecognized !== false
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-slate-100 text-slate-500 border-slate-200"
+                          }`}
+                        >
                           {sector.risksRecognized !== false ? "Sim" : "Não"}
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex justify-end gap-1.5">
                         {editingSectorId === sector.id ? (
                           <>
                             <button
                               type="button"
                               onClick={() => handleSaveSectorEdit(sector.id)}
-                              className="text-xs font-medium text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded hover:bg-emerald-100 transition cursor-pointer"
+                              className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg hover:bg-emerald-100 transition cursor-pointer"
                             >
                               Salvar
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditingSectorId(null)}
-                              className="text-xs font-medium text-slate-500 hover:text-slate-700 bg-slate-100 px-2.5 py-1 rounded hover:bg-slate-200 transition cursor-pointer"
+                              className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg hover:bg-slate-200 transition cursor-pointer"
                             >
                               Cancelar
                             </button>
@@ -832,28 +755,27 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                             <button
                               type="button"
                               onClick={() => startEditingSector(sector)}
-                              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition cursor-pointer"
+                              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
                               title="Editar Setor"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             {deletingSectorId === sector.id ? (
-                              <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 p-1 rounded-md">
-                                <span className="text-[10px] font-bold text-rose-800 px-1">Excluir?</span>
+                              <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-lg">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     handleRemoveSector(sector.id);
                                     setDeletingSectorId(null);
                                   }}
-                                  className="text-[10px] font-black text-rose-700 hover:text-rose-900 bg-rose-100/50 px-1.5 py-0.5 rounded cursor-pointer"
+                                  className="text-[11px] font-bold text-rose-700 hover:text-rose-900 px-1 cursor-pointer"
                                 >
                                   Sim
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setDeletingSectorId(null)}
-                                  className="text-[10px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded cursor-pointer"
+                                  className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 px-1 cursor-pointer"
                                 >
                                   Não
                                 </button>
@@ -862,7 +784,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setDeletingSectorId(sector.id)}
-                                className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                                className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                                 title="Excluir Setor"
                               >
                                 <Trash2 className="w-4 h-4" />

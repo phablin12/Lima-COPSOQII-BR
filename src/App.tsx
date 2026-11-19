@@ -21,9 +21,10 @@ import { ProfessionalsRegistry } from "./components/ProfessionalsRegistry";
 import { ManagementDashboard } from "./components/ManagementDashboard";
 import { CompanyCustomization } from "./components/CompanyCustomization";
 import { EvaluatorsRegistry } from "./components/EvaluatorsRegistry";
+import { AiAgentSettings } from "./components/AiAgentSettings";
+import { setActiveAiAgentConfig } from "./aiService";
 import { 
   Shield, 
-  ArrowLeft, 
   Building, 
   Sliders, 
   MessageSquare, 
@@ -39,12 +40,12 @@ import {
   Menu, 
   X, 
   LogOut, 
-  FolderHeart, 
   Cloud, 
   CloudOff, 
   ShieldCheck,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Bot
 } from "lucide-react";
 import { 
   onAuthStateChanged,
@@ -221,7 +222,7 @@ proactiveStorageCleanup();
 const getInitialNavState = () => {
   let initialReportId: string | null = null;
   let initialActiveTab: string = "cadastro";
-  let initialHomeTab: "dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization" | "evaluators" = "dashboard";
+  let initialHomeTab: "dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization" | "evaluators" | "ai_agent" = "dashboard";
 
   try {
     const params = new URLSearchParams(window.location.search);
@@ -268,7 +269,7 @@ export default function App() {
   });
   const [currentReportId, setCurrentReportId] = useState<string | null>(initialNav.initialReportId);
   const [activeTab, setActiveTab] = useState<string>(initialNav.initialActiveTab);
-  const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization" | "evaluators">(
+  const [homeTab, setHomeTab] = useState<"dashboard" | "reports" | "companies" | "professionals" | "risks" | "customization" | "evaluators" | "ai_agent">(
     initialNav.initialHomeTab
   );
 
@@ -513,6 +514,11 @@ export default function App() {
     return fallback;
   });
 
+  // Keep aiService synchronized with assessor's trained AI agent configuration
+  useEffect(() => {
+    setActiveAiAgentConfig((assessor as Assessor).aiAgentConfig);
+  }, [(assessor as Assessor).aiAgentConfig]);
+
   // Preload assessor logo and cover image into browser memory cache immediately for zero latency decoding
   useEffect(() => {
     if (assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]") {
@@ -542,8 +548,10 @@ export default function App() {
     }
   }, [assessor]);
 
-  // Mobile sidebar drawer state
+  // Mobile sidebar drawer & desktop hover-retractable sidebar states
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const isSidebarExpanded = isMobileMenuOpen || isSidebarHovered;
 
   // Authentication State - Instant render using cached user session to avoid blocking spinner on refresh
   const [user, setUser] = useState<any>(() => {
@@ -1536,47 +1544,74 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans" id="app-root-container">
-      
-      {/* 1. SIDEBAR ESQUERDA - Inteligente & Empresarial (Oculto na impressão) */}
-      <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-white text-slate-700 border-r border-slate-200 flex flex-col justify-between transition-transform duration-300 md:relative md:translate-x-0 ${
-        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      } print:hidden`}>
-        
+      {/* Spacer fixo para manter o layout estável quando o sidebar expande no hover */}
+      <div className="hidden md:block w-[68px] shrink-0 print:hidden" aria-hidden="true" />
+
+      {/* 1. SIDEBAR ESQUERDA - Retrátil com Expansão no Mouse (Oculto na impressão) */}
+      <aside
+        onMouseEnter={() => setIsSidebarHovered(true)}
+        onMouseLeave={() => setIsSidebarHovered(false)}
+        className={`fixed inset-y-0 left-0 z-40 bg-white text-slate-700 border-r border-slate-200 flex flex-col justify-between transition-all duration-200 ease-out print:hidden ${
+          isMobileMenuOpen
+            ? "translate-x-0 w-64 shadow-2xl"
+            : "-translate-x-full md:translate-x-0"
+        } ${isSidebarHovered ? "md:w-64 md:shadow-2xl" : "md:w-[68px]"}`}
+      >
         {/* Topo / Logotipo */}
-        <div className="flex flex-col">
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="flex flex-col min-h-0 flex-1">
+          <div
+            className={`border-b border-slate-100 flex items-center shrink-0 transition-all duration-200 ${
+              isSidebarExpanded ? "p-5 justify-between" : "py-5 px-3 justify-center"
+            }`}
+          >
+            <div className={`flex items-center min-w-0 ${isSidebarExpanded ? "gap-3" : "justify-center"}`}>
               {(() => {
-                const effectiveLogo = (assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]")
-                  ? assessor.logo
-                  : getImageSync("assessor_logo");
+                const effectiveLogo =
+                  assessor.logo && assessor.logo !== "[OMITTED_IMAGE_FOR_CACHE]"
+                    ? assessor.logo
+                    : getImageSync("assessor_logo");
 
                 return effectiveLogo ? (
-                  <div className="w-10 h-10 border border-slate-200 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0">
-                    <img 
-                      src={effectiveLogo} 
-                      alt="Logo" 
-                      className="max-w-full max-h-full object-contain" 
+                  <div
+                    className="w-10 h-10 border border-slate-200 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0"
+                    title={assessor.fantasyName}
+                  >
+                    <img
+                      src={effectiveLogo}
+                      alt="Logo"
+                      className="max-w-full max-h-full object-contain"
                       loading="eager"
                       decoding="sync"
                     />
                   </div>
                 ) : (
-                  <div className="w-10 h-10 bg-slate-50 text-slate-700 rounded-xl flex items-center justify-center border border-slate-200 shadow-xs shrink-0">
+                  <div
+                    className="w-10 h-10 bg-slate-50 text-slate-700 rounded-xl flex items-center justify-center border border-slate-200 shadow-xs shrink-0"
+                    title={assessor.fantasyName}
+                  >
                     <Shield className="w-5 h-5 text-amber-500" />
                   </div>
                 );
               })()}
-              <div className="min-w-0">
-                <h1 className="text-xs font-black tracking-tight leading-none text-slate-800 uppercase truncate" title={assessor.fantasyName}>
-                  {assessor.fantasyName.toLowerCase().includes("lima") ? "Lima Engenharia" : assessor.fantasyName.split(" ")[0]}
-                </h1>
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">Workspace</p>
-              </div>
+              {isSidebarExpanded && (
+                <div className="min-w-0">
+                  <h1
+                    className="text-xs font-black tracking-tight leading-none text-slate-800 uppercase truncate"
+                    title={assessor.fantasyName}
+                  >
+                    {assessor.fantasyName.toLowerCase().includes("lima")
+                      ? "Lima Engenharia"
+                      : assessor.fantasyName.split(" ")[0]}
+                  </h1>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">
+                    Workspace
+                  </p>
+                </div>
+              )}
             </div>
-            
+
             {/* Fechar no mobile */}
-            <button 
+            <button
               onClick={() => setIsMobileMenuOpen(false)}
               className="md:hidden p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 cursor-pointer"
             >
@@ -1585,331 +1620,379 @@ export default function App() {
           </div>
 
           {/* ÁREA DE NAVEGAÇÃO INTERNA DO SIDEBAR */}
-          <div className="p-4 space-y-6 overflow-y-auto">
-            
+          <div className={`space-y-5 overflow-y-auto overflow-x-hidden flex-1 ${isSidebarExpanded ? "p-4" : "px-2.5 py-4"}`}>
             {/* Se houver laudo ativo (Editando Laudo), mostra as etapas integradas no sidebar */}
             {currentReport ? (() => {
-              const hasRecognizedRisks = currentReport.sectors.length > 0
-                ? currentReport.sectors.some((s) => s.risksRecognized !== false)
-                : (currentReport.risksRecognized !== false);
+              const hasRecognizedRisks =
+                currentReport.sectors.length > 0
+                  ? currentReport.sectors.some((s) => s.risksRecognized !== false)
+                  : currentReport.risksRecognized !== false;
+
+              const initials = (currentReport.companyName || "LD")
+                .trim()
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((w) => w[0]?.toUpperCase() || "")
+                .join("");
+
+              const reportNavBtnClass = (isActive: boolean) =>
+                `w-full flex items-center py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  isSidebarExpanded ? "gap-2.5 px-3 text-left justify-start" : "justify-center px-0"
+                } ${
+                  isActive
+                    ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/70"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                }`;
+
+              const chaptersLabel =
+                currentReport.methodology === "qualitative"
+                  ? hasRecognizedRisks
+                    ? "5. Texto Capítulos"
+                    : "3. Texto Capítulos"
+                  : hasRecognizedRisks
+                    ? "6. Texto Capítulos"
+                    : "4. Texto Capítulos";
+
+              const previewLabel =
+                currentReport.methodology === "qualitative"
+                  ? hasRecognizedRisks
+                    ? "6. Visualizar Laudo"
+                    : "4. Visualizar Laudo"
+                  : hasRecognizedRisks
+                    ? "7. Visualizar Laudo"
+                    : "5. Visualizar Laudo";
 
               return (
-              <div className="space-y-4">
-                {/* Cartão de Identificação do Laudo */}
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-                  <span className="text-[9px] font-extrabold text-slate-450 uppercase tracking-widest block">Laudo em Elaboração:</span>
-                  <span className="text-xs font-black text-slate-800 block truncate" title={currentReport.companyName}>
-                    {currentReport.companyName}
-                  </span>
-                  
-                  <button
-                    onClick={() => handleNavClick(() => handleSelectReport(null))}
-                    className="w-full mt-1.5 flex items-center justify-center gap-1.5 text-[10px] font-bold text-rose-650 hover:text-rose-750 bg-rose-50 hover:bg-rose-100 py-1.5 px-3 rounded-lg transition-colors cursor-pointer border border-rose-100"
-                  >
-                    <LogOut className="w-3 h-3" /> Fechar Editor / Voltar
-                  </button>
-                </div>
-
-                {/* Divisão: Etapas */}
-                <div className="space-y-1">
-                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
-                    Fases do Laudo (NR-01)
-                  </span>
-
-                  <button
-                    onClick={() => handleNavClick(() => setActiveTab("cadastro"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      activeTab === "cadastro" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <Building className="w-4 h-4 shrink-0 text-slate-450" />
-                    1. Cadastro Geral
-                  </button>
-
-                  {/* Metodologia Quantitativa (COPSOQ II) ou Qualitativa (MPE) */}
-                  {currentReport.methodology !== "qualitative" ? (
-                    <>
-                      <button
-                        onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                          activeTab === "copsoq" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
+                <div className="space-y-4">
+                  {/* Cartão de Identificação do Laudo */}
+                  {isSidebarExpanded ? (
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1">
+                      <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">
+                        Laudo em Elaboração
+                      </span>
+                      <span
+                        className="text-xs font-black text-slate-800 block truncate"
+                        title={currentReport.companyName}
                       >
-                        <Sliders className="w-4 h-4 shrink-0 text-slate-450" />
-                        2. Pontuação COPSOQ II
-                      </button>
-
-                      <button
-                        onClick={() => handleNavClick(() => setActiveTab("devolutivas"))}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                          activeTab === "devolutivas" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                      >
-                        <MessageSquare className="w-4 h-4 shrink-0 text-slate-450" />
-                        3. Devolutivas
-                      </button>
-                    </>
+                        {currentReport.companyName}
+                      </span>
+                    </div>
                   ) : (
-                    <button
-                      onClick={() => handleNavClick(() => setActiveTab("qualitativa"))}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                        activeTab === "qualitativa" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                      }`}
+                    <div
+                      className="w-10 h-10 mx-auto rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-[11px] font-black text-slate-800 tracking-tight"
+                      title={`Laudo em Elaboração: ${currentReport.companyName}`}
                     >
-                      <MessageSquare className="w-4 h-4 shrink-0 text-slate-450" />
-                      2. Avaliação Qualitativa
+                      {initials || "LD"}
+                    </div>
+                  )}
+
+                  {/* Divisão: Etapas */}
+                  <div className="space-y-1">
+                    {isSidebarExpanded ? (
+                      <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
+                        Fases do Laudo (NR-01)
+                      </span>
+                    ) : (
+                      <div className="h-px bg-slate-100 mx-1 my-2" />
+                    )}
+
+                    <button
+                      onClick={() => handleNavClick(() => setActiveTab("cadastro"))}
+                      title="1. Cadastro Geral"
+                      className={reportNavBtnClass(activeTab === "cadastro")}
+                    >
+                      <Building className="w-4 h-4 shrink-0" />
+                      {isSidebarExpanded && <span className="truncate">1. Cadastro Geral</span>}
                     </button>
-                  )}
 
-                  {/* Se nenhum setor reconhece riscos, ocultamos as abas do Inventário e Plano de Ação */}
-                  {hasRecognizedRisks && (
-                    <>
+                    {/* Metodologia Quantitativa (COPSOQ II) ou Qualitativa (MPE) */}
+                    {currentReport.methodology !== "qualitative" ? (
+                      <>
+                        <button
+                          onClick={() => handleNavClick(() => setActiveTab("copsoq"))}
+                          title="2. Pontuação COPSOQ II"
+                          className={reportNavBtnClass(activeTab === "copsoq")}
+                        >
+                          <Sliders className="w-4 h-4 shrink-0" />
+                          {isSidebarExpanded && <span className="truncate">2. Pontuação COPSOQ II</span>}
+                        </button>
+
+                        <button
+                          onClick={() => handleNavClick(() => setActiveTab("devolutivas"))}
+                          title="3. Devolutivas"
+                          className={reportNavBtnClass(activeTab === "devolutivas")}
+                        >
+                          <MessageSquare className="w-4 h-4 shrink-0" />
+                          {isSidebarExpanded && <span className="truncate">3. Devolutivas</span>}
+                        </button>
+                      </>
+                    ) : (
                       <button
-                        onClick={() => handleNavClick(() => setActiveTab("inventario"))}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                          activeTab === "inventario" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                        onClick={() => handleNavClick(() => setActiveTab("qualitativa"))}
+                        title="2. Avaliação Qualitativa"
+                        className={reportNavBtnClass(activeTab === "qualitativa")}
+                      >
+                        <MessageSquare className="w-4 h-4 shrink-0" />
+                        {isSidebarExpanded && <span className="truncate">2. Avaliação Qualitativa</span>}
+                      </button>
+                    )}
+
+                    {/* Se nenhum setor reconhece riscos, ocultamos as abas do Inventário e Plano de Ação */}
+                    {hasRecognizedRisks && (
+                      <>
+                        <button
+                          onClick={() => handleNavClick(() => setActiveTab("inventario"))}
+                          title={
+                            currentReport.methodology === "qualitative"
+                              ? "3. Inventário (GRO)"
+                              : "4. Inventário (GRO)"
+                          }
+                          className={reportNavBtnClass(activeTab === "inventario")}
+                        >
+                          <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                          {isSidebarExpanded && (
+                            <span className="truncate">
+                              {currentReport.methodology === "qualitative"
+                                ? "3. Inventário (GRO)"
+                                : "4. Inventário (GRO)"}
+                            </span>
+                          )}
+                        </button>
+
+                        <button
+                          onClick={() => handleNavClick(() => setActiveTab("plano"))}
+                          title={
+                            currentReport.methodology === "qualitative"
+                              ? "4. Plano de Ação"
+                              : "5. Plano de Ação"
+                          }
+                          className={reportNavBtnClass(activeTab === "plano")}
+                        >
+                          <ClipboardList className="w-4 h-4 shrink-0" />
+                          {isSidebarExpanded && (
+                            <span className="truncate">
+                              {currentReport.methodology === "qualitative"
+                                ? "4. Plano de Ação"
+                                : "5. Plano de Ação"}
+                            </span>
+                          )}
+                        </button>
+                      </>
+                    )}
+
+                    <button
+                      onClick={() => handleNavClick(() => setActiveTab("capitulos"))}
+                      title={chaptersLabel}
+                      className={reportNavBtnClass(activeTab === "capitulos")}
+                    >
+                      <BookOpenCheck className="w-4 h-4 shrink-0" />
+                      {isSidebarExpanded && <span className="truncate">{chaptersLabel}</span>}
+                    </button>
+
+                    <button
+                      onClick={() => handleNavClick(() => setActiveTab("visualizar"))}
+                      title={previewLabel}
+                      className={reportNavBtnClass(activeTab === "visualizar")}
+                    >
+                      <FileText className="w-4 h-4 shrink-0" />
+                      {isSidebarExpanded && <span className="truncate">{previewLabel}</span>}
+                    </button>
+
+                    <div className="pt-2 mt-2 border-t border-slate-100">
+                      <button
+                        onClick={() => handleNavClick(() => handleSelectReport(null))}
+                        title="Fechar Editor / Voltar"
+                        className={`w-full flex items-center py-2 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50/70 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer border border-rose-200/70 ${
+                          isSidebarExpanded ? "gap-2 px-3 justify-start" : "justify-center px-0"
                         }`}
                       >
-                        <FileSpreadsheet className="w-4 h-4 shrink-0 text-slate-450" />
-                        {currentReport.methodology === "qualitative" ? "3. Inventário (GRO)" : "4. Inventário (GRO)"}
+                        <LogOut className="w-4 h-4 shrink-0" />
+                        {isSidebarExpanded && <span className="truncate">Fechar Editor / Voltar</span>}
                       </button>
-
-                      <button
-                        onClick={() => handleNavClick(() => setActiveTab("plano"))}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                          activeTab === "plano" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                      >
-                        <ClipboardList className="w-4 h-4 shrink-0 text-slate-450" />
-                        {currentReport.methodology === "qualitative" ? "4. Plano de Ação" : "5. Plano de Ação"}
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    onClick={() => handleNavClick(() => setActiveTab("capitulos"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      activeTab === "capitulos" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <BookOpenCheck className="w-4 h-4 shrink-0 text-slate-450" />
-                    {currentReport.methodology === "qualitative"
-                      ? (hasRecognizedRisks ? "5. Texto Capítulos" : "3. Texto Capítulos")
-                      : (hasRecognizedRisks ? "6. Texto Capítulos" : "4. Texto Capítulos")
-                    }
-                  </button>
-
-                  <button
-                    onClick={() => handleNavClick(() => setActiveTab("visualizar"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      activeTab === "visualizar" ? "bg-slate-150 text-slate-900 font-black border border-slate-250" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <FileText className="w-4 h-4 shrink-0 text-slate-450" />
-                    {currentReport.methodology === "qualitative"
-                      ? (hasRecognizedRisks ? "6. Visualizar Laudo" : "4. Visualizar Laudo")
-                      : (hasRecognizedRisks ? "7. Visualizar Laudo" : "5. Visualizar Laudo")
-                    }
-                  </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
               );
             })() : (
               /* Se não houver laudo selecionado (Menu Início), mostra o menu administrativo */
-              <div className="space-y-6">
-                
+              <div className="space-y-5">
                 {/* Seção 1: Gestão */}
                 <div className="space-y-1">
-                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
-                    Gestão
-                  </span>
-                  
+                  {isSidebarExpanded && (
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
+                      Gestão
+                    </span>
+                  )}
+
                   <button
                     onClick={() => handleNavClick(() => setHomeTab("dashboard"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      homeTab === "dashboard" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    title="Painel de Gestão (Dash)"
+                    className={`w-full flex items-center py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      isSidebarExpanded ? "gap-2.5 px-3 text-left justify-start" : "justify-center px-0"
+                    } ${
+                      homeTab === "dashboard"
+                        ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/70"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
-                    <LayoutDashboard className="w-4 h-4 shrink-0 text-slate-450" />
-                    Painel de Gestão (Dash)
+                    <LayoutDashboard className="w-4 h-4 shrink-0" />
+                    {isSidebarExpanded && <span className="truncate">Painel de Gestão (Dash)</span>}
                   </button>
                 </div>
 
                 {/* Seção 2: Documentos e Avaliações */}
                 <div className="space-y-1">
-                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
-                    Avaliações & Laudos
-                  </span>
+                  {isSidebarExpanded ? (
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
+                      Avaliações & Laudos
+                    </span>
+                  ) : (
+                    <div className="h-px bg-slate-100 mx-1 my-2" />
+                  )}
 
                   <button
                     onClick={() => handleNavClick(() => setHomeTab("reports"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      homeTab === "reports" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    title="Relatórios / Laudos"
+                    className={`w-full flex items-center py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      isSidebarExpanded ? "gap-2.5 px-3 text-left justify-start" : "justify-center px-0"
+                    } ${
+                      homeTab === "reports"
+                        ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/70"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
-                    <FileText className="w-4 h-4 shrink-0 text-slate-450" />
-                    Relatórios / Laudos
+                    <FileText className="w-4 h-4 shrink-0" />
+                    {isSidebarExpanded && <span className="truncate">Relatórios / Laudos</span>}
                   </button>
                 </div>
 
                 {/* Seção 3: Cadastros */}
                 <div className="space-y-1">
-                  <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
-                    Cadastros Gerais
-                  </span>
+                  {isSidebarExpanded ? (
+                    <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest px-3 block mb-2">
+                      Cadastros Gerais
+                    </span>
+                  ) : (
+                    <div className="h-px bg-slate-100 mx-1 my-2" />
+                  )}
 
-                  <button
-                    onClick={() => handleNavClick(() => setHomeTab("companies"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      homeTab === "companies" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <Building2 className="w-4 h-4 shrink-0 text-slate-450" />
-                    Empresas Clientes
-                  </button>
-
-                  <button
-                    onClick={() => handleNavClick(() => setHomeTab("professionals"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      homeTab === "professionals" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <UserCheck className="w-4 h-4 shrink-0 text-slate-450" />
-                    Profissionais Técnicos
-                  </button>
-
-                  <button
-                    onClick={() => handleNavClick(() => setHomeTab("risks"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      homeTab === "risks" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4 shrink-0" />
-                    Biblioteca de Riscos (GRO)
-                  </button>
-
-                  <button
-                    onClick={() => handleNavClick(() => setHomeTab("evaluators"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      homeTab === "evaluators" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <ShieldCheck className="w-4 h-4 shrink-0 text-slate-450" />
-                    Empresas Avaliadoras
-                  </button>
-
-                  <button
-                    onClick={() => handleNavClick(() => setHomeTab("customization"))}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold rounded-lg transition cursor-pointer text-left ${
-                      homeTab === "customization" ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/50" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <Building className="w-4 h-4 shrink-0 text-slate-450" />
-                    Minha Empresa
-                  </button>
+                  {[
+                    { tab: "companies" as const, icon: Building2, label: "Empresas Clientes" },
+                    { tab: "professionals" as const, icon: UserCheck, label: "Profissionais Técnicos" },
+                    { tab: "risks" as const, icon: BookOpen, label: "Biblioteca de Riscos (GRO)" },
+                    { tab: "evaluators" as const, icon: ShieldCheck, label: "Empresas Avaliadoras" },
+                    { tab: "customization" as const, icon: Building, label: "Minha Empresa" },
+                    { tab: "ai_agent" as const, icon: Bot, label: "Agente de IA" },
+                  ].map(({ tab, icon: Icon, label }) => (
+                    <button
+                      key={tab}
+                      onClick={() => handleNavClick(() => setHomeTab(tab))}
+                      title={label}
+                      className={`w-full flex items-center py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+                        isSidebarExpanded ? "gap-2.5 px-3 text-left justify-start" : "justify-center px-0"
+                      } ${
+                        homeTab === tab
+                          ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-200/70"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" />
+                      {isSidebarExpanded && <span className="truncate">{label}</span>}
+                    </button>
+                  ))}
 
                   <div className="h-px bg-slate-100 my-1" />
 
                   <button
                     onClick={() => signOut(auth)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer text-left"
+                    title="Sair do Sistema"
+                    className={`w-full flex items-center py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer ${
+                      isSidebarExpanded ? "gap-2.5 px-3 text-left justify-start" : "justify-center px-0"
+                    }`}
                   >
                     <LogOut className="w-4 h-4 shrink-0" />
-                    Sair do Sistema
+                    {isSidebarExpanded && <span className="truncate">Sair do Sistema</span>}
                   </button>
                 </div>
-
               </div>
             )}
           </div>
         </div>
 
         {/* Rodapé do Sidebar */}
-        <div className="p-4 border-t border-slate-100 text-center text-[10px] text-slate-450 font-bold">
-          v1.3 (COPSOQ II · MPE)
+        <div className="p-3 border-t border-slate-100 text-center text-[10px] text-slate-400 font-bold shrink-0">
+          {isSidebarExpanded ? "v1.3 (COPSOQ II · MPE)" : "v1.3"}
         </div>
       </aside>
 
       {/* Backdrop para mobile */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           onClick={() => setIsMobileMenuOpen(false)}
-          className="fixed inset-0 bg-slate-900/40 z-20 md:hidden"
+          className="fixed inset-0 bg-slate-900/40 z-30 md:hidden"
         />
       )}
 
       {/* 2. ÁREA DE CONTEÚDO PRINCIPAL (DIREITA) */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        
-        {/* Top Header Barra (Oculto na impressão) */}
-        <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between shrink-0 print:hidden shadow-2xs">
-          
-          {/* Hambúrguer no mobile */}
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 hover:bg-slate-50 rounded-xl transition cursor-pointer text-slate-600 border border-slate-200"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen relative">
+        {/* Gatilho mobile flutuante */}
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="fixed top-4 left-4 z-30 md:hidden p-2 bg-white/95 backdrop-blur-sm hover:bg-white rounded-xl transition cursor-pointer text-slate-700 border border-slate-200 shadow-sm print:hidden"
+          title="Abrir menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
 
-          {/* Breadcrumb / Title */}
-          <div className="hidden sm:block">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
-              {currentReport ? "Ambiente do Elaborador" : "Portal Corporativo"}
-            </span>
-            <h2 className="text-sm font-extrabold text-slate-800 leading-none mt-0.5">
-              {currentReport 
-                ? `Editando Laudo: ${currentReport.companyName}` 
-                : "Sistema Integrado de Gestão Psicossocial"
-              }
-            </h2>
-          </div>
-
-          {/* Saved Status Indicators */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Firebase Sync Indicator */}
-            {syncState === "synced" ? (
-              <div className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-emerald-50 text-emerald-700 border-emerald-100 whitespace-nowrap shrink-0">
-                <Cloud className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span className="hidden xs:inline">Nuvem Ativa</span>
-              </div>
-            ) : syncState === "syncing" ? (
-              <div className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-blue-50 text-blue-700 border-blue-100 animate-pulse whitespace-nowrap shrink-0">
-                <Cloud className="w-3.5 h-3.5 text-blue-500 animate-bounce shrink-0" />
-                <span className="hidden xs:inline">Salvando na Nuvem...</span>
-              </div>
-            ) : syncState === "offline" ? (
-              <button
-                type="button"
-                onClick={handleRetryCloudSync}
-                title={syncErrorDetail || "Sem conexão com a internet. Clique para tentar sincronizar."}
-                className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 transition cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <CloudOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span className="hidden xs:inline">Sem Conexão</span>
-              </button>
-            ) : (
-              <div
-                title={syncErrorDetail || "Falha ao sincronizar com a nuvem."}
-                className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border shadow-2xs bg-rose-50 text-rose-700 border-rose-200 whitespace-nowrap shrink-0"
-              >
-                <CloudOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                <span className="hidden xs:inline">Erro na Nuvem</span>
-              </div>
-            )}
-
-            {currentReport && lastSaved && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full whitespace-nowrap shrink-0">
-                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span className="hidden md:inline">Salvo localmente às</span> {lastSaved}
-              </div>
-            )}
-          </div>
-        </header>
+        {/* Indicador Flutuante Icon-Only de Sincronização em Nuvem */}
+        <div className="fixed top-4 right-5 z-30 print:hidden">
+          {syncState === "synced" ? (
+            <div
+              title="Nuvem Ativa — Alterações sincronizadas automaticamente"
+              aria-label="Nuvem Ativa"
+              className="relative w-9 h-9 rounded-full border border-emerald-200/90 bg-white/95 backdrop-blur-sm text-emerald-600 shadow-sm flex items-center justify-center transition-all hover:shadow-md hover:border-emerald-300"
+            >
+              <Cloud className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+            </div>
+          ) : syncState === "syncing" ? (
+            <div
+              title="Salvando alterações na nuvem..."
+              aria-label="Salvando na nuvem"
+              className="relative w-9 h-9 rounded-full border border-blue-200/90 bg-white/95 backdrop-blur-sm text-blue-600 shadow-sm flex items-center justify-center animate-pulse"
+            >
+              <Cloud className="w-4 h-4 animate-bounce" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-blue-500 ring-2 ring-white" />
+            </div>
+          ) : syncState === "offline" ? (
+            <button
+              type="button"
+              onClick={handleRetryCloudSync}
+              title={syncErrorDetail || "Sem conexão com a internet. Clique para tentar sincronizar."}
+              aria-label="Sem conexão — clicar para tentar sincronizar"
+              className="relative w-9 h-9 rounded-full border border-amber-200 bg-white/95 backdrop-blur-sm text-amber-600 hover:bg-amber-50 hover:border-amber-300 shadow-sm flex items-center justify-center transition cursor-pointer"
+            >
+              <CloudOff className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 ring-2 ring-white" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleRetryCloudSync}
+              title={syncErrorDetail || "Falha ao sincronizar com a nuvem. Clique para tentar novamente."}
+              aria-label="Erro na nuvem — clicar para tentar novamente"
+              className="relative w-9 h-9 rounded-full border border-rose-200 bg-white/95 backdrop-blur-sm text-rose-600 hover:bg-rose-50 hover:border-rose-300 shadow-sm flex items-center justify-center transition cursor-pointer"
+            >
+              <CloudOff className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-rose-500 ring-2 ring-white" />
+            </button>
+          )}
+        </div>
 
         {/* Banner discreto de diagnóstico apenas quando houver falha ativa na nuvem */}
         {syncState === "error" && (
-          <div className="bg-rose-50 border-b border-rose-200 px-6 py-2 flex items-center justify-between gap-3 text-xs text-rose-800 print:hidden">
+          <div className="bg-rose-50 border-b border-rose-200 px-6 py-2 pr-16 flex items-center justify-between gap-3 text-xs text-rose-800 print:hidden">
             <div className="flex items-center gap-2 min-w-0">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
               <span className="font-semibold truncate">
@@ -1927,7 +2010,13 @@ export default function App() {
         )}
 
         {/* CONTEÚDO DA PÁGINA */}
-        <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto print:p-0 print:max-w-none">
+        <main
+          className={
+            currentReport && activeTab === "capitulos"
+              ? "flex-1 px-3 pb-4 pt-12 md:pt-4 md:px-5 max-w-none w-full mx-auto print:p-0 print:max-w-none"
+              : "flex-1 px-4 pb-6 pt-14 md:pt-8 md:px-8 max-w-7xl w-full mx-auto print:p-0 print:max-w-none"
+          }
+        >
           {!currentReport ? (
             /* Render active dashboard/home view depending on sidebar select */
             <div className="space-y-6">
@@ -1980,6 +2069,12 @@ export default function App() {
               )}
               {homeTab === "customization" && (
                 <CompanyCustomization
+                  assessor={assessor}
+                  onUpdateAssessor={handleUpdateAssessor}
+                />
+              )}
+              {homeTab === "ai_agent" && (
+                <AiAgentSettings
                   assessor={assessor}
                   onUpdateAssessor={handleUpdateAssessor}
                 />

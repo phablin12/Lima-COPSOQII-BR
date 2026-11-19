@@ -3,7 +3,60 @@
  * between the A4 Paginated Document Editor and Print/PDF Preview.
  */
 
-const HTML_TAG_REGEX = /<(?:p|h1|h2|h3|ul|ol|li|div|b|strong|i|em|u|br)\b[^>]*>/i;
+const HTML_TAG_REGEX = /<(?:p|h1|h2|h3|ul|ol|li|div|b|strong|i|em|u|s|strike|blockquote|hr|table|span|font|br)\b[^>]*>/i;
+
+const FONT_FAMILY_REGEX = /^[a-zA-Z0-9\s,'"-]+$/;
+const CSS_COLOR_REGEX = /^(?:#[0-9a-fA-F]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)|transparent|inherit|[a-zA-Z]{3,20})$/;
+const CSS_LENGTH_REGEX = /^\d+(?:\.\d+)?(?:px|pt|cm|mm|em|rem|%)$/;
+
+function copySafeStyles(source: HTMLElement, target: HTMLElement, options?: { stripPaginationMargins?: boolean }) {
+  const tag = source.tagName.toUpperCase();
+  const s = source.style;
+  if (!s) return;
+
+  const textAlign = s.textAlign?.toLowerCase();
+  if (textAlign && ["left", "center", "right", "justify"].includes(textAlign)) {
+    target.style.textAlign = textAlign;
+  }
+
+  if (s.color && CSS_COLOR_REGEX.test(s.color.trim())) {
+    target.style.color = s.color.trim();
+  }
+
+  if (s.backgroundColor && CSS_COLOR_REGEX.test(s.backgroundColor.trim())) {
+    target.style.backgroundColor = s.backgroundColor.trim();
+  }
+
+  if (s.fontFamily && FONT_FAMILY_REGEX.test(s.fontFamily.trim())) {
+    target.style.fontFamily = s.fontFamily.trim();
+  }
+
+  if (s.fontSize && CSS_LENGTH_REGEX.test(s.fontSize.trim())) {
+    target.style.fontSize = s.fontSize.trim();
+  }
+
+  if (s.marginLeft && CSS_LENGTH_REGEX.test(s.marginLeft.trim())) {
+    target.style.marginLeft = s.marginLeft.trim();
+  }
+
+  if (s.paddingLeft && CSS_LENGTH_REGEX.test(s.paddingLeft.trim())) {
+    target.style.paddingLeft = s.paddingLeft.trim();
+  }
+
+  if (tag === "TABLE" || tag === "TD" || tag === "TH") {
+    if (s.width && CSS_LENGTH_REGEX.test(s.width.trim())) {
+      target.style.width = s.width.trim();
+    }
+    if (tag === "TABLE" && s.borderCollapse === "collapse") {
+      target.style.borderCollapse = "collapse";
+    }
+  }
+
+  if (options?.stripPaginationMargins) {
+    target.style.marginTop = "";
+    target.style.marginBottom = "";
+  }
+}
 
 export function isHtmlContent(text: string): boolean {
   if (!text) return false;
@@ -15,7 +68,7 @@ export function isHtmlContent(text: string): boolean {
  */
 export function hasRichTextContent(text?: string | null): boolean {
   if (!text) return false;
-  if (/data-page-break/i.test(text)) return true;
+  if (/data-page-break/i.test(text) || /<(?:hr|table)\b/i.test(text)) return true;
   const plain = text
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/gi, " ")
@@ -54,7 +107,7 @@ export function ensureRichHtml(text: string): string {
 
 /**
  * Sanitizes rich HTML for safe rendering while preserving editorial formatting,
- * headings, lists, text alignment, and manual page breaks.
+ * headings, lists, colors, highlights, tables, text alignment, and manual page breaks.
  */
 export function sanitizeRichHtml(html: string): string {
   if (!html) return "";
@@ -70,8 +123,9 @@ export function sanitizeRichHtml(html: string): string {
     if (!root) return "";
 
     const ALLOWED_TAGS = new Set([
-      "P", "BR", "B", "STRONG", "I", "EM", "U", "S",
-      "H1", "H2", "H3", "UL", "OL", "LI", "DIV", "SPAN", "BLOCKQUOTE", "HR"
+      "P", "BR", "B", "STRONG", "I", "EM", "U", "S", "STRIKE", "SUB", "SUP", "FONT",
+      "H1", "H2", "H3", "UL", "OL", "LI", "DIV", "SPAN", "BLOCKQUOTE", "HR",
+      "TABLE", "THEAD", "TBODY", "TR", "TH", "TD"
     ]);
 
     const cleanNode = (node: Node) => {
@@ -86,7 +140,6 @@ export function sanitizeRichHtml(html: string): string {
               el.remove();
               continue;
             }
-            // Unwrap disallowed tags preserving text content
             const frag = doc.createDocumentFragment();
             while (el.firstChild) {
               frag.appendChild(el.firstChild);
@@ -95,9 +148,16 @@ export function sanitizeRichHtml(html: string): string {
             continue;
           }
 
-          // Clean attributes
           const isPageBreak = el.hasAttribute("data-page-break") || el.classList.contains("a4-page-break");
-          const textAlign = el.style?.textAlign;
+          const colSpan = el.getAttribute("colspan");
+          const rowSpan = el.getAttribute("rowspan");
+          const fontColor = tag === "FONT" ? el.getAttribute("color") : null;
+          const fontFace = tag === "FONT" ? el.getAttribute("face") : null;
+
+          // Snapshot safe inline styles onto a detached holder before stripping raw attributes
+          const tempHolder = doc.createElement("span");
+          copySafeStyles(el, tempHolder);
+
           const attrs = Array.from(el.attributes);
           for (const attr of attrs) {
             el.removeAttribute(attr.name);
@@ -107,13 +167,25 @@ export function sanitizeRichHtml(html: string): string {
             el.setAttribute("data-page-break", "true");
             el.setAttribute("contenteditable", "false");
             el.className = "a4-page-break";
-            // Keep marker clean
             el.innerHTML = "";
             continue;
           }
 
-          if (textAlign && ["left", "center", "right", "justify"].includes(textAlign)) {
-            el.style.textAlign = textAlign;
+          if (tempHolder.getAttribute("style")) {
+            el.setAttribute("style", tempHolder.getAttribute("style") || "");
+          }
+
+          if (fontColor && CSS_COLOR_REGEX.test(fontColor.trim())) {
+            el.style.color = fontColor.trim();
+          }
+          if (fontFace && FONT_FAMILY_REGEX.test(fontFace.trim())) {
+            el.style.fontFamily = fontFace.trim();
+          }
+          if ((tag === "TD" || tag === "TH") && colSpan && /^\d+$/.test(colSpan)) {
+            el.setAttribute("colspan", colSpan);
+          }
+          if ((tag === "TD" || tag === "TH") && rowSpan && /^\d+$/.test(rowSpan)) {
+            el.setAttribute("rowspan", rowSpan);
           }
 
           cleanNode(el);
@@ -130,12 +202,11 @@ export function sanitizeRichHtml(html: string): string {
 
 /**
  * Normalizes editor HTML before persisting: strips runtime pagination inline margins
- * so stored HTML remains completely clean and portable.
+ * while preserving user editorial styling (alignment, colors, highlights, tables, indents).
  */
 export function serializeEditorHtml(containerEl: HTMLElement): string {
   const clone = containerEl.cloneNode(true) as HTMLElement;
 
-  // Strip temporary pagination inline margin/padding applied by layout engine
   const allEls = clone.querySelectorAll<HTMLElement>("*");
   allEls.forEach((el) => {
     if (el.hasAttribute("data-page-break")) {
@@ -147,12 +218,16 @@ export function serializeEditorHtml(containerEl: HTMLElement): string {
       return;
     }
 
-    // Preserve only text-align if present
-    const align = el.style?.textAlign;
-    el.removeAttribute("style");
-    if (align && ["left", "center", "right", "justify"].includes(align)) {
-      el.style.textAlign = align;
+    const tempHolder = document.createElement("span");
+    copySafeStyles(el, tempHolder, { stripPaginationMargins: true });
+    const safeStyle = tempHolder.getAttribute("style");
+
+    if (safeStyle) {
+      el.setAttribute("style", safeStyle);
+    } else {
+      el.removeAttribute("style");
     }
+
     el.removeAttribute("data-paginated");
   });
 

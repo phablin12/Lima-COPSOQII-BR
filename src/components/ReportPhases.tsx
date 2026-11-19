@@ -627,7 +627,7 @@ export const ReportPhases: React.FC<ReportPhasesProps> = ({
                                             <Clock className="w-3 h-3 text-slate-400" /> Prazo
                                           </span>
                                           <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit text-[11px]">
-                                            {item.deadline || "Mês Corrente + 3"}
+                                            {item.deadline || "A definir pela empresa"}
                                           </span>
                                         </div>
 

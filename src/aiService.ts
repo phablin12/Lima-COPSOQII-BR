@@ -3,24 +3,41 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AiAgentConfig } from "./types";
+
+let activeAiAgentConfig: AiAgentConfig | undefined;
+
+export function setActiveAiAgentConfig(config?: AiAgentConfig) {
+  activeAiAgentConfig = config;
+}
+
+export function getActiveAiAgentConfig(): AiAgentConfig | undefined {
+  return activeAiAgentConfig;
+}
+
+export interface DimensionSummaryPayload {
+  key: string;
+  name: string;
+  score: number;
+  rating: string;
+  type: string;
+}
+
 export interface SectorSynthesisRequest {
   sectorName: string;
   employeeCount: number;
   companyName?: string;
   companySector?: string;
   methodology?: "copsoq" | "qualitative";
-  criticalDimensions?: Array<{
-    key: string;
-    name: string;
-    score: number;
-    rating: string;
-    type: string;
-  }>;
+  mode?: "copsoq_perception" | "devolutive" | "qualitative";
+  allDimensions?: DimensionSummaryPayload[];
+  criticalDimensions?: DimensionSummaryPayload[];
   qualitativeContext?: {
     evaluatedText?: string;
     perceptionText?: string;
   };
   userInstructions?: string;
+  agentConfig?: AiAgentConfig;
 }
 
 export interface GeneratedRiskItem {
@@ -47,6 +64,7 @@ export interface GenerateRisksRequest {
   criticalDimensions?: any[];
   sectorSynthesis?: string;
   count?: number;
+  agentConfig?: AiAgentConfig;
 }
 
 export interface EnrichRiskRequest {
@@ -54,6 +72,7 @@ export interface EnrichRiskRequest {
   sectorName: string;
   companyName?: string;
   companyActivity?: string;
+  agentConfig?: AiAgentConfig;
 }
 
 export interface ActionPlanScheduleRequest {
@@ -67,6 +86,7 @@ export interface ActionPlanScheduleRequest {
     riskScore?: number;
     recommendation?: string;
   }>;
+  agentConfig?: AiAgentConfig;
 }
 
 export interface ActionPlanScheduleItem {
@@ -80,24 +100,44 @@ export interface ActionPlanScheduleItem {
   efficacyIndicator: string;
 }
 
+async function postAiJson<T>(url: string, body: Record<string, any>, fallbackError: string): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...body,
+      agentConfig: body.agentConfig ?? activeAiAgentConfig,
+    }),
+  });
+
+  const text = await res.text();
+  let data: any = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = {};
+    }
+  }
+
+  if (!res.ok) {
+    throw new Error(data.error || `${fallbackError} (HTTP ${res.status})`);
+  }
+
+  return data as T;
+}
+
 /**
- * Calls server API to generate technical synthesis for a sector
+ * Calls server API to generate technical synthesis or COPSOQ worker perception for a sector
  */
 export async function generateSectorSynthesis(
   params: SectorSynthesisRequest
 ): Promise<string> {
-  const res = await fetch("/api/ai/sector-synthesis", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Falha na comunicação com a IA para síntese do setor.");
-  }
-
-  const data = await res.json();
+  const data = await postAiJson<{ synthesis?: string }>(
+    "/api/ai/sector-synthesis",
+    params,
+    "Falha na comunicação com a IA para síntese do setor."
+  );
   return data.synthesis || "";
 }
 
@@ -107,18 +147,11 @@ export async function generateSectorSynthesis(
 export async function generateSectorRisks(
   params: GenerateRisksRequest
 ): Promise<GeneratedRiskItem[]> {
-  const res = await fetch("/api/ai/generate-risks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Falha na comunicação com a IA para gerar inventário de riscos.");
-  }
-
-  const data = await res.json();
+  const data = await postAiJson<{ risks?: GeneratedRiskItem[] }>(
+    "/api/ai/generate-risks",
+    params,
+    "Falha na comunicação com a IA para gerar inventário de riscos."
+  );
   return data.risks || [];
 }
 
@@ -128,18 +161,11 @@ export async function generateSectorRisks(
 export async function enrichRiskItem(
   params: EnrichRiskRequest
 ): Promise<GeneratedRiskItem> {
-  const res = await fetch("/api/ai/enrich-risk", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Falha na comunicação com a IA para detalhar o risco.");
-  }
-
-  const data = await res.json();
+  const data = await postAiJson<{ enriched: GeneratedRiskItem }>(
+    "/api/ai/enrich-risk",
+    params,
+    "Falha na comunicação com a IA para detalhar o risco."
+  );
   return data.enriched;
 }
 
@@ -149,17 +175,26 @@ export async function enrichRiskItem(
 export async function generateActionPlanSchedule(
   params: ActionPlanScheduleRequest
 ): Promise<ActionPlanScheduleItem[]> {
-  const res = await fetch("/api/ai/action-plan-schedule", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Falha na comunicação com a IA para o cronograma e plano de ação.");
-  }
-
-  const data = await res.json();
+  const data = await postAiJson<{ plannedActions?: ActionPlanScheduleItem[] }>(
+    "/api/ai/action-plan-schedule",
+    params,
+    "Falha na comunicação com a IA para o cronograma e plano de ação."
+  );
   return data.plannedActions || [];
+}
+
+/**
+ * Calls server API to test the trained AI agent with a sample prompt
+ */
+export async function testAiAgent(params: {
+  prompt: string;
+  stage: "copsoq" | "qualitative" | "inventory" | "action_plan";
+  agentConfig?: AiAgentConfig;
+}): Promise<string> {
+  const data = await postAiJson<{ reply?: string }>(
+    "/api/ai/test-agent",
+    params,
+    "Falha na comunicação ao testar o agente de IA."
+  );
+  return data.reply || "";
 }

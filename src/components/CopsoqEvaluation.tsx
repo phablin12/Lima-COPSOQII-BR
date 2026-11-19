@@ -5,8 +5,9 @@
 
 import React, { useState, useEffect } from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
-import { AlertCircle, Sliders, Activity } from "lucide-react";
+import { AlertCircle, Sliders, Activity, Sparkles, Loader2, Check, Wand2 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
+import { generateSectorSynthesis } from "../aiService";
 
 interface CopsoqEvaluationProps {
   report: Report;
@@ -19,6 +20,11 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
   );
 
   const [inputStrings, setInputStrings] = useState<Record<string, string>>({});
+  const [isGeneratingSynthesis, setIsGeneratingSynthesis] = useState(false);
+  const [synthesisError, setSynthesisError] = useState<string | null>(null);
+  const [synthesisSuccess, setSynthesisSuccess] = useState(false);
+  const [showCustomPrompt, setShowCustomPrompt] = useState(false);
+  const [customPromptNotes, setCustomPromptNotes] = useState("");
 
   // Sync selected sector if the previous selected one was deleted
   const currentSector = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
@@ -108,6 +114,73 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
     });
 
     onChange({ sectors: updatedSectors });
+  };
+
+  const handleGenerateGeneralSynthesis = async (extraNotes?: string) => {
+    if (!currentSector) return;
+
+    const ratedDimensions = COPSOQ_DIMENSIONS.map((dim) => {
+      const val = currentSector.scores?.[dim.key];
+      const hasScore = typeof val === "number" && !Number.isNaN(val);
+      const { rating } = getDimensionRating(hasScore ? val : undefined, dim.type);
+      const severityScore = hasScore ? (dim.type === "positive" ? 4 - val : val) : -1;
+      return {
+        key: dim.key,
+        name: dim.name,
+        score: hasScore ? val : -1,
+        rating,
+        type: dim.type,
+        severityScore,
+      };
+    }).filter((d) => d.score >= 0 && d.rating !== "Não Avaliado");
+
+    if (ratedDimensions.length === 0) {
+      setSynthesisError("Preencha ao menos uma pontuação do COPSOQ II neste setor antes de gerar a síntese com IA.");
+      return;
+    }
+
+    const sortedBySeverity = [...ratedDimensions].sort((a, b) => b.severityScore - a.severityScore);
+    const criticalOnes = sortedBySeverity.filter((d) => d.rating !== "Favorável");
+
+    setIsGeneratingSynthesis(true);
+    setSynthesisError(null);
+    setSynthesisSuccess(false);
+
+    try {
+      const text = await generateSectorSynthesis({
+        sectorName: currentSector.name,
+        employeeCount: currentSector.employeeCount,
+        companyName: report.companyName,
+        companySector: report.companySector,
+        methodology: "copsoq",
+        mode: "copsoq_perception",
+        allDimensions: sortedBySeverity.map(({ key, name, score, rating, type }) => ({
+          key,
+          name,
+          score,
+          rating,
+          type,
+        })),
+        criticalDimensions: criticalOnes.map(({ key, name, score, rating, type }) => ({
+          key,
+          name,
+          score,
+          rating,
+          type,
+        })),
+        userInstructions: extraNotes ?? customPromptNotes,
+      });
+
+      handleGeneralAnalysisChange(text);
+      setSynthesisSuccess(true);
+      setShowCustomPrompt(false);
+      setTimeout(() => setSynthesisSuccess(false), 4000);
+    } catch (err: any) {
+      console.error("Erro ao gerar síntese COPSOQ com IA:", err);
+      setSynthesisError(err.message || "Falha ao gerar síntese com IA.");
+    } finally {
+      setIsGeneratingSynthesis(false);
+    }
   };
 
   const getStatusSummary = () => {
@@ -283,20 +356,94 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
           </div>
 
           {/* Análise Geral com Base na Percepção dos Colaboradores */}
-          <div className="pt-6 border-t border-slate-100 space-y-2 text-left">
-            <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
-              <Activity className="w-4 h-4 text-slate-600" />
-              Análise Geral do Setor (Com base na percepção dos colaboradores avaliados)
-            </h4>
-            <p className="text-xs text-slate-500">
-              Descreva de forma ampla a percepção e sentimentos expressados pelos colaboradores nas avaliações qualitativas ou quantitativas deste setor.
-            </p>
+          <div className="pt-6 border-t border-slate-100 space-y-3 text-left">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-slate-600" />
+                  Análise Geral do Setor (Percepção dos Trabalhadores)
+                </h4>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomPrompt(!showCustomPrompt)}
+                  disabled={isGeneratingSynthesis}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
+                >
+                  {showCustomPrompt ? "Ocultar Instruções" : "Ajustar Comando"}
+                </button>
+
+                {!showCustomPrompt && (
+                  <button
+                    type="button"
+                    disabled={isGeneratingSynthesis}
+                    onClick={() => handleGenerateGeneralSynthesis()}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {isGeneratingSynthesis ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Gerando Síntese...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Gerar Síntese com IA
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {showCustomPrompt && (
+              <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl space-y-2 text-xs">
+                <label className="font-bold text-indigo-900 block">
+                  Observações ou foco adicional para a IA (Opcional):
+                </label>
+                <textarea
+                  value={customPromptNotes}
+                  onChange={(e) => setCustomPromptNotes(e.target.value)}
+                  placeholder="Ex: Enfatizar a percepção sobre sobrecarga nos turnos noturnos..."
+                  rows={2}
+                  className="w-full p-2 bg-white rounded-lg border border-indigo-200 outline-none text-slate-800 text-xs resize-y"
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={isGeneratingSynthesis}
+                    onClick={() => handleGenerateGeneralSynthesis(customPromptNotes)}
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isGeneratingSynthesis ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                    {isGeneratingSynthesis ? "Gerando..." : "Gerar Síntese com IA"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {synthesisSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                Síntese gerada pela IA com base nos indicadores COPSOQ II deste setor!
+              </div>
+            )}
+
+            {synthesisError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center justify-between gap-2">
+                <span>{synthesisError}</span>
+                <button type="button" onClick={() => setSynthesisError(null)} className="text-rose-500 hover:text-rose-700 font-bold cursor-pointer">✕</button>
+              </div>
+            )}
+
             <textarea
               value={currentSector.generalAnalysis || ""}
               onChange={(e) => handleGeneralAnalysisChange(e.target.value)}
-              placeholder="Ex: Os colaboradores deste setor relatam alto nível de companheirismo e bom relacionamento horizontal, porém demonstram cansaço e frustração acentuados com os recorrentes picos de trabalho sem compensação e a falta de clareza nas metas de entrega."
-              rows={4}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-sm text-slate-800 bg-white"
+              placeholder="Descreva a percepção dos colaboradores neste setor ou clique em 'Gerar Síntese com IA' para elaborá-la a partir das notas do COPSOQ II."
+              rows={5}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none text-sm text-slate-800 bg-white leading-relaxed resize-y"
             />
           </div>
         </div>

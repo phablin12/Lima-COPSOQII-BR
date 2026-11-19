@@ -97,6 +97,18 @@ export interface ReportChapters {
   referencias: string;
 }
 
+export interface AiAgentConfig {
+  agentName?: string;
+  tone?: "tecnico_formal" | "consultivo_humanizado" | "objetivo_executivo" | "didatico_acessivel";
+  generalInstructions?: string;
+  copsoqInstructions?: string;
+  qualitativeInstructions?: string;
+  inventoryInstructions?: string;
+  actionPlanInstructions?: string;
+  referenceExamples?: string;
+  updatedAt?: string;
+}
+
 export interface Assessor {
   id: string;
   fantasyName: string;
@@ -122,6 +134,7 @@ export interface Assessor {
   legalResponsibleCpf?: string;
   defaultChapters?: ReportChapters;
   defaultFinalConsiderations?: string;
+  aiAgentConfig?: AiAgentConfig;
 }
 
 export interface Report {
@@ -158,6 +171,9 @@ export interface Report {
   chaptersOrder?: string[]; // Unified ordering of chapters (standard + custom)
   paragraphIndent?: "none" | "medium" | "large"; // paragraph indentation control
   pageMargin?: "1.5" | "2.0" | "2.5" | "3.0"; // A4 page margin in cm
+  documentFont?: "Inter" | "Arial" | "Calibri" | "Times New Roman" | "Georgia";
+  documentFontSize?: "12px" | "13.5px" | "14.5px" | "16px";
+  documentLineHeight?: "1.35" | "1.5" | "1.65" | "1.85" | "2.0";
   risksRecognized?: boolean; // Whether the company recognizes the risks (influences chapter 6 & 7 rendering)
   createdAt: string;
   updatedAt: string;

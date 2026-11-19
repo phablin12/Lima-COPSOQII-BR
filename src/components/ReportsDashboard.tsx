@@ -339,7 +339,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                 <div
                   key={report.id}
                   onClick={() => onSelectReport(report.id)}
-                  className="p-5 hover:bg-slate-50/50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer border-l-4 border-transparent hover:border-slate-800"
+                  className="p-5 hover:bg-slate-50/70 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer"
                 >
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
@@ -487,14 +487,14 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
-              <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                <Plus className="w-5 h-5 text-slate-600" />
-                Cadastrar Novo Relatório
+              <h4 className="font-extrabold text-slate-900 text-sm">
+                Novo Relatório
               </h4>
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer transition"
+                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors duration-150"
+                title="Fechar"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -555,25 +555,6 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
                   placeholder="Selecione a metodologia..."
                   required
                 />
-
-                {/* Compact description box */}
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-150 text-[11px] text-slate-600 leading-relaxed space-y-1 shadow-xs">
-                  {newReportMethodology === "copsoq" ? (
-                    <div>
-                      <span className="font-extrabold text-slate-800 block text-xs">📈 COPSOQ II-BR</span>
-                      <p className="text-slate-500 text-[10.5px]">
-                        Método clássico quantitativo com escala de 0 a 4 pontos em 10 dimensões psicossociais. Ideal para empresas com mais de 20 funcionários.
-                      </p>
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="font-extrabold text-slate-800 block text-xs">📋 Avaliação Qualitativa MPE</span>
-                      <p className="text-slate-500 text-[10.5px]">
-                        Especial para micro/pequenas empresas. Mapeamento direto dos fatores psicossociais focado no Inventário de Riscos GRO e no Plano de Ação.
-                      </p>
-                    </div>
-                  )}
-                </div>
               </div>
 
             </div>
@@ -583,7 +564,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-650 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition cursor-pointer"
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors duration-150 cursor-pointer"
               >
                 Cancelar
               </button>

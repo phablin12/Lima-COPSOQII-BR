@@ -8,6 +8,7 @@ import {
   Bold,
   Italic,
   Underline,
+  Strikethrough,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -23,9 +24,17 @@ import {
   ChevronDown,
   SeparatorHorizontal,
   ZoomIn,
+  ZoomOut,
   Printer,
   Trash2,
   TableProperties,
+  Highlighter,
+  Baseline,
+  RemoveFormatting,
+  Table as TableIcon,
+  Minus,
+  IndentIncrease,
+  IndentDecrease,
 } from "lucide-react";
 import { Report } from "../types";
 import { UnifiedChapter } from "../chapterHierarchy";
@@ -50,6 +59,43 @@ const INDENT_CSS_MAP: Record<"none" | "medium" | "large", string> = {
   medium: "1.5cm",
   large: "2.5cm",
 };
+
+const DOC_FONT_CSS_MAP: Record<"Inter" | "Arial" | "Calibri" | "Times New Roman" | "Georgia", string> = {
+  Inter: '"Inter", ui-sans-serif, system-ui, sans-serif',
+  Arial: 'Arial, Helvetica, sans-serif',
+  Calibri: 'Calibri, "Segoe UI", Arial, sans-serif',
+  "Times New Roman": '"Times New Roman", Times, serif',
+  Georgia: 'Georgia, Cambria, "Times New Roman", serif',
+};
+
+const TEXT_COLORS = [
+  { label: "Preto Padrão", value: "#1e293b" },
+  { label: "Preto Absoluto", value: "#000000" },
+  { label: "Cinza Grafite", value: "#475569" },
+  { label: "Azul Institucional", value: "#1d4ed8" },
+  { label: "Verde SST", value: "#047857" },
+  { label: "Âmbar Alerta", value: "#b45309" },
+  { label: "Vermelho Crítico", value: "#b91c1c" },
+  { label: "Roxo Técnico", value: "#6d28d9" },
+];
+
+const HIGHLIGHT_COLORS = [
+  { label: "Sem destaque", value: "transparent" },
+  { label: "Amarelo", value: "#fef08a" },
+  { label: "Verde suave", value: "#bbf7d0" },
+  { label: "Azul suave", value: "#bfdbfe" },
+  { label: "Rosa suave", value: "#fecdd3" },
+  { label: "Cinza suave", value: "#e2e8f0" },
+];
+
+const ZOOM_PRESETS: Array<{ value: "fit" | "0.75" | "0.9" | "1" | "1.15" | "1.25" | "1.4"; label: string }> = [
+  { value: "0.75", label: "75%" },
+  { value: "0.9", label: "90%" },
+  { value: "1", label: "100%" },
+  { value: "1.15", label: "115%" },
+  { value: "1.25", label: "125%" },
+  { value: "1.4", label: "140%" },
+];
 
 export interface AutoVariable {
   key: string;
@@ -78,6 +124,12 @@ interface A4DocumentEditorProps {
   onChangeIndent: (indent: "none" | "medium" | "large") => void;
   pageMarginCm: "1.5" | "2.0" | "2.5" | "3.0";
   onChangeMargin: (margin: "1.5" | "2.0" | "2.5" | "3.0") => void;
+  documentFont?: "Inter" | "Arial" | "Calibri" | "Times New Roman" | "Georgia";
+  onChangeDocumentFont?: (font: "Inter" | "Arial" | "Calibri" | "Times New Roman" | "Georgia") => void;
+  documentFontSize?: "12px" | "13.5px" | "14.5px" | "16px";
+  onChangeDocumentFontSize?: (size: "12px" | "13.5px" | "14.5px" | "16px") => void;
+  documentLineHeight?: "1.35" | "1.5" | "1.65" | "1.85" | "2.0";
+  onChangeDocumentLineHeight?: (lh: "1.35" | "1.5" | "1.65" | "1.85" | "2.0") => void;
   resolvePreviewText: (rawHtml: string) => string;
   autoVariables: AutoVariable[];
   report: Report;
@@ -96,6 +148,9 @@ interface ChapterEditableBodyProps {
   chapterId: string;
   value: string;
   indentCss: string;
+  docFontCss: string;
+  docSizeCss: string;
+  docLineHeightCss: string;
   hasSubchapters?: boolean;
   onChangeValue: (chapterId: string, cleanHtml: string) => void;
   onFocusChapter: (chapterId: string, editorEl: HTMLDivElement) => void;
@@ -111,6 +166,9 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
     chapterId,
     value,
     indentCss,
+    docFontCss,
+    docSizeCss,
+    docLineHeightCss,
     hasSubchapters = false,
     onChangeValue,
     onFocusChapter,
@@ -255,7 +313,14 @@ const ChapterEditableBody = React.memo<ChapterEditableBodyProps>(
         onMouseUp={() => localRef.current && onSelectionActivity(chapterId, localRef.current)}
         onClick={handleClick}
         onPaste={handlePaste}
-        style={{ "--doc-indent": indentCss } as React.CSSProperties}
+        style={
+          {
+            "--doc-indent": indentCss,
+            "--doc-font": docFontCss,
+            "--doc-size": docSizeCss,
+            "--doc-line-height": docLineHeightCss,
+          } as React.CSSProperties
+        }
         className={`a4-doc-content outline-none cursor-text ${
           hasSubchapters ? "min-h-[16px]" : "min-h-[110px]"
         }`}
@@ -269,11 +334,14 @@ ChapterEditableBody.displayName = "ChapterEditableBody";
 interface ChapterPreviewBodyProps {
   rawValue: string;
   indentCss: string;
+  docFontCss: string;
+  docSizeCss: string;
+  docLineHeightCss: string;
   resolvePreviewText: (rawHtml: string) => string;
 }
 
 const ChapterPreviewBody = React.memo<ChapterPreviewBodyProps>(
-  ({ rawValue, indentCss, resolvePreviewText }) => {
+  ({ rawValue, indentCss, docFontCss, docSizeCss, docLineHeightCss, resolvePreviewText }) => {
     const cleanHtml = useMemo(() => {
       const resolved = resolvePreviewText(ensureRichHtml(rawValue));
       return sanitizeRichHtml(resolved);
@@ -281,7 +349,14 @@ const ChapterPreviewBody = React.memo<ChapterPreviewBodyProps>(
 
     return (
       <div
-        style={{ "--doc-indent": indentCss } as React.CSSProperties}
+        style={
+          {
+            "--doc-indent": indentCss,
+            "--doc-font": docFontCss,
+            "--doc-size": docSizeCss,
+            "--doc-line-height": docLineHeightCss,
+          } as React.CSSProperties
+        }
         className="a4-doc-content min-h-[20px]"
         dangerouslySetInnerHTML={{ __html: cleanHtml }}
       />
@@ -301,6 +376,12 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   onChangeIndent,
   pageMarginCm,
   onChangeMargin,
+  documentFont = "Inter",
+  onChangeDocumentFont,
+  documentFontSize = "13.5px",
+  onChangeDocumentFontSize,
+  documentLineHeight = "1.65",
+  onChangeDocumentLineHeight,
   resolvePreviewText,
   autoVariables,
   report,
@@ -312,19 +393,23 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   onDeleteChapter,
 }) => {
   const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
-  const [zoomMode, setZoomMode] = useState<"fit" | "0.75" | "0.9" | "1">("fit");
-  const [containerWidth, setContainerWidth] = useState<number>(840);
+  const [zoomMode, setZoomMode] = useState<"fit" | "0.75" | "0.9" | "1" | "1.15" | "1.25" | "1.4">("fit");
+  const [containerWidth, setContainerWidth] = useState<number>(960);
   const [pageCount, setPageCount] = useState<number>(1);
   const [currentVisiblePage, setCurrentVisiblePage] = useState<number>(1);
   const [chapterPageMap, setChapterPageMap] = useState<Record<string, number>>({});
   const [showVariablesMenu, setShowVariablesMenu] = useState<boolean>(false);
+  const [showColorMenu, setShowColorMenu] = useState<boolean>(false);
+  const [showHighlightMenu, setShowHighlightMenu] = useState<boolean>(false);
+  const [showTableMenu, setShowTableMenu] = useState<boolean>(false);
 
   const [activeFormats, setActiveFormats] = useState({
     bold: false,
     italic: false,
     underline: false,
+    strike: false,
     align: "justify" as "left" | "center" | "right" | "justify",
-    block: "p" as "p" | "h1" | "h2",
+    block: "p" as "p" | "h1" | "h2" | "h3" | "blockquote",
     ul: false,
     ol: false,
   });
@@ -334,6 +419,9 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
   const stackRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
   const variablesMenuRef = useRef<HTMLDivElement>(null);
+  const colorMenuRef = useRef<HTMLDivElement>(null);
+  const highlightMenuRef = useRef<HTMLDivElement>(null);
+  const tableMenuRef = useRef<HTMLDivElement>(null);
 
   const editorRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
   const lastEmittedByChapterRef = useRef<Map<string, string>>(new Map());
@@ -350,6 +438,9 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
 
   const marginPx = MARGIN_PX_MAP[pageMarginCm] || 76;
   const indentCss = INDENT_CSS_MAP[paragraphIndent] || "1.5cm";
+  const docFontCss = DOC_FONT_CSS_MAP[documentFont] || DOC_FONT_CSS_MAP.Inter;
+  const docSizeCss = documentFontSize || "13.5px";
+  const docLineHeightCss = documentLineHeight || "1.65";
 
   const isQualitative = report.methodology === "qualitative";
   const hasRecognizedRisks =
@@ -367,14 +458,13 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
     [chapters]
   );
 
-  // Responsive scale calculation so A4 sheet never clips horizontally
+  // Responsive scale calculation so A4 fills wide screens crisply without clipping
   const scale = useMemo(() => {
     if (zoomMode !== "fit") {
       return parseFloat(zoomMode);
     }
     const available = Math.max(320, containerWidth - 48);
-    if (available >= A4_WIDTH) return 1;
-    return Math.max(0.42, Number((available / A4_WIDTH).toFixed(3)));
+    return Math.min(1.22, Math.max(0.45, Number((available / A4_WIDTH).toFixed(3))));
   }, [zoomMode, containerWidth]);
 
   // Observe outer viewport width
@@ -390,11 +480,21 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  // Close variables dropdown on outside click
+  // Close popovers on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (variablesMenuRef.current && !variablesMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (variablesMenuRef.current && !variablesMenuRef.current.contains(target)) {
         setShowVariablesMenu(false);
+      }
+      if (colorMenuRef.current && !colorMenuRef.current.contains(target)) {
+        setShowColorMenu(false);
+      }
+      if (highlightMenuRef.current && !highlightMenuRef.current.contains(target)) {
+        setShowHighlightMenu(false);
+      }
+      if (tableMenuRef.current && !tableMenuRef.current.contains(target)) {
+        setShowTableMenu(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -609,7 +709,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
           );
           maxContentBottom = Math.max(maxContentBottom, endBottom);
         } else {
-          const keepNext = tag === "H1" || tag === "H2" ? 42 : 0;
+          const keepNext = tag === "H1" || tag === "H2" || tag === "H3" ? 42 : 0;
           paginateBlock(el, keepNext);
         }
       }
@@ -804,10 +904,20 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
     schedulePaginationLayout(false);
   }, [schedulePaginationLayout]);
 
-  // Re-run layout immediately when structural chapter order/titles, view mode, margins, indent, or zoom changes
+  // Re-run layout immediately when structural chapter order/titles, view mode, margins, indent, typography, or zoom changes
   useEffect(() => {
     schedulePaginationLayout(true);
-  }, [chaptersSignature, pageMarginCm, paragraphIndent, scale, viewMode, schedulePaginationLayout]);
+  }, [
+    chaptersSignature,
+    pageMarginCm,
+    paragraphIndent,
+    docFontCss,
+    docSizeCss,
+    docLineHeightCss,
+    scale,
+    viewMode,
+    schedulePaginationLayout,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -979,15 +1089,17 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
       let bold = false;
       let italic = false;
       let underline = false;
+      let strike = false;
       let ul = false;
       let ol = false;
       let align: "left" | "center" | "right" | "justify" = "justify";
-      let block: "p" | "h1" | "h2" = "p";
+      let block: "p" | "h1" | "h2" | "h3" | "blockquote" = "p";
 
       try {
         bold = document.queryCommandState("bold");
         italic = document.queryCommandState("italic");
         underline = document.queryCommandState("underline");
+        strike = document.queryCommandState("strikeThrough");
         ul = document.queryCommandState("insertUnorderedList");
         ol = document.queryCommandState("insertOrderedList");
 
@@ -1006,6 +1118,8 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
           const tag = el.tagName.toUpperCase();
           if (tag === "H1") block = "h1";
           else if (tag === "H2") block = "h2";
+          else if (tag === "H3") block = "h3";
+          else if (tag === "BLOCKQUOTE") block = "blockquote";
 
           if (el.style?.textAlign) {
             const ta = el.style.textAlign.toLowerCase();
@@ -1017,7 +1131,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
         curr = curr.parentNode;
       }
 
-      setActiveFormats({ bold, italic, underline, align, block, ul, ol });
+      setActiveFormats({ bold, italic, underline, strike, align, block, ul, ol });
     },
     [viewMode, saveSelectionForChapter]
   );
@@ -1158,7 +1272,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
     emitChapterEditorChange(target.chapterId, target.editorEl);
   };
 
-  const setBlockType = (tag: "p" | "h1" | "h2") => {
+  const setBlockType = (tag: "p" | "h1" | "h2" | "h3" | "blockquote") => {
     if (viewMode !== "edit") return;
     const target = resolveTargetEditor();
     if (!target) return;
@@ -1172,6 +1286,42 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
 
     updateToolbarStateForEditor(target.chapterId, target.editorEl);
     emitChapterEditorChange(target.chapterId, target.editorEl);
+  };
+
+  const handleInsertTable = (rows: number, cols: number) => {
+    if (viewMode !== "edit") return;
+    setShowTableMenu(false);
+    const target = resolveTargetEditor();
+    if (!target) return;
+
+    const headerCells = Array.from({ length: cols }, (_, c) => `<th>Coluna ${c + 1}</th>`).join("");
+    const bodyRows = Array.from({ length: Math.max(1, rows - 1) }, () => {
+      const cells = Array.from({ length: cols }, () => "<td><br></td>").join("");
+      return `<tr>${cells}</tr>`;
+    }).join("");
+
+    const tableHtml = `<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table><p><br></p>`;
+
+    try {
+      document.execCommand("insertHTML", false, tableHtml);
+    } catch {
+      target.editorEl.insertAdjacentHTML("beforeend", tableHtml);
+    }
+
+    updateToolbarStateForEditor(target.chapterId, target.editorEl);
+    emitChapterEditorChange(target.chapterId, target.editorEl);
+  };
+
+  const handleStepZoom = (direction: -1 | 1) => {
+    const numericSteps = [0.75, 0.9, 1, 1.15, 1.25, 1.4];
+    const current = zoomMode === "fit" ? scale : parseFloat(zoomMode);
+    if (direction === 1) {
+      const next = numericSteps.find((s) => s > current + 0.02) ?? 1.4;
+      setZoomMode(String(next) as typeof zoomMode);
+    } else {
+      const prev = [...numericSteps].reverse().find((s) => s < current - 0.02) ?? 0.75;
+      setZoomMode(String(prev) as typeof zoomMode);
+    }
   };
 
   const handleInsertPageBreak = () => {
@@ -1364,351 +1514,599 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
         </div>
       </div>
 
-      {/* 2. BARRA DE FERRAMENTAS FIXA (TOOLBAR) */}
-      <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 px-3 py-2 flex flex-wrap items-center gap-1.5">
-        {viewMode === "edit" ? (
-          <>
-            {/* Desfazer / Refazer */}
-            <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("undo");
-                }}
-                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition cursor-pointer"
-                title="Desfazer (Ctrl+Z)"
-              >
-                <Undo2 className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("redo");
-                }}
-                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition cursor-pointer"
-                title="Refazer (Ctrl+Y)"
-              >
-                <Redo2 className="w-4 h-4" />
-              </button>
-            </div>
+      {/* 2. BARRA DE FERRAMENTAS ESTILO WORD / GOOGLE DOCS (TOOLBAR) */}
+      <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-xs border-b border-slate-200 px-3 py-2 flex flex-col gap-1.5">
+        {/* Linha 1: Edição & Formatação Rica */}
+        <div className="flex flex-wrap items-center gap-1">
+          {viewMode === "edit" ? (
+            <>
+              {/* Desfazer / Refazer */}
+              <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("undo");
+                  }}
+                  className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition cursor-pointer"
+                  title="Desfazer (Ctrl+Z)"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("redo");
+                  }}
+                  className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition cursor-pointer"
+                  title="Refazer (Ctrl+Y)"
+                >
+                  <Redo2 className="w-4 h-4" />
+                </button>
+              </div>
 
-            {/* Títulos: H1, H2, Texto Normal */}
-            <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setBlockType("h1");
-                }}
-                className={`px-2 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  activeFormats.block === "h1"
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Título Principal (H1)"
-              >
-                H1
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setBlockType("h2");
-                }}
-                className={`px-2 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  activeFormats.block === "h2"
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Subtítulo (H2)"
-              >
-                H2
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setBlockType("p");
-                }}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition whitespace-nowrap cursor-pointer ${
-                  activeFormats.block === "p"
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Texto Normal (Parágrafo)"
-              >
-                Normal
-              </button>
-            </div>
+              {/* Estilo do Parágrafo / Título */}
+              <div className="pr-1.5 border-r border-slate-200">
+                <select
+                  value={activeFormats.block}
+                  onChange={(e) =>
+                    setBlockType(e.target.value as "p" | "h1" | "h2" | "h3" | "blockquote")
+                  }
+                  className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
+                  title="Estilo de texto (Parágrafo, Títulos ou Citação)"
+                >
+                  <option value="p">Texto Normal</option>
+                  <option value="h1">Título 1</option>
+                  <option value="h2">Título 2</option>
+                  <option value="h3">Título 3</option>
+                  <option value="blockquote">Citação</option>
+                </select>
+              </div>
 
-            {/* Negrito, Itálico, Sublinhado */}
-            <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("bold");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.bold
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Negrito (Ctrl+B)"
-              >
-                <Bold className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("italic");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.italic
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Itálico (Ctrl+I)"
-              >
-                <Italic className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("underline");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.underline
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Sublinhado (Ctrl+U)"
-              >
-                <Underline className="w-4 h-4" />
-              </button>
-            </div>
+              {/* Negrito, Itálico, Sublinhado, Tachado */}
+              <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("bold");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.bold
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Negrito (Ctrl+B)"
+                >
+                  <Bold className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("italic");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.italic
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Itálico (Ctrl+I)"
+                >
+                  <Italic className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("underline");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.underline
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Sublinhado (Ctrl+U)"
+                >
+                  <Underline className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("strikeThrough");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.strike
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Tachado"
+                >
+                  <Strikethrough className="w-4 h-4" />
+                </button>
+              </div>
 
-            {/* Alinhamento: Esquerda, Centro, Direita, Justificado */}
-            <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("justifyLeft");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.align === "left"
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Alinhar à Esquerda"
-              >
-                <AlignLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("justifyCenter");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.align === "center"
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Centralizar"
-              >
-                <AlignCenter className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("justifyRight");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.align === "right"
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Alinhar à Direita"
-              >
-                <AlignRight className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("justifyFull");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.align === "justify"
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Justificar"
-              >
-                <AlignJustify className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Listas: Marcadores e Numeradas */}
-            <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("insertUnorderedList");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.ul
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Lista com Marcadores"
-              >
-                <List className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  execFormatCommand("insertOrderedList");
-                }}
-                className={`p-1.5 rounded-lg transition cursor-pointer ${
-                  activeFormats.ol
-                    ? "bg-slate-900 text-white shadow-2xs"
-                    : "text-slate-700 hover:bg-white"
-                }`}
-                title="Lista Numerada"
-              >
-                <ListOrdered className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Inserir Quebra de Página */}
-            <div className="flex items-center pr-1.5 border-r border-slate-200">
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleInsertPageBreak();
-                }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-800 bg-white border border-slate-200 hover:border-slate-400 hover:bg-slate-100 transition flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
-                title="Inserir Quebra de Página Manual (nova folha A4 abaixo)"
-              >
-                <SeparatorHorizontal className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Inserir Quebra de Página</span>
-              </button>
-            </div>
-
-            {/* Inserir Variável Automática */}
-            <div className="relative pr-1.5 border-r border-slate-200" ref={variablesMenuRef}>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setShowVariablesMenu((v) => !v);
-                }}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-white border border-transparent hover:border-slate-200 transition flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
-                title="Inserir variáveis dinâmicas do cadastro"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Variáveis</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
-
-              {showVariablesMenu && (
-                <div className="absolute left-0 top-full mt-1.5 w-72 bg-white rounded-xl border border-slate-200 shadow-xl z-40 p-2 max-h-80 overflow-y-auto space-y-1">
-                  <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                    Clique para inserir no texto
-                  </div>
-                  {autoVariables.map((v) => (
-                    <button
-                      key={v.key}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleInsertVariable(v.key);
-                      }}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 transition flex items-center justify-between gap-2 cursor-pointer"
-                    >
-                      <div className="min-w-0">
-                        <span className="font-mono text-[11px] font-bold text-slate-900 block truncate">
-                          {v.key}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          {v.label}
-                        </span>
+              {/* Cor do Texto e Cor de Destaque (Marca-texto) */}
+              <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
+                <div className="relative" ref={colorMenuRef}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setShowColorMenu((v) => !v);
+                      setShowHighlightMenu(false);
+                      setShowTableMenu(false);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-700 hover:bg-white transition cursor-pointer flex items-center gap-0.5"
+                    title="Cor do texto"
+                  >
+                    <Baseline className="w-4 h-4" />
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </button>
+                  {showColorMenu && (
+                    <div className="absolute left-0 top-full mt-1.5 p-2 bg-white rounded-xl border border-slate-200 shadow-xl z-40 w-44">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5 px-1">
+                        Cor do Texto
+                      </span>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {TEXT_COLORS.map((c) => (
+                          <button
+                            key={c.value}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setShowColorMenu(false);
+                              execFormatCommand("foreColor", c.value);
+                            }}
+                            title={c.label}
+                            style={{ backgroundColor: c.value }}
+                            className="w-8 h-7 rounded-md border border-slate-200 hover:scale-105 transition cursor-pointer"
+                          />
+                        ))}
                       </div>
-                    </button>
-                  ))}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                <div className="relative" ref={highlightMenuRef}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setShowHighlightMenu((v) => !v);
+                      setShowColorMenu(false);
+                      setShowTableMenu(false);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-700 hover:bg-white transition cursor-pointer flex items-center gap-0.5"
+                    title="Cor de destaque (marca-texto)"
+                  >
+                    <Highlighter className="w-4 h-4" />
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </button>
+                  {showHighlightMenu && (
+                    <div className="absolute left-0 top-full mt-1.5 p-2 bg-white rounded-xl border border-slate-200 shadow-xl z-40 w-44">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5 px-1">
+                        Marca-Texto
+                      </span>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {HIGHLIGHT_COLORS.map((c) => (
+                          <button
+                            key={c.value}
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setShowHighlightMenu(false);
+                              execFormatCommand("hiliteColor", c.value);
+                            }}
+                            title={c.label}
+                            style={{
+                              backgroundColor: c.value === "transparent" ? "#ffffff" : c.value,
+                            }}
+                            className="h-7 rounded-md border border-slate-300 hover:scale-105 transition cursor-pointer text-[10px] font-bold text-slate-500 flex items-center justify-center"
+                          >
+                            {c.value === "transparent" ? "×" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("removeFormat");
+                  }}
+                  className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition cursor-pointer"
+                  title="Limpar formatação do trecho selecionado"
+                >
+                  <RemoveFormatting className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Alinhamento: Esquerda, Centro, Direita, Justificado */}
+              <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("justifyLeft");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.align === "left"
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Alinhar à Esquerda"
+                >
+                  <AlignLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("justifyCenter");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.align === "center"
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Centralizar"
+                >
+                  <AlignCenter className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("justifyRight");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.align === "right"
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Alinhar à Direita"
+                >
+                  <AlignRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("justifyFull");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.align === "justify"
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Justificar"
+                >
+                  <AlignJustify className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Listas e Recuos */}
+              <div className="flex items-center gap-0.5 pr-1.5 border-r border-slate-200">
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("insertUnorderedList");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.ul
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Lista com Marcadores"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("insertOrderedList");
+                  }}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    activeFormats.ol
+                      ? "bg-slate-900 text-white shadow-2xs"
+                      : "text-slate-700 hover:bg-white"
+                  }`}
+                  title="Lista Numerada"
+                >
+                  <ListOrdered className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("outdent");
+                  }}
+                  className="p-1.5 rounded-lg text-slate-700 hover:bg-white transition cursor-pointer"
+                  title="Diminuir recuo"
+                >
+                  <IndentDecrease className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("indent");
+                  }}
+                  className="p-1.5 rounded-lg text-slate-700 hover:bg-white transition cursor-pointer"
+                  title="Aumentar recuo"
+                >
+                  <IndentIncrease className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Inserções: Tabela, Linha Divisória, Quebra de Página, Variáveis */}
+              <div className="flex items-center gap-1">
+                <div className="relative" ref={tableMenuRef}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setShowTableMenu((v) => !v);
+                      setShowColorMenu(false);
+                      setShowHighlightMenu(false);
+                    }}
+                    className="px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-white border border-transparent hover:border-slate-200 transition flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                    title="Inserir tabela no texto"
+                  >
+                    <TableIcon className="w-3.5 h-3.5 text-slate-600" />
+                    <span className="hidden xl:inline">Tabela</span>
+                  </button>
+                  {showTableMenu && (
+                    <div className="absolute left-0 top-full mt-1.5 p-2 bg-white rounded-xl border border-slate-200 shadow-xl z-40 w-44 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-1.5 pb-1 border-b border-slate-100">
+                        Inserir Tabela
+                      </span>
+                      {[
+                        { rows: 3, cols: 2, label: "2 colunas × 3 linhas" },
+                        { rows: 4, cols: 3, label: "3 colunas × 4 linhas" },
+                        { rows: 4, cols: 4, label: "4 colunas × 4 linhas" },
+                      ].map((t) => (
+                        <button
+                          key={t.label}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleInsertTable(t.rows, t.cols);
+                          }}
+                          className="w-full text-left px-2 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer"
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    execFormatCommand("insertHorizontalRule");
+                  }}
+                  className="p-1.5 rounded-lg text-slate-700 hover:bg-white transition cursor-pointer"
+                  title="Inserir linha divisória horizontal"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleInsertPageBreak();
+                  }}
+                  className="px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-800 bg-white border border-slate-200 hover:border-slate-400 hover:bg-slate-100 transition flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+                  title="Inserir Quebra de Página Manual (nova folha A4 abaixo)"
+                >
+                  <SeparatorHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="hidden sm:inline">Quebra de Página</span>
+                </button>
+
+                <div className="relative" ref={variablesMenuRef}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setShowVariablesMenu((v) => !v);
+                    }}
+                    className="px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-white border border-transparent hover:border-slate-200 transition flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                    title="Inserir variáveis dinâmicas do cadastro"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Variáveis</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </button>
+
+                  {showVariablesMenu && (
+                    <div className="absolute right-0 sm:left-0 top-full mt-1.5 w-72 bg-white rounded-xl border border-slate-200 shadow-xl z-40 p-2 max-h-80 overflow-y-auto space-y-1">
+                      <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                        Clique para inserir no texto
+                      </div>
+                      {autoVariables.map((v) => (
+                        <button
+                          key={v.key}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            handleInsertVariable(v.key);
+                          }}
+                          className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-50 transition flex items-center justify-between gap-2 cursor-pointer"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-mono text-[11px] font-bold text-slate-900 block truncate">
+                              {v.key}
+                            </span>
+                            <span className="text-[10px] text-slate-500 block truncate">
+                              {v.label}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-slate-600 px-1 py-1">
+              <Printer className="w-4 h-4 text-slate-700 shrink-0" />
+              <span className="font-semibold text-slate-800 whitespace-nowrap">
+                Visualização de Conteúdo A4
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="text-slate-500 hidden md:inline">
+                Prévia das folhas e variáveis preenchidas. Para Capa, Sumário e PDF oficial use Visualizar Laudo.
+              </span>
             </div>
-          </>
-        ) : (
-          <div className="flex items-center gap-2 text-xs text-slate-600 px-1 py-1">
-            <Printer className="w-4 h-4 text-slate-700 shrink-0" />
-            <span className="font-semibold text-slate-800 whitespace-nowrap">
-              Visualização de Conteúdo A4
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="text-slate-500 hidden md:inline">
-              Prévia das folhas e variáveis preenchidas. Para Capa, Sumário e PDF oficial use a aba Visualizar Laudo.
-            </span>
+          )}
+        </div>
+
+        {/* Linha 2: Personalização Tipográfica do Documento, Página A4 e Zoom */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/70">
+          <div className="flex flex-wrap items-center gap-2">
+            {onChangeDocumentFont && (
+              <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                <span className="hidden sm:inline">Fonte:</span>
+                <select
+                  value={documentFont}
+                  onChange={(e) =>
+                    onChangeDocumentFont(
+                      e.target.value as "Inter" | "Arial" | "Calibri" | "Times New Roman" | "Georgia"
+                    )
+                  }
+                  className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
+                  title="Fonte padrão dos textos do laudo"
+                >
+                  <option value="Inter">Inter (Moderna)</option>
+                  <option value="Arial">Arial (ABNT)</option>
+                  <option value="Calibri">Calibri</option>
+                  <option value="Times New Roman">Times New Roman (ABNT)</option>
+                  <option value="Georgia">Georgia</option>
+                </select>
+              </label>
+            )}
+
+            {onChangeDocumentFontSize && (
+              <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                <span className="hidden sm:inline">Tam.:</span>
+                <select
+                  value={documentFontSize}
+                  onChange={(e) =>
+                    onChangeDocumentFontSize(
+                      e.target.value as "12px" | "13.5px" | "14.5px" | "16px"
+                    )
+                  }
+                  className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer tabular-nums"
+                  title="Tamanho base da fonte do documento"
+                >
+                  <option value="12px">10 pt</option>
+                  <option value="13.5px">11 pt (Padrão)</option>
+                  <option value="14.5px">12 pt (ABNT)</option>
+                  <option value="16px">13 pt</option>
+                </select>
+              </label>
+            )}
+
+            {onChangeDocumentLineHeight && (
+              <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                <span className="hidden sm:inline">Entrelinhas:</span>
+                <select
+                  value={documentLineHeight}
+                  onChange={(e) =>
+                    onChangeDocumentLineHeight(
+                      e.target.value as "1.35" | "1.5" | "1.65" | "1.85" | "2.0"
+                    )
+                  }
+                  className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer tabular-nums"
+                  title="Espaçamento entre linhas do texto"
+                >
+                  <option value="1.35">1,15 (Compacto)</option>
+                  <option value="1.5">1,5 (ABNT)</option>
+                  <option value="1.65">1,65 (Padrão)</option>
+                  <option value="1.85">1,85 (Confortável)</option>
+                  <option value="2.0">2,0 (Duplo)</option>
+                </select>
+              </label>
+            )}
+
+            <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+              <span className="hidden sm:inline">Margens:</span>
+              <select
+                value={pageMarginCm}
+                onChange={(e) => onChangeMargin(e.target.value as "1.5" | "2.0" | "2.5" | "3.0")}
+                className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
+                title="Configurar margens internas da folha A4"
+              >
+                <option value="1.5">Estreita (1,5 cm)</option>
+                <option value="2.0">Moderada (2,0 cm)</option>
+                <option value="2.5">Normal (2,5 cm)</option>
+                <option value="3.0">Ampla (3,0 cm)</option>
+              </select>
+            </label>
+
+            <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+              <span className="hidden sm:inline">Recuo:</span>
+              <select
+                value={paragraphIndent}
+                onChange={(e) => onChangeIndent(e.target.value as "none" | "medium" | "large")}
+                className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
+                title="Recuo inicial de parágrafo (ABNT)"
+              >
+                <option value="none">Sem Recuo</option>
+                <option value="medium">ABNT (1,5 cm)</option>
+                <option value="large">Amplo (2,5 cm)</option>
+              </select>
+            </label>
           </div>
-        )}
 
-        {/* Controles de Layout A4: Margens, Recuo e Zoom */}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
-            <span className="hidden sm:inline">Margens:</span>
-            <select
-              value={pageMarginCm}
-              onChange={(e) => onChangeMargin(e.target.value as "1.5" | "2.0" | "2.5" | "3.0")}
-              className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
-              title="Configurar margens internas da folha A4"
+          <div className="flex items-center gap-1 ml-auto">
+            <button
+              type="button"
+              onClick={() => handleStepZoom(-1)}
+              className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              title="Diminuir zoom"
             >
-              <option value="1.5">Estreita (1,5 cm)</option>
-              <option value="2.0">Moderada (2,0 cm)</option>
-              <option value="2.5">Normal (2,5 cm)</option>
-              <option value="3.0">Ampla (3,0 cm)</option>
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
-            <span className="hidden sm:inline">Recuo:</span>
-            <select
-              value={paragraphIndent}
-              onChange={(e) => onChangeIndent(e.target.value as "none" | "medium" | "large")}
-              className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer"
-              title="Recuo inicial de parágrafo (ABNT)"
-            >
-              <option value="none">Sem Recuo</option>
-              <option value="medium">ABNT (1,5 cm)</option>
-              <option value="large">Amplo (2,5 cm)</option>
-            </select>
-          </label>
-
-          <label className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
-            <ZoomIn className="w-3.5 h-3.5 text-slate-400" />
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
             <select
               value={zoomMode}
-              onChange={(e) => setZoomMode(e.target.value as "fit" | "0.75" | "0.9" | "1")}
+              onChange={(e) =>
+                setZoomMode(
+                  e.target.value as "fit" | "0.75" | "0.9" | "1" | "1.15" | "1.25" | "1.4"
+                )
+              }
               className="px-2 py-1 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-400 cursor-pointer tabular-nums"
               title="Escala de visualização da folha A4"
             >
               <option value="fit">Ajustar ({Math.round(scale * 100)}%)</option>
-              <option value="0.75">75%</option>
-              <option value="0.9">90%</option>
-              <option value="1">100% Real</option>
+              {ZOOM_PRESETS.map((z) => (
+                <option key={z.value} value={z.value}>
+                  {z.label}
+                </option>
+              ))}
             </select>
-          </label>
+            <button
+              type="button"
+              onClick={() => handleStepZoom(1)}
+              className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              title="Aumentar zoom"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1717,7 +2115,7 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
         ref={viewportRef}
         onScroll={handleViewportScroll}
         style={{ overflowAnchor: "none" }}
-        className="bg-[#e5e7eb] py-8 px-4 sm:px-6 overflow-y-auto overflow-x-auto h-[calc(100vh-230px)] min-h-[640px] flex justify-center"
+        className="bg-[#e5e7eb] py-6 px-4 sm:px-6 overflow-y-auto overflow-x-auto h-[calc(100vh-172px)] min-h-[680px] flex justify-center"
       >
         <div
           ref={stackWrapperRef}
@@ -2084,6 +2482,9 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                         chapterId={ch.id}
                         value={ch.value}
                         indentCss={indentCss}
+                        docFontCss={docFontCss}
+                        docSizeCss={docSizeCss}
+                        docLineHeightCss={docLineHeightCss}
                         hasSubchapters={hasSubchapters}
                         onChangeValue={onChangeChapterText}
                         onFocusChapter={handleFocusChapter}
@@ -2097,6 +2498,9 @@ export const A4DocumentEditor: React.FC<A4DocumentEditorProps> = ({
                       <ChapterPreviewBody
                         rawValue={ch.value}
                         indentCss={indentCss}
+                        docFontCss={docFontCss}
+                        docSizeCss={docSizeCss}
+                        docLineHeightCss={docLineHeightCss}
                         resolvePreviewText={resolvePreviewText}
                       />
                     ) : null}

@@ -26,6 +26,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
   const [proposedSchedule, setProposedSchedule] = useState<ActionPlanScheduleItem[]>([]);
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([]);
   const [isOptimizingSingle, setIsOptimizingSingle] = useState(false);
+  const [singleAiError, setSingleAiError] = useState<string | null>(null);
 
   const handleDeleteItem = (id: string) => {
     onChange({
@@ -102,6 +103,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
 
   const handleOptimizeSingleItemWithAI = async (item: RiskInventoryItem) => {
     setIsOptimizingSingle(true);
+    setSingleAiError(null);
     try {
       const sect = report.sectors.find((s) => s.id === item.sectorId);
       const enriched = await enrichRiskItem({
@@ -121,6 +123,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
       }
     } catch (err: any) {
       console.error("Erro ao otimizar ação com IA:", err);
+      setSingleAiError(err.message || "Falha ao otimizar esta ação com IA.");
     } finally {
       setIsOptimizingSingle(false);
     }
@@ -128,6 +131,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
 
   const startEditing = (item: RiskInventoryItem) => {
     setEditingItemId(item.id);
+    setSingleAiError(null);
     setActionObjective(item.actionObjective || "");
     setActionProposed(item.actionProposed || item.recommendation || "");
     setResponsible(item.responsible || "Liderança e Gestores");
@@ -135,7 +139,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
     setPeriodicity(item.periodicity || "Mensal");
     setStatus(item.status || "Pendente");
     setEfficacyIndicator(item.efficacyIndicator || "Feedbacks formais periódicos");
-    setDeadline(item.deadline || "Mês Corrente + 3");
+    setDeadline(item.deadline || "A definir pela empresa");
   };
 
   const saveEdit = (id: string) => {
@@ -418,10 +422,15 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
                           <textarea
                             value={actionProposed}
                             onChange={(e) => setActionProposed(e.target.value)}
-                            rows={1}
-                            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-slate-400 resize-none"
+                            rows={2}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-slate-400 resize-y"
                             placeholder="Ex: Oferecer horários alternativos e pausas programadas."
                           />
+                          {singleAiError && (
+                            <p className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg mt-1">
+                              {singleAiError}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -533,7 +542,7 @@ export const ActionPlanManager: React.FC<ActionPlanManagerProps> = ({ report, on
                               <Clock className="w-3 h-3 text-slate-400" /> Prazo Limite
                             </span>
                             <span className="font-extrabold text-slate-900 block bg-slate-100/80 px-2 py-0.5 rounded-md w-fit">
-                              {item.deadline || "Mês Corrente + 3"}
+                              {item.deadline || "A definir pela empresa"}
                             </span>
                           </div>
                         </div>

@@ -86,23 +86,37 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
     onChange({ sectors: updatedSectors });
   };
 
-  // Get moderate and unfavorable dimensions for the current sector (score === 0 is valid!)
+  // Get moderate and unfavorable dimensions sorted from most severe to least severe
   const getCriticalDimensions = (sector: Sector) => {
     return COPSOQ_DIMENSIONS.map((dim) => {
       const rawScore = sector.scores?.[dim.key];
       const hasScore = typeof rawScore === "number" && !Number.isNaN(rawScore);
       const ratingInfo = getDimensionRating(hasScore ? rawScore : undefined, dim.type);
+      const normalizedSeverity = hasScore
+        ? dim.type === "positive"
+          ? 4 - rawScore
+          : rawScore
+        : -1;
+
       return {
         ...dim,
         score: hasScore ? rawScore : null,
         rating: ratingInfo.rating,
         colorClass: ratingInfo.colorClass,
         bgClass: ratingInfo.bgClass,
+        normalizedSeverity,
       };
-    }).filter(
-      (dim): dim is typeof dim & { score: number } =>
-        dim.score !== null && dim.rating !== "Favorável" && dim.rating !== "Não Avaliado"
-    );
+    })
+      .filter(
+        (dim): dim is typeof dim & { score: number } =>
+          dim.score !== null && dim.rating !== "Favorável" && dim.rating !== "Não Avaliado"
+      )
+      .sort((a, b) => {
+        const tierA = a.rating === "Desfavorável" ? 2 : 1;
+        const tierB = b.rating === "Desfavorável" ? 2 : 1;
+        if (tierB !== tierA) return tierB - tierA;
+        return b.normalizedSeverity - a.normalizedSeverity;
+      });
   };
 
   const criticalDimensions = currentSector ? getCriticalDimensions(currentSector) : [];
@@ -276,7 +290,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   onChange={(e) => setPromptNotes(e.target.value)}
                   placeholder="Ex: Enfatizar a sobrecarga no atendimento ao balcão e sugerir rodízio de pausas..."
                   rows={2}
-                  className="w-full p-2 bg-white rounded-lg border border-indigo-200 outline-none text-slate-800 text-xs"
+                  className="w-full p-2 bg-white rounded-lg border border-indigo-200 outline-none text-slate-800 text-xs resize-y"
                 />
                 <div className="flex justify-end">
                   <button
@@ -317,7 +331,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   onChange={(e) => handleQualitativeFieldChange("qualitativeEvaluatedText", e.target.value)}
                   placeholder="Ex: Foram avaliadas as condições físicas e organizacionais do setor de atendimento, interações com a chefia, ritmo de trabalho e grau de autonomia na tomada de decisões."
                   rows={4}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white resize-y"
                 />
               </div>
 
@@ -332,7 +346,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   onChange={(e) => handleQualitativeFieldChange("qualitativePerceptionText", e.target.value)}
                   placeholder="Ex: Os colaboradores relataram bom relacionamento com colegas, porém apontaram ritmo elevado em horários de pico e necessidade de feedbacks mais estruturados."
                   rows={4}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white resize-y"
                 />
               </div>
 
@@ -347,7 +361,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   onChange={(e) => handleQualitativeFieldChange("qualitativeConclusionText", e.target.value)}
                   placeholder="Ex: Conclui-se que o setor apresenta fatores psicossociais sob controle, recomendando-se rituais semanais de alinhamento e pausas programadas nos picos de demanda."
                   rows={5}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-xs text-slate-800 font-sans leading-relaxed bg-white resize-y"
                 />
               </div>
             </div>
@@ -455,7 +469,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   onChange={(e) => setPromptNotes(e.target.value)}
                   placeholder="Ex: Focar na recente reestruturação do setor e na falta de pessoal nos horários de pico..."
                   rows={2}
-                  className="w-full p-2 bg-white rounded-lg border border-indigo-200 outline-none text-slate-800 text-xs"
+                  className="w-full p-2 bg-white rounded-lg border border-indigo-200 outline-none text-slate-800 text-xs resize-y"
                 />
                 <div className="flex justify-end">
                   <button
@@ -494,7 +508,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   onChange={(e) => handleSynthesisChange(e.target.value)}
                   placeholder="Ex: Em reunião de devolutiva realizada com a liderança do setor, constatou-se que as notas desfavoráveis se correlacionam à recente reestruturação da equipe e falta de clareza na divisão de metas..."
                   rows={10}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-sm text-slate-800 font-sans leading-relaxed"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-slate-400 focus:border-slate-400 outline-none transition text-sm text-slate-800 font-sans leading-relaxed resize-y"
                 />
               </div>
 

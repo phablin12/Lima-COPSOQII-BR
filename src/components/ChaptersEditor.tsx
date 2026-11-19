@@ -7,7 +7,6 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from "react"
 import { Report, ReportChapters, CustomChapter } from "../types";
 import { DEFAULT_CHAPTERS } from "../defaultChapters";
 import { 
-  BookOpen, 
   Check, 
   Plus, 
   Trash2, 
@@ -19,8 +18,9 @@ import {
   X,
   Layers,
   CornerDownRight,
-  RotateCcw,
-  AlertTriangle
+  AlertTriangle,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
 import { A4DocumentEditor, ContinuousChapterItem } from "./A4DocumentEditor";
 import { getImageSync } from "../imageStore";
@@ -100,6 +100,7 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   const [activeChapterId, setActiveChapterId] = useState<string>("introducao");
   const [scrollToChapterRequest, setScrollToChapterRequest] = useState<{ id: string; nonce: number } | null>(null);
   const [showSavedNotification, setShowSavedNotification] = useState(false);
+  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const savedTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -118,7 +119,12 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   const [createTitle, setCreateTitle] = useState<string>("");
 
   // Deletion confirmation modal state
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string; isStandard: boolean } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    title: string;
+    isStandard: boolean;
+    descendantIds: string[];
+  } | null>(null);
 
   // Chapter editing (title) inline state
   const [isEditingMeta, setIsEditingMeta] = useState(false);
@@ -137,7 +143,6 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   // Compute unified dynamic chapters
   const unifiedChapters = getUnifiedChapters(report);
   const visibleChapters = unifiedChapters.filter((c) => !c.isExcluded);
-  const excludedChapters = unifiedChapters.filter((c) => c.isExcluded);
 
   // Fallback if active chapter was excluded or does not exist
   const activeChapter = visibleChapters.find((c) => c.id === activeChapterId) || visibleChapters[0];
@@ -351,33 +356,78 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
     triggerSavedIndicator();
   };
 
-  // Request delete for standard or custom chapter
+  // Collect subtree descendant IDs so deleting a parent removes all its subchapters cleanly
+  const getDescendantIds = useCallback(
+    (chapterId: string): string[] => {
+      const idx = visibleChapters.findIndex((c) => c.id === chapterId);
+      if (idx === -1) return [];
+      const baseLevel = visibleChapters[idx].level;
+      const ids = new Set<string>();
+      for (let i = idx + 1; i < visibleChapters.length; i++) {
+        if (visibleChapters[i].level <= baseLevel) break;
+        ids.add(visibleChapters[i].id);
+      }
+      // Also include any custom chapter explicitly referencing the target or any collected descendant
+      let added = true;
+      while (added) {
+        added = false;
+        customChaptersList.forEach((c) => {
+          if (c.parentChapterId && (c.parentChapterId === chapterId || ids.has(c.parentChapterId)) && !ids.has(c.id)) {
+            ids.add(c.id);
+            added = true;
+          }
+        });
+      }
+      return Array.from(ids);
+    },
+    [visibleChapters, customChaptersList]
+  );
+
+  // Request delete for standard or custom chapter (cascading children)
   const handleRequestDelete = (chapterId: string, title: string, isStandard: boolean) => {
-    setDeleteTarget({ id: chapterId, title, isStandard });
+    const descendantIds = getDescendantIds(chapterId);
+    setDeleteTarget({ id: chapterId, title, isStandard, descendantIds });
   };
 
   const handleConfirmDelete = () => {
     if (!deleteTarget) return;
-    const { id } = deleteTarget;
+    const { id, descendantIds } = deleteTarget;
+    const allIdsToRemove = new Set<string>([id, ...descendantIds]);
 
-    const updatedExcluded = Array.from(new Set([...(report.excludedChapters || []), id]));
-    onChange({ excludedChapters: updatedExcluded });
+    const standardIdsToExclude = Array.from(allIdsToRemove).filter((targetId) =>
+      ["introducao", "fundamentacao", "metodologia", "consideracoes", "referencias"].includes(targetId)
+    );
 
-    if (effectiveActiveId === id) {
-      const remaining = visibleChapters.filter((c) => c.id !== id && c.type !== "phases");
+    const updatedExcluded = Array.from(
+      new Set([...(report.excludedChapters || []).filter((eId) => !allIdsToRemove.has(eId) || standardIdsToExclude.includes(eId)), ...standardIdsToExclude])
+    );
+    const updatedCustoms = customChaptersList.filter((c) => !allIdsToRemove.has(c.id));
+    const updatedOrder = (report.chaptersOrder || unifiedChapters.map((c) => c.id)).filter(
+      (orderId) => !allIdsToRemove.has(orderId) || standardIdsToExclude.includes(orderId)
+    );
+
+    const synced = syncUnifiedChapterNumbers({
+      ...report,
+      excludedChapters: updatedExcluded,
+      customChapters: updatedCustoms,
+      chaptersOrder: updatedOrder,
+    });
+
+    onChange({
+      excludedChapters: updatedExcluded,
+      customChapters: synced.customChapters,
+      chaptersOrder: synced.chaptersOrder,
+    });
+
+    if (allIdsToRemove.has(effectiveActiveId)) {
+      const remaining = visibleChapters.filter((c) => !allIdsToRemove.has(c.id) && c.type !== "phases");
       if (remaining.length > 0) {
         setActiveChapterId(remaining[0].id);
       }
     }
 
     setDeleteTarget(null);
-  };
-
-  const handleRestoreChapter = (chapterId: string) => {
-    const updated = (report.excludedChapters || []).filter((id) => id !== chapterId);
-    onChange({ excludedChapters: updated });
-    setActiveChapterId(chapterId);
-    setScrollToChapterRequest({ id: chapterId, nonce: Date.now() });
+    triggerSavedIndicator();
   };
 
   // Start editing title
@@ -756,82 +806,70 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
   };
 
   return (
-    <div className="space-y-5" id="chapters-editor-container">
-      {/* Cabeçalho */}
-      <div className="bg-white px-5 py-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 bg-slate-100 text-slate-800 rounded-xl">
-              <BookOpen className="w-5 h-5" />
-            </span>
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-                Editor de Capítulos & Documento Paginado A4
-              </h3>
-              <p className="text-xs text-slate-500">
-                Role livremente pelo laudo completo em folhas A4, navegue pelos capítulos ao lado ou alterne para a Visualização Real.
-              </p>
-            </div>
+    <div className="space-y-4" id="chapters-editor-container">
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        {/* Menu Lateral Retrátil com Drag & Drop, Adicionar Capítulo e Numeração Dinâmica */}
+        {isNavCollapsed ? (
+          <div className="w-full lg:w-12 shrink-0 lg:sticky lg:top-4 bg-white p-2 rounded-xl border border-slate-200 flex lg:flex-col items-center justify-between lg:justify-start gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsNavCollapsed(false)}
+              className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+              title="Expandir Estrutura do Laudo"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenCreateModal()}
+              className="p-2 rounded-lg bg-slate-900 hover:bg-black text-amber-300 transition cursor-pointer"
+              title="Adicionar Capítulo"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+            {activeChapter && (
+              <span
+                className="px-1.5 py-1 rounded bg-slate-100 text-slate-700 font-mono text-[10px] font-bold tabular-nums"
+                title={activeChapter.fullTitle}
+              >
+                {activeChapter.number}
+              </span>
+            )}
           </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => handleOpenCreateModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition shadow-xs whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-center"
-        >
-          <Plus className="w-4 h-4 text-amber-300" />
-          Adicionar Capítulo
-        </button>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-5 items-start">
-        {/* Menu Lateral Unificado com Drag & Drop e Numeração Dinâmica */}
-        <div className="w-full lg:w-[295px] xl:w-[315px] shrink-0 lg:sticky lg:top-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <span className="text-xs font-bold text-slate-800 block">Estrutura Linear do Laudo</span>
-              <span className="text-[10px] text-slate-400">Arraste para reordenar (numeração automática)</span>
-            </div>
-            <span className="text-xs font-mono font-semibold text-slate-500 tabular-nums">
-              {visibleChapters.length} cap.
-            </span>
-          </div>
-
-          {/* Lista Unificada Draggable */}
-          <div className="space-y-1.5 max-h-[650px] overflow-y-auto pr-1">
-            {visibleChapters.map((ch) => renderUnifiedChapterRow(ch))}
-          </div>
-
-          {/* Lista de Capítulos Oficiais Excluídos (com opção de Restaurar) */}
-          {excludedChapters.length > 0 && (
-            <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-                <div className="flex items-center gap-1.5">
-                  <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Capítulos Ocultados ({excludedChapters.length})</span>
-                </div>
+        ) : (
+          <div className="w-full lg:w-[256px] xl:w-[272px] shrink-0 lg:sticky lg:top-4 bg-white p-3.5 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-slate-900 block">Estrutura do Laudo</span>
+                <span className="text-[11px] text-slate-400 tabular-nums">{visibleChapters.length} capítulos</span>
               </div>
-              <div className="space-y-1.5">
-                {excludedChapters.map((ch) => (
-                  <div key={ch.id} className="flex items-center justify-between gap-2 p-2 bg-white rounded-lg border border-amber-200 text-xs shadow-2xs">
-                    <span className="truncate text-slate-700 font-medium">
-                      {ch.title}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRestoreChapter(ch.id)}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-md text-[10px] font-bold transition shrink-0 cursor-pointer"
-                      title="Restaurar este capítulo ao laudo"
-                    >
-                      <RotateCcw className="w-3 h-3" /> Restaurar
-                    </button>
-                  </div>
-                ))}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleOpenCreateModal()}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-900 hover:bg-black text-white text-[11px] font-bold rounded-lg transition cursor-pointer whitespace-nowrap shrink-0"
+                  title="Adicionar Capítulo"
+                >
+                  <Plus className="w-3.5 h-3.5 text-amber-300" />
+                  Capítulo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsNavCollapsed(true)}
+                  className="hidden lg:inline-flex p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer"
+                  title="Recolher lista de capítulos"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          )}
-        </div>
+
+            {/* Lista Unificada Draggable */}
+            <div className="space-y-1.5 max-h-[calc(100vh-11rem)] overflow-y-auto pr-1">
+              {visibleChapters.map((ch) => renderUnifiedChapterRow(ch))}
+            </div>
+          </div>
+        )}
 
         {/* Editor Paginado de Documento A4 (Estilo Google Docs / Word) */}
         <div className="flex-1 min-w-0 w-full space-y-3">
@@ -889,6 +927,12 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
             onChangeIndent={(indent) => onChange({ paragraphIndent: indent })}
             pageMarginCm={report.pageMargin || "2.5"}
             onChangeMargin={(margin) => onChange({ pageMargin: margin })}
+            documentFont={report.documentFont || "Inter"}
+            onChangeDocumentFont={(font) => onChange({ documentFont: font })}
+            documentFontSize={report.documentFontSize || "13.5px"}
+            onChangeDocumentFontSize={(size) => onChange({ documentFontSize: size })}
+            documentLineHeight={report.documentLineHeight || "1.65"}
+            onChangeDocumentLineHeight={(lh) => onChange({ documentLineHeight: lh })}
             resolvePreviewText={(raw) => replaceTemplateVariables(raw, report, assessor)}
             autoVariables={autoVariables}
             report={report}
@@ -1116,13 +1160,25 @@ export const ChaptersEditor: React.FC<ChaptersEditorProps> = ({ report, onChange
               <p className="text-xs text-slate-600 leading-relaxed">
                 Tem certeza que deseja excluir o capítulo <strong className="text-slate-900">"{deleteTarget.title}"</strong>?
               </p>
+              {deleteTarget.descendantIds.length > 0 && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 space-y-1">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    Exclusão em cascata ({deleteTarget.descendantIds.length}{" "}
+                    {deleteTarget.descendantIds.length === 1 ? "subcapítulo" : "subcapítulos"})
+                  </span>
+                  <p className="text-[11px] leading-relaxed">
+                    Todos os subcapítulos vinculados a este capítulo serão excluídos automaticamente junto com ele.
+                  </p>
+                </div>
+              )}
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
-                <span className="font-bold block flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                <span className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   Atualização Dinâmica de Numeração
                 </span>
                 <p className="text-[11px] leading-relaxed">
-                  Este capítulo será ocultado da emissão impressa, do sumário e da edição. A numeração de todos os outros capítulos será reajustada automaticamente. Você poderá restaurá-lo a qualquer momento na seção inferior do menu.
+                  A numeração dos capítulos restantes será reajustada automaticamente no editor A4 e no sumário.
                 </p>
               </div>
             </div>

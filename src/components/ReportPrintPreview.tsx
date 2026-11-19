@@ -346,10 +346,25 @@ export const ReportPrintPreview: React.FC<ReportPrintPreviewProps> = ({ report, 
 
     if (isHtmlContent(resolvedText)) {
       const cleanHtml = sanitizeRichHtml(resolvedText);
+      const fontMap: Record<string, string> = {
+        Inter: '"Inter", ui-sans-serif, system-ui, sans-serif',
+        Arial: 'Arial, Helvetica, sans-serif',
+        Calibri: 'Calibri, "Segoe UI", Arial, sans-serif',
+        "Times New Roman": '"Times New Roman", Times, serif',
+        Georgia: 'Georgia, Cambria, "Times New Roman", serif',
+      };
+      const docFontCss = fontMap[report.documentFont || "Inter"] || fontMap.Inter;
       return (
         <div
           className="a4-doc-content"
-          style={{ "--doc-indent": indentCm } as React.CSSProperties}
+          style={
+            {
+              "--doc-indent": indentCm,
+              "--doc-font": docFontCss,
+              "--doc-size": report.documentFontSize || "13.5px",
+              "--doc-line-height": report.documentLineHeight || "1.65",
+            } as React.CSSProperties
+          }
           dangerouslySetInnerHTML={{ __html: cleanHtml }}
         />
       );
