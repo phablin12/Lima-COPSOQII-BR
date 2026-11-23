@@ -71,6 +71,21 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
   const [deletingSectorId, setDeletingSectorId] = useState<string | null>(null);
   const [showCompanyOverride, setShowCompanyOverride] = useState(false);
 
+  const normalizeDateForInput = (raw: unknown): string => {
+    if (typeof raw !== "string") return "";
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+    const isoPart = trimmed.split("T")[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(isoPart)) {
+      return isoPart;
+    }
+    const brMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (brMatch) {
+      return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+    }
+    return "";
+  };
+
   const handleAddField = (field: keyof Report, value: any) => {
     onChange({ [field]: value });
   };
@@ -440,7 +455,7 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
       {/* Grid Principal de Cards Operacionais */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
         {/* Card 1: Empresa Avaliadora & Período */}
-        <div className="lg:col-span-5 bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between gap-4">
+        <div className="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between gap-4 min-w-0">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -486,37 +501,37 @@ export const GeneralInfoForm: React.FC<GeneralInfoFormProps> = ({
             )}
           </div>
 
-          <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                Data de Início
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3">
+            <div className="space-y-1 min-w-0">
+              <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 whitespace-nowrap">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>Data de Início</span>
               </label>
               <input
                 type="date"
-                value={report.dateStart}
+                value={normalizeDateForInput(report.dateStart)}
                 onChange={(e) => handleAddField("dateStart", e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-medium text-slate-800 bg-white tabular-nums"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-medium text-slate-800 bg-white tabular-nums"
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                Data de Conclusão
+            <div className="space-y-1 min-w-0">
+              <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 whitespace-nowrap">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span>Data de Conclusão</span>
               </label>
               <input
                 type="date"
-                value={report.dateEnd}
+                value={normalizeDateForInput(report.dateEnd)}
                 onChange={(e) => handleAddField("dateEnd", e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-medium text-slate-800 bg-white tabular-nums"
+                className="w-full min-w-0 px-2.5 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-slate-400 outline-none text-xs font-medium text-slate-800 bg-white tabular-nums"
               />
             </div>
           </div>
         </div>
 
         {/* Card 2: Responsável Técnico (SST) */}
-        <div className="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between gap-4">
+        <div className="lg:col-span-6 bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between gap-4 min-w-0">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">

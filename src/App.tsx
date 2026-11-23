@@ -22,6 +22,7 @@ import { ManagementDashboard } from "./components/ManagementDashboard";
 import { CompanyCustomization } from "./components/CompanyCustomization";
 import { EvaluatorsRegistry } from "./components/EvaluatorsRegistry";
 import { AiAgentSettings } from "./components/AiAgentSettings";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { setActiveAiAgentConfig } from "./aiService";
 import { 
   Shield, 
@@ -2068,52 +2069,58 @@ export default function App() {
 
                 return (
                   <div className="min-h-[500px]">
-                    {effectiveTab === "cadastro" && (
-                      <GeneralInfoForm
-                        report={currentReport}
-                        onChange={handleUpdateCurrentReport}
-                        companies={companies}
-                        professionals={professionals}
-                        evaluators={evaluators}
-                        defaultAssessor={assessor}
-                      />
-                    )}
-                    {effectiveTab === "copsoq" && !isQualitative && (
-                      <CopsoqEvaluation
-                        report={currentReport}
-                        onChange={handleUpdateCurrentReport}
-                      />
-                    )}
-                    {effectiveTab === "qualitativa" && isQualitative && (
-                      <TechnicalAnalysis
-                        report={currentReport}
-                        onChange={handleUpdateCurrentReport}
-                      />
-                    )}
-                    {effectiveTab === "inventario" && (
-                      <RiskInventoryManager
-                        report={currentReport}
-                        catalog={globalCatalog}
-                        onChange={handleUpdateCurrentReport}
-                      />
-                    )}
-                    {effectiveTab === "plano" && (
-                      <ActionPlanManager
-                        report={currentReport}
-                        onChange={handleUpdateCurrentReport}
-                      />
-                    )}
-                    {effectiveTab === "capitulos" && (
-                      <ChaptersEditor
-                        key={currentReport.id}
-                        report={currentReport}
-                        onChange={handleUpdateCurrentReport}
-                        assessor={assessor}
-                      />
-                    )}
-                    {effectiveTab === "visualizar" && (
-                      <ReportPrintPreview report={currentReport} assessor={assessor} />
-                    )}
+                    <ErrorBoundary
+                      resetKey={`${currentReport.id}:${effectiveTab}`}
+                      onResetHome={() => handleSelectReport(null)}
+                      fallbackTitle="Não foi possível exibir esta etapa do laudo"
+                    >
+                      {effectiveTab === "cadastro" && (
+                        <GeneralInfoForm
+                          report={currentReport}
+                          onChange={handleUpdateCurrentReport}
+                          companies={companies}
+                          professionals={professionals}
+                          evaluators={evaluators}
+                          defaultAssessor={assessor}
+                        />
+                      )}
+                      {effectiveTab === "copsoq" && !isQualitative && (
+                        <CopsoqEvaluation
+                          report={currentReport}
+                          onChange={handleUpdateCurrentReport}
+                        />
+                      )}
+                      {effectiveTab === "qualitativa" && isQualitative && (
+                        <TechnicalAnalysis
+                          report={currentReport}
+                          onChange={handleUpdateCurrentReport}
+                        />
+                      )}
+                      {effectiveTab === "inventario" && (
+                        <RiskInventoryManager
+                          report={currentReport}
+                          catalog={globalCatalog}
+                          onChange={handleUpdateCurrentReport}
+                        />
+                      )}
+                      {effectiveTab === "plano" && (
+                        <ActionPlanManager
+                          report={currentReport}
+                          onChange={handleUpdateCurrentReport}
+                        />
+                      )}
+                      {effectiveTab === "capitulos" && (
+                        <ChaptersEditor
+                          key={currentReport.id}
+                          report={currentReport}
+                          onChange={handleUpdateCurrentReport}
+                          assessor={assessor}
+                        />
+                      )}
+                      {effectiveTab === "visualizar" && (
+                        <ReportPrintPreview report={currentReport} assessor={assessor} />
+                      )}
+                    </ErrorBoundary>
                   </div>
                 );
               })()}

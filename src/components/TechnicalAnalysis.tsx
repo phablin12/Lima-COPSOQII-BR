@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Report } from "../types";
 import { AlertTriangle, MessageSquare, ClipboardCheck, Users, Sparkles, Loader2, Check, Wand2 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
@@ -15,8 +15,12 @@ interface TechnicalAnalysisProps {
 }
 
 export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, onChange }) => {
+  const sectors = Array.isArray(report?.sectors) ? report.sectors : [];
+  const sectorsRef = useRef(sectors);
+  sectorsRef.current = sectors;
+
   const [selectedSectorId, setSelectedSectorId] = useState<string>(
-    report.sectors.length > 0 ? report.sectors[0].id : ""
+    sectors.length > 0 ? sectors[0].id : ""
   );
 
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -24,8 +28,17 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
   const [aiSuccess, setAiSuccess] = useState(false);
   const [showPromptNotes, setShowPromptNotes] = useState(false);
   const [promptNotes, setPromptNotes] = useState("");
+  const successTimerRef = useRef<number | null>(null);
 
-  const currentSector = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current !== null) {
+        window.clearTimeout(successTimerRef.current);
+      }
+    };
+  }, []);
+
+  const currentSector = sectors.find((s) => s.id === selectedSectorId) || sectors[0];
 
   useEffect(() => {
     if (currentSector && selectedSectorId !== currentSector.id) {
@@ -33,7 +46,7 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
     }
   }, [currentSector, selectedSectorId]);
 
-  if (report.sectors.length === 0) {
+  if (sectors.length === 0) {
     return (
       <div className="bg-white p-8 rounded-2xl border border-slate-100 text-center space-y-4">
         <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto">
@@ -51,11 +64,14 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
 
   const handleQualitativeFieldChange = (
     field: "qualitativeEvaluatedText" | "qualitativePerceptionText" | "qualitativeConclusionText",
-    text: string
+    text: string,
+    targetSectorId?: string
   ) => {
-    if (!currentSector) return;
-    const updatedSectors = report.sectors.map((s) => {
-      if (s.id === currentSector.id) {
+    const sectorIdToUpdate = targetSectorId || currentSector?.id;
+    if (!sectorIdToUpdate) return;
+    const latestSectors = Array.isArray(sectorsRef.current) ? sectorsRef.current : sectors;
+    const updatedSectors = latestSectors.map((s) => {
+      if (s.id === sectorIdToUpdate) {
         return {
           ...s,
           [field]: text,
@@ -68,14 +84,15 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
 
   const handleGenerateAISynthesis = async (customInstructions?: string) => {
     if (!currentSector) return;
+    const targetSectorId = currentSector.id;
     setIsGeneratingAI(true);
     setAiError(null);
     setAiSuccess(false);
 
     try {
       const text = await generateSectorSynthesis({
-        sectorName: currentSector.name,
-        employeeCount: currentSector.employeeCount,
+        sectorName: currentSector.name || "Setor Avaliado",
+        employeeCount: Number(currentSector.employeeCount) || 1,
         companyName: report.companyName,
         companySector: report.companySector,
         methodology: "qualitative",
@@ -84,16 +101,34 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
           evaluatedText: currentSector.qualitativeEvaluatedText,
           perceptionText: currentSector.qualitativePerceptionText,
         },
-        userInstructions: customInstructions ?? promptNotes,
+        userInstructions: typeof (customInstructions ?? promptNotes) === "string" ? (customInstructions ?? promptNotes) : "",
       });
 
-      handleQualitativeFieldChange("qualitativeConclusionText", text);
+      const safeText = typeof text === "string" ? text.trim() : "";
+      if (!safeText) {
+        setAiError("A IA não retornou conteúdo para o parecer. Tente novamente.");
+        return;
+      }
+
+      handleQualitativeFieldChange("qualitativeConclusionText", safeText, targetSectorId);
       setAiSuccess(true);
       setShowPromptNotes(false);
-      setTimeout(() => setAiSuccess(false), 4000);
+      if (successTimerRef.current !== null) {
+        window.clearTimeout(successTimerRef.current);
+      }
+      successTimerRef.current = window.setTimeout(() => {
+        successTimerRef.current = null;
+        setAiSuccess(false);
+      }, 4000);
     } catch (err: any) {
       console.error(err);
-      setAiError(err.message || "Erro ao conectar com a Inteligência Artificial.");
+      const errMessage =
+        typeof err?.message === "string" && err.message.trim()
+          ? err.message
+          : typeof err === "string" && err.trim()
+            ? err
+            : "Erro ao conectar com a Inteligência Artificial.";
+      setAiError(errMessage);
     } finally {
       setIsGeneratingAI(false);
     }
@@ -178,15 +213,16 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => setShowPromptNotes(!showPromptNotes)}
+                onClick={() => setShowPromptNotes((prev) => !prev)}
                 disabled={isGeneratingAI}
                 className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
                 title="Adicionar instruções específicas para a IA"
               >
-                {showPromptNotes ? "Ocultar Instruções" : "Personalizar Prompt"}
+                <span>{showPromptNotes ? "Ocultar Instruções" : "Personalizar Prompt"}</span>
               </button>
               {!showPromptNotes && (
                 <button
+                  key="generate-parecer-direct"
                   type="button"
                   disabled={isGeneratingAI}
                   onClick={() => handleGenerateAISynthesis()}
@@ -194,15 +230,15 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
                   title="Elaborar Parecer Técnico Conclusivo com Inteligência Artificial"
                 >
                   {isGeneratingAI ? (
-                    <>
+                    <span key="loading" className="inline-flex items-center gap-1.5">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Gerando Parecer...
-                    </>
+                      <span>Gerando Parecer...</span>
+                    </span>
                   ) : (
-                    <>
+                    <span key="idle" className="inline-flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5" />
-                      Gerar Parecer com IA
-                    </>
+                      <span>Gerar Parecer com IA</span>
+                    </span>
                   )}
                 </button>
               )}
@@ -223,13 +259,14 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
               />
               <div className="flex justify-end">
                 <button
+                  key="generate-parecer-custom"
                   type="button"
                   disabled={isGeneratingAI}
                   onClick={() => handleGenerateAISynthesis(promptNotes)}
                   className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   {isGeneratingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                  {isGeneratingAI ? "Gerando Parecer..." : "Gerar Parecer com Estas Instruções"}
+                  <span>{isGeneratingAI ? "Gerando Parecer..." : "Gerar Parecer com Estas Instruções"}</span>
                 </button>
               </div>
             </div>
@@ -237,13 +274,14 @@ export const TechnicalAnalysis: React.FC<TechnicalAnalysisProps> = ({ report, on
 
           {aiSuccess && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-600" /> Parecer técnico qualitativo gerado com sucesso pela Inteligência Artificial!
+              <Check className="w-4 h-4 text-emerald-600" />
+              <span>Parecer técnico qualitativo gerado com sucesso pela Inteligência Artificial!</span>
             </div>
           )}
 
           {aiError && (
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center justify-between">
-              <span>{aiError}</span>
+              <span>{String(aiError)}</span>
               <button type="button" onClick={() => setAiError(null)} className="text-rose-500 hover:text-rose-700 font-bold ml-2 cursor-pointer">✕</button>
             </div>
           )}

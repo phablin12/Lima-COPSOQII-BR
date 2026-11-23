@@ -121,7 +121,13 @@ async function postAiJson<T>(url: string, body: Record<string, any>, fallbackErr
   }
 
   if (!res.ok) {
-    throw new Error(data.error || `${fallbackError} (HTTP ${res.status})`);
+    const serverMsg =
+      typeof data?.error === "string"
+        ? data.error
+        : typeof data?.message === "string"
+          ? data.message
+          : "";
+    throw new Error(serverMsg || `${fallbackError} (HTTP ${res.status})`);
   }
 
   return data as T;
@@ -133,12 +139,12 @@ async function postAiJson<T>(url: string, body: Record<string, any>, fallbackErr
 export async function generateSectorSynthesis(
   params: SectorSynthesisRequest
 ): Promise<string> {
-  const data = await postAiJson<{ synthesis?: string }>(
+  const data = await postAiJson<{ synthesis?: unknown }>(
     "/api/ai/sector-synthesis",
     params,
     "Falha na comunicação com a IA para síntese do setor."
   );
-  return data.synthesis || "";
+  return typeof data?.synthesis === "string" ? data.synthesis : "";
 }
 
 /**

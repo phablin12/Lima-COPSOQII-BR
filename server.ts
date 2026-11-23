@@ -12,8 +12,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Parse port from CLI args if provided (e.g. --port 3000), or fallback to process.env.PORT / 3000
-let port = Number(process.env.PORT) || 3000;
+// Dev server must run on port 3000 unless explicitly overridden via --port (or PORT in production)
+let port = process.env.NODE_ENV === "production" ? Number(process.env.PORT) || 3000 : 3000;
 const portArgIndex = process.argv.indexOf("--port");
 if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
   port = Number(process.argv[portArgIndex + 1]) || port;
@@ -21,15 +21,21 @@ if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
 
 app.use(express.json({ limit: "10mb" }));
 
-// Initialize GoogleGenAI instance on the server
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      "User-Agent": "aistudio-build",
-    },
-  },
-});
+// Lazy GoogleGenAI client initialization so server startup never fails or warns before requests arrive
+let aiClient: GoogleGenAI | null = null;
+function getAiClient(): GoogleGenAI {
+  if (!aiClient) {
+    aiClient = new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+  }
+  return aiClient;
+}
 
 type AgentStage = "copsoq" | "qualitative" | "inventory" | "action_plan";
 
@@ -151,6 +157,7 @@ async function callGemini(options: {
     config.responseSchema = options.responseSchema;
   }
 
+  const ai = getAiClient();
   try {
     return await ai.models.generateContent({
       model: "gemini-4-hydrogen",
@@ -614,15 +621,27 @@ app.post("/api/ai/test-agent", async (req, res) => {
 async function startServer() {
   if (process.env.NODE_ENV === "production") {
     app.use(express.static("dist"));
-    app.get("*", (req, res) => {
+    app.get("*", (_req, res) => {
       res.sendFile(path.resolve(__dirname, "dist", "index.html"));
     });
   } else {
-    const vite = await createViteServer({
+    // Start Vite creation concurrently so port 3000 binds immediately without timing out health checks
+    const vitePromise = createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
-    app.use(vite.middlewares);
+    vitePromise.catch((err) => {
+      console.error("Failed to initialize Vite dev server:", err);
+    });
+
+    app.use(async (req, res, next) => {
+      try {
+        const vite = await vitePromise;
+        return vite.middlewares(req, res, next);
+      } catch (err) {
+        next(err);
+      }
+    });
   }
 
   app.listen(port, "0.0.0.0", () => {

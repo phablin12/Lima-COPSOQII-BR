@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Report, COPSOQ_DIMENSIONS, getDimensionRating } from "../types";
 import { AlertCircle, Sliders, Activity, Sparkles, Loader2, Check, Wand2 } from "lucide-react";
 import { SearchableSelect } from "./SearchableSelect";
@@ -15,8 +15,12 @@ interface CopsoqEvaluationProps {
 }
 
 export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onChange }) => {
+  const sectors = Array.isArray(report?.sectors) ? report.sectors : [];
+  const sectorsRef = useRef(sectors);
+  sectorsRef.current = sectors;
+
   const [selectedSectorId, setSelectedSectorId] = useState<string>(
-    report.sectors.length > 0 ? report.sectors[0].id : ""
+    sectors.length > 0 ? sectors[0].id : ""
   );
 
   const [inputStrings, setInputStrings] = useState<Record<string, string>>({});
@@ -25,9 +29,18 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
   const [synthesisSuccess, setSynthesisSuccess] = useState(false);
   const [showCustomPrompt, setShowCustomPrompt] = useState(false);
   const [customPromptNotes, setCustomPromptNotes] = useState("");
+  const successTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current !== null) {
+        window.clearTimeout(successTimerRef.current);
+      }
+    };
+  }, []);
 
   // Sync selected sector if the previous selected one was deleted
-  const currentSector = report.sectors.find((s) => s.id === selectedSectorId) || report.sectors[0];
+  const currentSector = sectors.find((s) => s.id === selectedSectorId) || sectors[0];
 
   useEffect(() => {
     if (currentSector && selectedSectorId !== currentSector.id) {
@@ -48,7 +61,7 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
     }
   }, [currentSector?.id]);
 
-  if (report.sectors.length === 0) {
+  if (sectors.length === 0) {
     return (
       <div className="bg-white p-8 rounded-2xl border border-slate-100 text-center space-y-4">
         <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto">
@@ -68,12 +81,12 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
     if (!currentSector) return;
     const clampedValue = Math.min(4, Math.max(0, Math.round(value * 100) / 100));
 
-    const updatedSectors = report.sectors.map((s) => {
+    const updatedSectors = sectors.map((s) => {
       if (s.id === currentSector.id) {
         return {
           ...s,
           scores: {
-            ...s.scores,
+            ...(s.scores || {}),
             [dimensionKey]: clampedValue,
           },
         };
@@ -86,9 +99,9 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
 
   const handleClearScore = (dimensionKey: string) => {
     if (!currentSector) return;
-    const updatedSectors = report.sectors.map((s) => {
+    const updatedSectors = sectors.map((s) => {
       if (s.id === currentSector.id) {
-        const newScores = { ...s.scores };
+        const newScores = { ...(s.scores || {}) };
         delete newScores[dimensionKey];
         return {
           ...s,
@@ -101,10 +114,12 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
     onChange({ sectors: updatedSectors });
   };
 
-  const handleGeneralAnalysisChange = (value: string) => {
-    if (!currentSector) return;
-    const updatedSectors = report.sectors.map((s) => {
-      if (s.id === currentSector.id) {
+  const handleGeneralAnalysisChange = (value: string, targetSectorId?: string) => {
+    const sectorIdToUpdate = targetSectorId || currentSector?.id;
+    if (!sectorIdToUpdate) return;
+    const latestSectors = Array.isArray(sectorsRef.current) ? sectorsRef.current : sectors;
+    const updatedSectors = latestSectors.map((s) => {
+      if (s.id === sectorIdToUpdate) {
         return {
           ...s,
           generalAnalysis: value,
@@ -118,6 +133,7 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
 
   const handleGenerateGeneralSynthesis = async (extraNotes?: string) => {
     if (!currentSector) return;
+    const targetSectorId = currentSector.id;
 
     const ratedDimensions = COPSOQ_DIMENSIONS.map((dim) => {
       const val = currentSector.scores?.[dim.key];
@@ -148,8 +164,8 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
 
     try {
       const text = await generateSectorSynthesis({
-        sectorName: currentSector.name,
-        employeeCount: currentSector.employeeCount,
+        sectorName: currentSector.name || "Setor Avaliado",
+        employeeCount: Number(currentSector.employeeCount) || 1,
         companyName: report.companyName,
         companySector: report.companySector,
         methodology: "copsoq",
@@ -168,16 +184,34 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
           rating,
           type,
         })),
-        userInstructions: extraNotes ?? customPromptNotes,
+        userInstructions: typeof (extraNotes ?? customPromptNotes) === "string" ? (extraNotes ?? customPromptNotes) : "",
       });
 
-      handleGeneralAnalysisChange(text);
+      const safeText = typeof text === "string" ? text.trim() : "";
+      if (!safeText) {
+        setSynthesisError("A IA não retornou conteúdo para a síntese. Tente novamente.");
+        return;
+      }
+
+      handleGeneralAnalysisChange(safeText, targetSectorId);
       setSynthesisSuccess(true);
       setShowCustomPrompt(false);
-      setTimeout(() => setSynthesisSuccess(false), 4000);
+      if (successTimerRef.current !== null) {
+        window.clearTimeout(successTimerRef.current);
+      }
+      successTimerRef.current = window.setTimeout(() => {
+        successTimerRef.current = null;
+        setSynthesisSuccess(false);
+      }, 4000);
     } catch (err: any) {
       console.error("Erro ao gerar síntese COPSOQ com IA:", err);
-      setSynthesisError(err.message || "Falha ao gerar síntese com IA.");
+      const errMessage =
+        typeof err?.message === "string" && err.message.trim()
+          ? err.message
+          : typeof err === "string" && err.trim()
+            ? err
+            : "Falha ao gerar síntese com IA.";
+      setSynthesisError(errMessage);
     } finally {
       setIsGeneratingSynthesis(false);
     }
@@ -210,10 +244,10 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
           <SearchableSelect
             value={currentSector?.id || ""}
             onChange={(val) => setSelectedSectorId(val)}
-            options={report.sectors.map((s) => ({
+            options={sectors.map((s) => ({
               value: s.id,
-              label: s.name,
-              subLabel: `${s.employeeCount} funcionários`
+              label: s.name || "Setor sem nome",
+              subLabel: `${s.employeeCount || 0} funcionários`
             }))}
             placeholder="Selecione o setor..."
             searchPlaceholder="Buscar setor..."
@@ -368,30 +402,31 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setShowCustomPrompt(!showCustomPrompt)}
+                  onClick={() => setShowCustomPrompt((prev) => !prev)}
                   disabled={isGeneratingSynthesis}
                   className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
                 >
-                  {showCustomPrompt ? "Ocultar Instruções" : "Ajustar Comando"}
+                  <span>{showCustomPrompt ? "Ocultar Instruções" : "Ajustar Comando"}</span>
                 </button>
 
                 {!showCustomPrompt && (
                   <button
+                    key="generate-synthesis-direct"
                     type="button"
                     disabled={isGeneratingSynthesis}
                     onClick={() => handleGenerateGeneralSynthesis()}
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-xs transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
                   >
                     {isGeneratingSynthesis ? (
-                      <>
+                      <span key="loading" className="inline-flex items-center gap-1.5">
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Gerando Síntese...
-                      </>
+                        <span>Gerando Síntese...</span>
+                      </span>
                     ) : (
-                      <>
+                      <span key="idle" className="inline-flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5" />
-                        Gerar Síntese com IA
-                      </>
+                        <span>Gerar Síntese com IA</span>
+                      </span>
                     )}
                   </button>
                 )}
@@ -412,13 +447,18 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
                 />
                 <div className="flex justify-end">
                   <button
+                    key="generate-synthesis-custom"
                     type="button"
                     disabled={isGeneratingSynthesis}
                     onClick={() => handleGenerateGeneralSynthesis(customPromptNotes)}
                     className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   >
-                    {isGeneratingSynthesis ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                    {isGeneratingSynthesis ? "Gerando..." : "Gerar Síntese com IA"}
+                    {isGeneratingSynthesis ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Wand2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isGeneratingSynthesis ? "Gerando..." : "Gerar Síntese com IA"}</span>
                   </button>
                 </div>
               </div>
@@ -427,19 +467,19 @@ export const CopsoqEvaluation: React.FC<CopsoqEvaluationProps> = ({ report, onCh
             {synthesisSuccess && (
               <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                 <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                Síntese gerada pela IA com base nos indicadores COPSOQ II deste setor!
+                <span>Síntese gerada pela IA com base nos indicadores COPSOQ II deste setor!</span>
               </div>
             )}
 
             {synthesisError && (
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center justify-between gap-2">
-                <span>{synthesisError}</span>
+                <span>{String(synthesisError)}</span>
                 <button type="button" onClick={() => setSynthesisError(null)} className="text-rose-500 hover:text-rose-700 font-bold cursor-pointer">✕</button>
               </div>
             )}
 
             <textarea
-              value={currentSector.generalAnalysis || ""}
+              value={typeof currentSector.generalAnalysis === "string" ? currentSector.generalAnalysis : ""}
               onChange={(e) => handleGeneralAnalysisChange(e.target.value)}
               placeholder="Descreva a percepção dos colaboradores neste setor ou clique em 'Gerar Síntese com IA' para elaborá-la a partir das notas do COPSOQ II."
               rows={5}
